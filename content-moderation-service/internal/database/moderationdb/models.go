@@ -11,28 +11,15 @@ import (
 )
 
 type ModerationAttempt struct {
-	JobID           uuid.UUID
-	RunGeneration   int32
-	AttemptNumber   int32
-	ConfigVersionID *string
-	ModelID         *string
-	Outcome         string
-	ErrorClass      *string
-	Detail          *string
-	StartedAt       time.Time
-	FinishedAt      *time.Time
-}
-
-type ModerationConfigVersion struct {
-	VersionID           uuid.UUID
-	ModelID             string
-	Parameters          []byte
-	OutputMode          string
-	PolicyVersion       string
-	ProviderFingerprint string
-	CreatedBy           string
-	CreatedAt           time.Time
-	SystemMessage       string
+	JobID         uuid.UUID
+	RunGeneration int32
+	AttemptNumber int32
+	ModelID       *string
+	Outcome       string
+	ErrorClass    *string
+	Detail        *string
+	StartedAt     time.Time
+	FinishedAt    *time.Time
 }
 
 type ModerationJob struct {
@@ -43,7 +30,6 @@ type ModerationJob struct {
 	ReviewerID          uuid.UUID
 	ContentRevision     int32
 	Comment             string
-	ConfigVersionID     *string
 	PolicyVersion       *string
 	RunGeneration       int32
 	Status              string

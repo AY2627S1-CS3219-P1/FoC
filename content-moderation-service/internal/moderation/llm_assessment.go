@@ -9,7 +9,7 @@ import (
 )
 
 // Evaluate assesses one review comment against the versioned policy. It builds
-// a fresh single-turn request from the pinned config, calls the injected
+// a fresh single-turn request from process settings, calls the injected
 // completion client, validates the response locally, and maps the outcome. An
 // error return is always a technical failure (one of the moderation error
 // classes); no verdict is inferred from it.
@@ -17,7 +17,7 @@ func (e *Service) AssessReview(ctx context.Context, input ReviewInput) (ReviewAs
 	if e.client == nil {
 		return ReviewAssessment{}, &ErrConfiguration{Detail: "moderation provider is not configured"}
 	}
-	req := buildRequest(input)
+	req := buildRequest(input, e.modelID)
 	resp, err := e.client.Complete(ctx, req)
 	if err != nil {
 		return ReviewAssessment{}, err
@@ -25,30 +25,18 @@ func (e *Service) AssessReview(ctx context.Context, input ReviewInput) (ReviewAs
 	return evaluateResponse(resp)
 }
 
-// buildRequest maps the pinned effective config into a completion request with
+// buildRequest constructs a completion request using the fixed policy and model, with
 // a fresh single-turn conversation: the trusted system prompt plus the
 // complete, delimited review as the user message.
-func buildRequest(input ReviewInput) *CompletionRequest {
-	cfg := input.Config
+func buildRequest(input ReviewInput, modelID string) *CompletionRequest {
 	return &CompletionRequest{
-		Model:      cfg.ModelID,
-		System:     configuredSystemMessage(cfg.SystemMessage),
+		Model:      modelID,
+		System:     systemMessage(),
 		User:       userMessage(input.Comment),
-		OutputMode: string(cfg.OutputMode),
+		OutputMode: OutputModeJSONObject,
 		SchemaJSON: SchemaJSON,
-		Parameters: CompletionParameters{
-			Temperature:         cfg.Temperature,
-			TopP:                cfg.TopP,
-			PresencePenalty:     cfg.PresencePenalty,
-			FrequencyPenalty:    cfg.FrequencyPenalty,
-			MaxCompletionTokens: cfg.MaxCompletionTokens,
-			MaxTokens:           cfg.MaxTokens,
-			Stop:                cfg.Stop,
-			Seed:                cfg.Seed,
-			ReasoningEffort:     cfg.ReasoningEffort,
-			Advanced:            cfg.Advanced,
-		},
 	}
+
 }
 
 // evaluateResponse turns a provider response into an assessment, enforcing the

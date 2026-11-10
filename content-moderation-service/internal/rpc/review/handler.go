@@ -5,9 +5,10 @@ package review
 import (
 	"context"
 	"errors"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 
 	"connectrpc.com/connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
+
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
@@ -15,10 +16,10 @@ import (
 )
 
 type OwnerHandler struct {
-	service *moderation.Service
+	service *moderationjob.Service
 }
 
-func NewOwnerHandler(service *moderation.Service) *OwnerHandler {
+func NewOwnerHandler(service *moderationjob.Service) *OwnerHandler {
 	return &OwnerHandler{service: service}
 }
 
@@ -70,10 +71,10 @@ func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 }
 
 type AdminHandler struct {
-	service *moderation.Service
+	service *moderationjob.Service
 }
 
-func NewAdminHandler(service *moderation.Service) *AdminHandler {
+func NewAdminHandler(service *moderationjob.Service) *AdminHandler {
 	return &AdminHandler{service: service}
 }
 
@@ -88,7 +89,7 @@ func (h *AdminHandler) GetReviewModerationJob(
 	}
 	job, err := h.service.GetJobViewByID(ctx, jobID)
 	if err != nil {
-		if errors.Is(err, moderation.ErrJobNotFound) {
+		if errors.Is(err, moderationjob.ErrJobNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, errs.NewNotFoundError("job not found"))
 		}
 		return nil, err
@@ -125,17 +126,16 @@ func (h *AdminHandler) RetryErroredJob(
 		ctx,
 		jobID,
 		req.Msg.ExpectedRunGeneration,
-		req.Msg.UseCurrentConfiguration,
 		caller.ID,
 	)
 	if err != nil {
-		if errors.Is(err, moderation.ErrNotRetriable) {
+		if errors.Is(err, moderationjob.ErrNotRetriable) {
 			return nil, connect.NewError(
 				connect.CodeFailedPrecondition,
 				errs.NewFailedPreconditionError("job is not retriable at the expected generation"),
 			)
 		}
-		if errors.Is(err, moderation.ErrJobNotFound) {
+		if errors.Is(err, moderationjob.ErrJobNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, errs.NewNotFoundError("job not found"))
 		}
 		return nil, err

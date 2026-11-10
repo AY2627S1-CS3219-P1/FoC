@@ -4,7 +4,6 @@ CREATE TABLE moderation_attempts (
     job_id            uuid        NOT NULL REFERENCES moderation_jobs(id),
     run_generation    integer     NOT NULL,
     attempt_number    integer     NOT NULL,
-    config_version_id text,
     model_id          text,
     outcome           text        NOT NULL DEFAULT '',
     error_class       text,

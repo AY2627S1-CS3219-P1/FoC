@@ -10,7 +10,6 @@ import (
 	"connectrpc.com/grpchealth"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1/reviewv1connect"
-	moderationv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1/moderationv1connect"
 )
 
 func TestPublicStandardHealthRPC(t *testing.T) {
@@ -18,7 +17,6 @@ func TestPublicStandardHealthRPC(t *testing.T) {
 		Health:                grpchealth.NewStaticChecker(),
 		ReviewModeration:      reviewv1connect.UnimplementedReviewModerationServiceHandler{},
 		ReviewModerationAdmin: reviewv1connect.UnimplementedReviewModerationAdminServiceHandler{},
-		ModerationAdmin:       moderationv1connect.UnimplementedModerationAdminServiceHandler{},
 	}, func(next http.Handler) http.Handler {
 		return next
 	})

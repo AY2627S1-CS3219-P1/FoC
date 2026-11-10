@@ -26,11 +26,6 @@ WHERE ((
         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
     )
    OR (status = 'processing' AND lease_until <= now()))
-AND NOT EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-)
 ORDER BY created_at ASC, id ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1;
@@ -48,17 +43,6 @@ SET status = 'processing',
 WHERE id = sqlc.arg(id)
   AND status <> 'completed'
   AND status <> 'errored';
-
--- name: PinActiveConfig :exec
--- Pins the effective configuration (and its policy version) before the first
--- inference. Config and policy are pinned together once, then retained across
--- retries of the same generation.
-UPDATE moderation_jobs
-SET config_version_id = sqlc.arg(config_version_id),
-    policy_version = sqlc.arg(policy_version),
-    updated_at = now()
-WHERE id = sqlc.arg(id)
-  AND config_version_id IS NULL;
 
 -- name: HeartbeatJob :execrows
 UPDATE moderation_jobs
@@ -156,7 +140,6 @@ UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,
     status = 'queued',
-    config_version_id = sqlc.arg(config_version_id),
     policy_version = sqlc.arg(policy_version),
     next_attempt_at = NULL,
     outcome = NULL,
@@ -170,17 +153,6 @@ SET run_generation = run_generation + 1,
 WHERE id = sqlc.arg(id)
   AND run_generation = sqlc.arg(run_generation)
   AND status = 'errored';
-
--- name: ResumeConfigurationPausedJobs :many
-UPDATE moderation_jobs j
-SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
-    config_version_id = sqlc.arg(config_version_id), policy_version = sqlc.arg(policy_version),
-    next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
-    finished_at = NULL, claim_token = NULL, worker_id = NULL,
-    lease_until = NULL, heartbeat_at = NULL, updated_at = now()
-WHERE j.status IN ('queued', 'retry_wait', 'processing')
-  AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
-RETURNING j.id;
 
 -- name: ExhaustJob :execrows
 -- The caller holds the row lock obtained by ClaimEligibleJob.
@@ -204,20 +176,10 @@ WHERE id = sqlc.arg(id) AND run_generation = sqlc.arg(run_generation)
 FOR UPDATE;
 
 -- name: GetJobViewByID :one
-SELECT sqlc.embed(j), COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-), false)::boolean AS configuration_paused
-FROM moderation_jobs j WHERE j.id = sqlc.arg(id);
+SELECT sqlc.embed(j) FROM moderation_jobs j WHERE j.id = sqlc.arg(id);
 
 -- name: GetJobViewsForReviewer :many
-SELECT sqlc.embed(j), COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-), false)::boolean AS configuration_paused
-FROM moderation_jobs j
+SELECT sqlc.embed(j) FROM moderation_jobs j
 WHERE reviewer_id = sqlc.arg(reviewer_id)
 AND moderation_request_id = ANY(sqlc.slice(moderation_request_ids))
 ORDER BY created_at DESC;

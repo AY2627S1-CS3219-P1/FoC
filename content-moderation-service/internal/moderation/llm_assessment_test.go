@@ -31,17 +31,13 @@ func assess(t *testing.T, resp *CompletionResponse, err error) (ReviewAssessment
 		resp.FinishReason = "stop"
 	}
 	fake := &fakeClient{resp: resp, err: err}
-	e := (&Service{client: fake})
+	e := (&Service{client: fake, modelID: "m"})
 	return e.AssessReview(context.Background(), ReviewInput{
 		ModerationRequestID: "req-1",
 		ReviewID:            "rev-1",
 		ReviewerID:          "revi-1",
 		ContentRevision:     1,
 		Comment:             "This order arrived late and the item was damaged.",
-		Config: ReviewConfig{
-			ModelID:    "ornith-1.5",
-			OutputMode: OutputModeJSONSchema,
-		},
 	})
 }
 
@@ -195,10 +191,9 @@ func TestEvaluateMultilingualBenignIsNotRejectedForBeingNegative(t *testing.T) {
 	fake := &fakeClient{
 		resp: &CompletionResponse{FinishReason: "stop", Content: `{"decision":"approve","reason_codes":[]}`},
 	}
-	e := (&Service{client: fake})
+	e := (&Service{client: fake, modelID: "m"})
 	assessment, err := e.AssessReview(context.Background(), ReviewInput{
 		Comment: comment,
-		Config:  ReviewConfig{ModelID: "m", OutputMode: OutputModeJSONObject},
 	})
 	if err != nil {
 		t.Fatalf("benign multilingual complaint validated as error: %v", err)
@@ -226,10 +221,9 @@ func TestPromptConstructionFreshSingleTurnAndDataFraming(t *testing.T) {
 	fake := &fakeClient{
 		resp: &CompletionResponse{FinishReason: "stop", Content: `{"decision":"approve","reason_codes":[]}`},
 	}
-	e := (&Service{client: fake})
+	e := (&Service{client: fake, modelID: "m"})
 	if _, err := e.AssessReview(context.Background(), ReviewInput{
 		Comment: comment,
-		Config:  ReviewConfig{ModelID: "m", OutputMode: OutputModeJSONObject},
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -357,38 +351,20 @@ func TestMissingFinishReasonCannotApprove(t *testing.T) {
 	assertInvalid(t, err)
 }
 
-func TestConfiguredSystemMessageKeepsResponseValidation(t *testing.T) {
-	client := &fakeClient{
-		resp: &CompletionResponse{Content: `{"decision":"reject","reason_codes":["UNKNOWN"]}`, FinishReason: "stop"},
-	}
-	const prompt = "Apply the administrator's review rubric."
-	_, err := (&Service{client: client}).AssessReview(
-		context.Background(),
-		ReviewInput{Comment: "review content", Config: ReviewConfig{SystemMessage: prompt}},
-	)
-	assertInvalid(t, err)
-	if client.lastRequest.System != prompt {
-		t.Fatalf("system message = %q, want configured prompt", client.lastRequest.System)
-	}
-	if !strings.Contains(client.lastRequest.User, "review content") {
-		t.Fatal("review snapshot missing from user message")
-	}
-}
-
 func TestConcreteFailureClassification(t *testing.T) {
 	cases := []struct {
 		err   error
 		class string
-		kind  errorKind
+		kind  ErrorKind
 	}{
-		{ErrEmptyResponse, ErrorClassInvalidOutput, kindInvalidOutput},
-		{&ErrInvalidOutput{Detail: "bad JSON"}, ErrorClassInvalidOutput, kindInvalidOutput},
-		{&ErrRefusal{}, ErrorClassContentFilter, kindContentFilter},
-		{&ErrConfiguration{}, ErrorClassConfiguration, kindConfiguration},
-		{&ErrTimeout{}, ErrorClassTimeout, kindDurable},
-		{&ErrContext{}, ErrorClassConnection, kindDurable},
-		{&ErrConnection{}, ErrorClassConnection, kindDurable},
-		{errors.New("unexpected"), ErrorClassServerError, kindDurable},
+		{ErrEmptyResponse, ErrorClassInvalidOutput, KindInvalidOutput},
+		{&ErrInvalidOutput{Detail: "bad JSON"}, ErrorClassInvalidOutput, KindInvalidOutput},
+		{&ErrRefusal{}, ErrorClassContentFilter, KindContentFilter},
+		{&ErrConfiguration{}, ErrorClassConfiguration, KindConfiguration},
+		{&ErrTimeout{}, ErrorClassTimeout, KindDurable},
+		{&ErrContext{}, ErrorClassConnection, KindDurable},
+		{&ErrConnection{}, ErrorClassConnection, KindDurable},
+		{errors.New("unexpected"), ErrorClassServerError, KindDurable},
 	}
 	for _, tc := range cases {
 		class, kind, _ := Classify(fmt.Errorf("assessment failed: %w", tc.err))

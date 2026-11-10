@@ -1,8 +1,9 @@
-package moderation
+package job
 
 import (
 	"context"
 	"errors"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func (f *repositoryFake) Release(ctx context.Context, _ uuid.UUID, _ uuid.UUID) 
 	return f.release(ctx)
 }
 
-func (f *repositoryFake) Complete(context.Context, ClaimedJob, ReviewAssessment) error {
+func (f *repositoryFake) Complete(context.Context, ClaimedJob, moderation.ReviewAssessment) error {
 	return f.complete()
 }
 
@@ -43,9 +44,12 @@ func (f *repositoryFake) FinalizeFailed(context.Context, ClaimedJob, error) erro
 	return errors.New("unexpected failed assessment")
 }
 
-type evaluatorFunc func(context.Context, ReviewInput) (ReviewAssessment, error)
+type evaluatorFunc func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error)
 
-func (f evaluatorFunc) AssessReview(ctx context.Context, in ReviewInput) (ReviewAssessment, error) {
+func (f evaluatorFunc) AssessReview(
+	ctx context.Context,
+	in moderation.ReviewInput,
+) (moderation.ReviewAssessment, error) {
 	return f(ctx, in)
 }
 
@@ -64,16 +68,15 @@ func regressionClaim() *ClaimedJob {
 	return &ClaimedJob{
 		Job:        JobSnapshot{ID: uuid.New(), RunGeneration: 1},
 		ClaimToken: uuid.New(),
-		Config:     ConfigurationSnapshot{Parameters: []byte(`{}`), PolicyVersion: "review-text-v1"},
 	}
 }
 
-func approvedAssessment() ReviewAssessment {
-	return ReviewAssessment{Outcome: OutcomeApproved, PolicyVersion: "review-text-v1"}
+func approvedAssessment() moderation.ReviewAssessment {
+	return moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"}
 }
 
 func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
+	limiter := moderation.NewInferenceLimiter(1)
 	if !limiter.TryAcquire() {
 		t.Fatal("occupy gate")
 	}
@@ -83,7 +86,9 @@ func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
 	}
 	pool := NewPool(
 		store,
-		evaluatorFunc(func(context.Context, ReviewInput) (ReviewAssessment, error) { panic("unexpected inference") }),
+		evaluatorFunc(func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
+			panic("unexpected inference")
+		}),
 		limiter,
 		regressionConfig(),
 		nil,
@@ -101,17 +106,23 @@ func TestWorkerDoesNotClaimWhileSharedCapacityIsOccupied(t *testing.T) {
 }
 
 func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
+	limiter := moderation.NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	var evaluated, released bool
 	store := &repositoryFake{
 		heartbeat: func(context.Context) (bool, error) { return false, nil },
 		release:   func(context.Context) (bool, error) { released = true; return false, nil },
 	}
-	pool := NewPool(store, evaluatorFunc(func(context.Context, ReviewInput) (ReviewAssessment, error) {
-		evaluated = true
-		return approvedAssessment(), nil
-	}), limiter, regressionConfig(), nil)
+	pool := NewPool(
+		store,
+		evaluatorFunc(func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
+			evaluated = true
+			return approvedAssessment(), nil
+		}),
+		limiter,
+		regressionConfig(),
+		nil,
+	)
 	pool.processClaimed(context.Background(), regressionClaim())
 	if evaluated || !released || limiter.InFlight() != 0 {
 		t.Fatalf("stale inference=%v release=%v slots=%d", evaluated, released, limiter.InFlight())
@@ -119,7 +130,7 @@ func TestStaleClaimIsCheckedBeforeInference(t *testing.T) {
 }
 
 func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
+	limiter := moderation.NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	entered := make(chan struct{})
 	var heartbeats atomic.Int32
@@ -136,14 +147,20 @@ func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
 		complete: func() error { completed = true; return nil },
 		release:  func(context.Context) (bool, error) { t.Error("valid completion released"); return true, nil },
 	}
-	pool := NewPool(store, evaluatorFunc(func(ctx context.Context, _ ReviewInput) (ReviewAssessment, error) {
-		select {
-		case <-entered:
-			return approvedAssessment(), nil
-		case <-ctx.Done():
-			return ReviewAssessment{}, ctx.Err()
-		}
-	}), limiter, regressionConfig(), nil)
+	pool := NewPool(
+		store,
+		evaluatorFunc(func(ctx context.Context, _ moderation.ReviewInput) (moderation.ReviewAssessment, error) {
+			select {
+			case <-entered:
+				return approvedAssessment(), nil
+			case <-ctx.Done():
+				return moderation.ReviewAssessment{}, ctx.Err()
+			}
+		}),
+		limiter,
+		regressionConfig(),
+		nil,
+	)
 	pool.processClaimed(context.Background(), regressionClaim())
 	if !completed || limiter.InFlight() != 0 {
 		t.Fatal("intentional heartbeat cancellation discarded result or leaked slot")
@@ -151,7 +168,7 @@ func TestCompletionCancelsPendingHeartbeatWithoutLosingResult(t *testing.T) {
 }
 
 func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
-	limiter := NewInferenceLimiter(1)
+	limiter := moderation.NewInferenceLimiter(1)
 	limiter.TryAcquire()
 	released := false
 	store := &repositoryFake{
@@ -169,7 +186,9 @@ func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
 	pool := NewPool(
 		store,
 		evaluatorFunc(
-			func(context.Context, ReviewInput) (ReviewAssessment, error) { return approvedAssessment(), nil },
+			func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
+				return approvedAssessment(), nil
+			},
 		),
 		limiter,
 		regressionConfig(),
@@ -182,10 +201,22 @@ func TestFailedTerminalWriteUsesBoundedDetachedCleanup(t *testing.T) {
 	}
 }
 
-func TestInvalidStoredParametersFailClosed(t *testing.T) {
-	c := regressionClaim()
-	c.Config.Parameters = []byte(`{"temperature":"wrong-type"}`)
-	if _, err := evaluationInput(c); err == nil {
-		t.Fatal("corrupt parameters silently became defaults")
+func TestConfigurationFailureReleasesClaimAndStopsPool(t *testing.T) {
+	released, stopped := false, false
+	p := NewPool(&repositoryFake{release: func(ctx context.Context) (bool, error) {
+		released = true
+		if ctx.Err() != nil {
+			t.Fatal("cleanup context cancelled")
+		}
+		return true, nil
+	}}, nil, moderation.NewInferenceLimiter(1), regressionConfig(), nil)
+	p.stop = func() { stopped = true }
+	p.finalizeFailed(
+		context.Background(),
+		regressionClaim(),
+		moderation.WrapConfigurationError(errors.New("invalid provider settings")),
+	)
+	if !released || !stopped {
+		t.Fatalf("released=%v stopped=%v", released, stopped)
 	}
 }

@@ -1,10 +1,10 @@
-package moderation
+package job
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -25,18 +25,19 @@ type PoolConfig struct {
 // Pool drives the moderation service with bounded workers, heartbeats, and shared inference capacity.
 type Pool struct {
 	store   jobOperations
-	service reviewAssessmentService
-	limiter *InferenceLimiter
+	service Assessor
+	limiter *moderation.InferenceLimiter
 	cfg     PoolConfig
 	logger  *slog.Logger
 	stats   poolStats
 	workers sync.WaitGroup
+	stop    context.CancelFunc
 }
 
 func NewPool(
 	repository jobOperations,
-	service reviewAssessmentService,
-	limiter *InferenceLimiter,
+	service Assessor,
+	limiter *moderation.InferenceLimiter,
 	cfg PoolConfig,
 	logger *slog.Logger,
 ) *Pool {
@@ -57,6 +58,7 @@ func NewPool(
 // provider is configured (for example, no provider key yet) the pool stays
 // idle so queued jobs are never attempted or burned against.
 func (p *Pool) Start(ctx context.Context) {
+	ctx, p.stop = context.WithCancel(ctx)
 	if p.service == nil {
 		p.logger.Info("worker pool disabled: no provider configured (no provider key)")
 		return
@@ -130,7 +132,7 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 		}
 
 		switch outcome {
-		case ClaimNone, ClaimNoConfiguration:
+		case ClaimNone:
 			p.limiter.Release()
 			p.idleSleep(ctx, p.cfg.PollInterval)
 		case ClaimExhausted:
@@ -142,7 +144,7 @@ func (p *Pool) worker(ctx context.Context, workerID string) {
 }
 
 // processClaimed runs the bounded assessment and finalizes it. The limiter slot
-// bounds concurrent evaluations together with the configuration test.
+// bounds concurrent provider requests.
 func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	defer p.limiter.Release()
 	p.stats.inFlight.Add(1)
@@ -166,7 +168,7 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 	}
 	input, err := evaluationInput(claimed)
 	if err != nil {
-		p.finalizeFailed(ctx, claimed, WrapConfigurationError(err))
+		p.finalizeFailed(ctx, claimed, moderation.WrapConfigurationError(err))
 		return
 	}
 	heartbeatStop, claimLost, claimDone := p.heartbeat(ctx, evalCtx, cancelEval, claimed)
@@ -198,17 +200,9 @@ func (p *Pool) processClaimed(ctx context.Context, claimed *ClaimedJob) {
 
 // complete validates and persists a valid assessment, or reclassifies an invalid
 // one as invalid output.
-func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment ReviewAssessment) {
+func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment moderation.ReviewAssessment) {
 	if err := validateAssessment(assessment); err != nil {
 		p.finalizeFailed(ctx, claimed, err)
-		return
-	}
-	if assessment.PolicyVersion != claimed.Config.PolicyVersion {
-		p.finalizeFailed(
-			ctx,
-			claimed,
-			WrapConfigurationError(errors.New("assessment policy differs from pinned configuration")),
-		)
 		return
 	}
 	writeCtx, cancelWrite := p.persistenceContext(ctx)
@@ -231,6 +225,16 @@ func (p *Pool) complete(ctx context.Context, claimed *ClaimedJob, assessment Rev
 }
 
 func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr error) {
+	class, _, _ := moderation.Classify(evalErr)
+	if class == moderation.ErrorClassConfiguration {
+		if p.stop != nil {
+			p.stop()
+		}
+		p.release(ctx, claimed)
+		p.logger.Error("assessment workers stopped; correct runtime settings and restart", "error_class", class)
+		return
+	}
+
 	if errors.Is(evalErr, ErrClaimLost) {
 		return
 	}
@@ -246,12 +250,12 @@ func (p *Pool) finalizeFailed(ctx context.Context, claimed *ClaimedJob, evalErr 
 		return
 	}
 
-	errorClass, kind, _ := Classify(evalErr)
+	errorClass, kind, _ := moderation.Classify(evalErr)
 	switch kind {
-	case kindConfiguration:
+	case moderation.KindConfiguration:
 		p.stats.configPaused.Add(1)
 		p.logger.Warn("job paused on configuration error", "job", claimed.Job.ID.String(), "error_class", errorClass)
-	case kindDurable:
+	case moderation.KindDurable:
 		p.stats.errored.Add(1)
 		p.logger.Error("job errored terminally", "job", claimed.Job.ID.String(), "error_class", errorClass)
 	}
@@ -312,64 +316,14 @@ func (p *Pool) idleSleep(ctx context.Context, d time.Duration) {
 	}
 }
 
-func evaluationInput(claimed *ClaimedJob) (ReviewInput, error) {
-	config, err := effectiveConfig(claimed.Config)
-	if err != nil {
-		return ReviewInput{}, err
-	}
-	return ReviewInput{
+func evaluationInput(claimed *ClaimedJob) (moderation.ReviewInput, error) {
+	return moderation.ReviewInput{
 		ModerationRequestID: claimed.Job.ModerationRequestID.String(),
 		ReviewID:            claimed.Job.ReviewID.String(),
 		ReviewerID:          claimed.Job.ReviewerID.String(),
 		ContentRevision:     claimed.Job.ContentRevision,
 		Comment:             claimed.Job.Comment,
-		Config:              config,
 	}, nil
-}
-
-// configParameters mirrors the jsonb layout persisted by the config domain.
-type configParameters struct {
-	Temperature         *float64          `json:"temperature"`
-	TopP                *float64          `json:"top_p"`
-	PresencePenalty     *float64          `json:"presence_penalty"`
-	FrequencyPenalty    *float64          `json:"frequency_penalty"`
-	MaxCompletionTokens *int64            `json:"max_completion_tokens"`
-	MaxTokens           *int64            `json:"max_tokens"`
-	Stop                []string          `json:"stop"`
-	Seed                *int64            `json:"seed"`
-	ReasoningEffort     *string           `json:"reasoning_effort"`
-	Advanced            map[string]string `json:"advanced_parameters"`
-}
-
-func effectiveConfig(config ConfigurationSnapshot) (ReviewConfig, error) {
-	var params configParameters
-	if err := json.Unmarshal(config.Parameters, &params); err != nil {
-		return ReviewConfig{}, errors.New("stored inference parameters are invalid")
-	}
-
-	return ReviewConfig{
-		SystemMessage:       config.SystemMessage,
-		VersionID:           config.VersionID.String(),
-		ModelID:             config.ModelID,
-		OutputMode:          OutputMode(config.OutputMode),
-		Temperature:         params.Temperature,
-		TopP:                params.TopP,
-		PresencePenalty:     params.PresencePenalty,
-		FrequencyPenalty:    params.FrequencyPenalty,
-		MaxCompletionTokens: params.MaxCompletionTokens,
-		MaxTokens:           params.MaxTokens,
-		Stop:                params.Stop,
-		Seed:                params.Seed,
-		ReasoningEffort:     derefString(params.ReasoningEffort),
-		Advanced:            params.Advanced,
-	}, nil
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 type poolStats struct {
@@ -383,4 +337,9 @@ func (p *Pool) LogStatistics(ctx context.Context) {
 	p.logger.InfoContext(ctx, "moderation worker statistics",
 		"in_flight", p.stats.inFlight.Load(), "completed", p.stats.completed.Load(),
 		"errored_attempts", p.stats.errored.Load(), "configuration_pauses", p.stats.configPaused.Load())
+}
+
+// Assessor is the assessment port consumed by the worker.
+type Assessor interface {
+	AssessReview(ctx context.Context, input moderation.ReviewInput) (moderation.ReviewAssessment, error)
 }

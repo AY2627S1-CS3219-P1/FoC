@@ -1,7 +1,8 @@
-package moderation
+package job
 
 import (
 	"context"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,7 +14,7 @@ type jobOperations interface {
 	Claim(context.Context, string, time.Duration) (ClaimOutcome, *ClaimedJob, error)
 	Heartbeat(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (bool, error)
 	Release(context.Context, uuid.UUID, uuid.UUID) (bool, error)
-	Complete(context.Context, ClaimedJob, ReviewAssessment) error
+	Complete(context.Context, ClaimedJob, moderation.ReviewAssessment) error
 	FinalizeFailed(context.Context, ClaimedJob, error) error
 }
 
@@ -21,7 +22,6 @@ type ClaimOutcome int
 
 const (
 	ClaimNone ClaimOutcome = iota
-	ClaimNoConfiguration
 	ClaimReady
 	ClaimExhausted
 )
@@ -31,7 +31,6 @@ type ClaimedJob struct {
 	Job           JobSnapshot
 	ClaimToken    uuid.UUID
 	AttemptNumber int32
-	Config        ConfigurationSnapshot
 }
 
 type JobSnapshot struct {
@@ -42,17 +41,6 @@ type JobSnapshot struct {
 	ReviewerID          uuid.UUID
 	ContentRevision     int32
 	Comment             string
-	ConfigVersionID     *string
 	PolicyVersion       *string
 	RunGeneration       int32
-}
-
-type ConfigurationSnapshot struct {
-	SystemMessage       string
-	VersionID           uuid.UUID
-	ModelID             string
-	Parameters          []byte
-	OutputMode          string
-	PolicyVersion       string
-	ProviderFingerprint string
 }

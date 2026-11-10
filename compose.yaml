@@ -376,6 +376,7 @@ services:
       # starts the service degraded: submissions queue, admin APIs and setup
       # status still work, no inference attempts are burned.
       CMS_LLM_BASE_URL: ${CMS_LLM_BASE_URL:-https://soclaas-api.comp.nus.edu.sg/v1}
+      CMS_LLM_MODEL_ID: ${CMS_LLM_MODEL_ID:-gemma4:26b}
       CMS_LLM_API_KEY: ${CMS_LLM_API_KEY:-}
     volumes:
       - ./content-moderation-service:/app

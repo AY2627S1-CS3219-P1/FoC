@@ -1,6 +1,7 @@
-package moderation
+package job
 
 import (
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"math/rand"
 	"time"
 )
@@ -59,24 +60,24 @@ type decision struct {
 // generation's attempt counter after this attempt; invalidCount and filterCount
 // are the per-generation tallies for the two bounded budgets.
 func (p RetrySettings) decide(
-	kind errorKind,
+	kind moderation.ErrorKind,
 	attemptCount, invalidCount, filterCount int,
 	rng *rand.Rand,
 ) decision {
-	if kind != kindConfiguration && attemptCount >= p.MaxAttempts {
+	if kind != moderation.KindConfiguration && attemptCount >= p.MaxAttempts {
 		return decision{retry: false}
 	}
 	switch kind {
-	case kindConfiguration:
+	case moderation.KindConfiguration:
 		// The fenced failure transaction blocks this configuration in the database.
 		// Only successful admin revalidation can make it eligible again.
 		return decision{retry: true}
-	case kindInvalidOutput:
+	case moderation.KindInvalidOutput:
 		if invalidCount >= p.InvalidBudget {
 			return decision{retry: false}
 		}
 		return decision{retry: true, wait: backoffDelay(invalidCount, p.InitialDelay, p.InitialDelay, rng)}
-	case kindContentFilter:
+	case moderation.KindContentFilter:
 		if filterCount >= p.FilterBudget {
 			return decision{retry: false}
 		}

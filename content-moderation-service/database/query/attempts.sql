@@ -1,9 +1,9 @@
 -- name: InsertAttempt :exec
 INSERT INTO moderation_attempts (
-    job_id, run_generation, attempt_number, config_version_id, model_id
+    job_id, run_generation, attempt_number, model_id
 ) VALUES (
     sqlc.arg(job_id), sqlc.arg(run_generation), sqlc.arg(attempt_number),
-    sqlc.narg(config_version_id), sqlc.narg(model_id)
+    sqlc.narg(model_id)
 );
 
 -- name: FinishAttempt :exec

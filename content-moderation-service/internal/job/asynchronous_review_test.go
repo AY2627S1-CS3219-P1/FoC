@@ -1,9 +1,10 @@
 //go:build integration
 
-package moderation_test
+package job_test
 
 import (
 	"context"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,9 +14,9 @@ import (
 
 func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 	db := newTestPool(t)
-	activateTestConfig(t, db)
+
 	ctx := context.Background()
-	store := moderation.NewJobService(db, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil)
 	for range 3 {
 		if _, err := store.Ingest(ctx, ingestInput("finalization contention")); err != nil {
 			t.Fatal(err)
@@ -39,11 +40,11 @@ func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 			}
 		},
 	)
-	worker := moderation.NewPool(
+	worker := moderationjob.NewPool(
 		store,
 		evaluator,
 		moderation.NewInferenceLimiter(2),
-		moderation.PoolConfig{
+		moderationjob.PoolConfig{
 			Concurrency:       2,
 			Lease:             300 * time.Millisecond,
 			HeartbeatInterval: 100 * time.Millisecond,
@@ -89,50 +90,11 @@ func TestContendedFinalizationReturnsWorkerCapacity(t *testing.T) {
 
 }
 
-func TestCompletionEnforcesConsistentPolicyProvenance(t *testing.T) {
-	db := newTestPool(t)
-	activateTestConfig(t, db)
-	ctx := context.Background()
-	store := moderation.NewJobService(db, moderation.DefaultRetrySettings(), nil)
-	if _, err := store.Ingest(ctx, ingestInput("policy provenance")); err != nil {
-		t.Fatal(err)
-	}
-	claim := mustClaim(t, store, "worker")
-	if err := store.Complete(
-		ctx,
-		*claim,
-		moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v2"},
-	); err == nil {
-		t.Fatal("mismatched policy accepted")
-	}
-	if countOutbox(t, db, claim.Job.ID, 1) != 0 {
-		t.Fatal("mismatched policy emitted event")
-	}
-	if err := store.Complete(
-		ctx,
-		*claim,
-		moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"},
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	var stored, published string
-	var version int
-	if err := db.QueryRow(ctx, `SELECT j.policy_version,o.payload->>'policyVersion',o.payload_version FROM moderation_jobs j JOIN moderation_outbox o ON o.job_id=j.id WHERE j.id=$1`, claim.Job.ID).
-		Scan(&stored, &published, &version); err != nil {
-		t.Fatal(err)
-	}
-	if stored != "review-text-v1" || published != stored || version != 1 {
-		t.Fatalf("did not reproduce: stored=%s published=%s", stored, published)
-	}
-	t.Logf("Verified: stored policy=%s, outgoing policy=%s, payload_version=%d", stored, published, version)
-}
-
 func TestAsyncReviewTerminalOutboxFailureRollsBackResultAndAttempt(t *testing.T) {
 	db := newTestPool(t)
-	activateTestConfig(t, db)
+
 	ctx := context.Background()
-	store := moderation.NewJobService(db, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(db, moderationjob.DefaultRetrySettings(), nil)
 	if _, err := store.Ingest(ctx, ingestInput("atomic result publication")); err != nil {
 		t.Fatal(err)
 	}
@@ -175,44 +137,4 @@ func TestAsyncReviewTerminalOutboxFailureRollsBackResultAndAttempt(t *testing.T)
 	t.Log(
 		"CHECKED: failed terminal outbox insert rolled back job and attempt; retry persisted one event without another claim/inference",
 	)
-}
-
-func TestWorkerPausesPolicyMismatchWithoutPublishing(t *testing.T) {
-	db := newTestPool(t)
-	activateTestConfig(t, db)
-	ctx := context.Background()
-	store := moderation.NewJobService(db, moderation.DefaultRetrySettings(), nil)
-	in := ingestInput("changed evaluator policy")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatal(err)
-	}
-	evaluator := shutdownEvaluator(func(context.Context, moderation.ReviewInput) (moderation.ReviewAssessment, error) {
-		return moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v2"}, nil
-	})
-	worker := moderation.NewPool(
-		store,
-		evaluator,
-		moderation.NewInferenceLimiter(1),
-		moderation.PoolConfig{
-			Concurrency:       1,
-			Lease:             time.Minute,
-			HeartbeatInterval: time.Second,
-			LLMRequestTimeout: time.Second,
-			PollInterval:      time.Millisecond,
-		},
-		nil,
-	)
-	workerCtx, cancel := context.WithCancel(ctx)
-	worker.Start(workerCtx)
-	defer func() { cancel(); worker.Wait() }()
-	waitFor(
-		t,
-		func() bool { return countWhere(t, db, `SELECT count(*) FROM moderation_config_pauses`) == 1 },
-		time.Second,
-		"policy mismatch paused",
-	)
-	job := jobByRequest(t, db, in.ModerationRequestID)
-	if job.Status != "retry_wait" || job.AttemptCount != 1 || countOutbox(t, db, job.ID, 1) != 0 {
-		t.Fatal("mismatched policy was published or retried without configuration recovery")
-	}
 }

@@ -31,6 +31,7 @@ type appConfig struct {
 	JobPollInterval      time.Duration
 	LoggingInterval      time.Duration
 
+	LLMModelID string
 	LLMBaseURL string
 	LLMAPIKey  string
 }
@@ -41,6 +42,7 @@ var ErrHeartbeatTooLarge = errors.New("CMS_JOB_HEARTBEAT_INTERVAL must be less t
 
 func loadConfig(getenv func(string) string) (appConfig, error) {
 	c := appConfig{
+		LLMModelID:           strings.TrimSpace(getenv("CMS_LLM_MODEL_ID")),
 		Port:                 strings.TrimSpace(getenv("PORT")),
 		InternalPort:         strings.TrimSpace(getenv("INTERNAL_PORT")),
 		DatabaseURL:          strings.TrimSpace(getenv("DATABASE_URL")),
@@ -66,6 +68,9 @@ func loadConfig(getenv func(string) string) (appConfig, error) {
 		c.UserServiceURL = strings.TrimSpace(getenv("USER_SERVICE_URL"))
 	}
 
+	if c.LLMModelID == "" {
+		return appConfig{}, errors.New("CMS_LLM_MODEL_ID is required")
+	}
 	if c.Port == "" {
 		c.Port = "8080"
 	}

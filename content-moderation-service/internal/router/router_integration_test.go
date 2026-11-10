@@ -8,7 +8,7 @@ package router_test
 
 import (
 	"context"
-	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,8 +24,6 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1/reviewv1connect"
-	moderationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1"
-	moderationv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1/moderationv1connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -39,67 +37,17 @@ func (m muxTransport) Do(r *http.Request) (*http.Response, error) {
 	return rec.Result(), nil
 }
 
-// unimplementedModerationAdmin is a stand-in for the config admin service; the
-// router tests only exercise the auth middleware in front of it.
-type unimplementedModerationAdmin struct{}
-
-func (unimplementedModerationAdmin) GetModerationSetupStatus(
-	context.Context,
-	*connect.Request[moderationv1.GetModerationSetupStatusRequest],
-) (*connect.Response[moderationv1.GetModerationSetupStatusResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
-func (unimplementedModerationAdmin) ListAvailableModels(
-	context.Context,
-	*connect.Request[moderationv1.ListAvailableModelsRequest],
-) (*connect.Response[moderationv1.ListAvailableModelsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
-func (unimplementedModerationAdmin) GetActiveModerationConfiguration(
-	context.Context,
-	*connect.Request[moderationv1.GetActiveModerationConfigurationRequest],
-) (*connect.Response[moderationv1.GetActiveModerationConfigurationResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
-func (unimplementedModerationAdmin) SaveModerationConfigurationDraft(
-	context.Context,
-	*connect.Request[moderationv1.SaveModerationConfigurationDraftRequest],
-) (*connect.Response[moderationv1.SaveModerationConfigurationDraftResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
-func (unimplementedModerationAdmin) TestModerationConfigurationDraft(
-	context.Context,
-	*connect.Request[moderationv1.TestModerationConfigurationDraftRequest],
-) (*connect.Response[moderationv1.TestModerationConfigurationDraftResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
-func (unimplementedModerationAdmin) ActivateModerationConfiguration(
-	context.Context,
-	*connect.Request[moderationv1.ActivateModerationConfigurationRequest],
-) (*connect.Response[moderationv1.ActivateModerationConfigurationResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not used"))
-}
-
 func newMux(
 	t *testing.T,
 	pool *pgxpool.Pool,
 	caller *auth.Caller,
 ) (*http.ServeMux, reviewv1connect.ReviewModerationServiceClient, reviewv1connect.ReviewModerationAdminServiceClient) {
 	t.Helper()
-	service := moderation.NewService(
-		nil, moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
-		nil, nil, nil, moderation.Settings{}, nil,
-	)
+	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	services := router.RPCServices{
 		Health:                grpchealth.NewStaticChecker(),
 		ReviewModeration:      reviewrpc.NewOwnerHandler(service),
 		ReviewModerationAdmin: reviewrpc.NewAdminHandler(service),
-		ModerationAdmin:       unimplementedModerationAdmin{},
 	}
 	var authenticate func(http.Handler) http.Handler
 	if caller == nil {
@@ -122,19 +70,8 @@ func newMux(
 func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	if err := moderation.NewConfigurationStore(pool).EnsureConfigState(ctx); err != nil {
-		t.Fatalf("ensure config state: %v", err)
-	}
-	cstore := moderation.NewConfigurationStore(pool)
-	id, err := cstore.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		moderation.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
-	if err != nil {
-		t.Fatalf("insert config version: %v", err)
-	}
-	if err := cstore.ActivateConfigVersion(ctx, id, "tester", nil); err != nil {
-		t.Fatalf("activate config: %v", err)
-	}
-	in := moderation.IngestionInput{
+
+	in := moderationjob.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            uuid.New(),
@@ -142,7 +79,7 @@ func completedJobFor(t *testing.T, pool *pgxpool.Pool, reviewerID uuid.UUID) (uu
 		ContentRevision:     1,
 		Comment:             "abac target",
 	}
-	jobStore := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -172,8 +109,7 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-			moderation_quarantine, moderation_config_pauses, moderation_config_versions,
-			moderation_config_state, moderation_admin_audit`); err != nil {
+			moderation_quarantine, moderation_admin_audit`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool
@@ -183,20 +119,16 @@ func TestInternalListenerServesOnlyHealth(t *testing.T) {
 	// The internal listener mounts the standard health protocol only — no
 	// business or admin RPCs.
 	pool := setupDB(t)
-	service := moderation.NewService(
-		nil, moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
-		nil, nil, nil, moderation.Settings{}, nil,
-	)
+	service := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	services := router.RPCServices{
 		Health:                grpchealth.NewStaticChecker(),
 		ReviewModeration:      reviewrpc.NewOwnerHandler(service),
 		ReviewModerationAdmin: reviewrpc.NewAdminHandler(service),
-		ModerationAdmin:       unimplementedModerationAdmin{},
 	}
 	mux := router.Internal(services)
-	client := moderationv1connect.NewModerationAdminServiceClient(muxTransport{handler: mux}, "http://test")
-	_, err := client.GetModerationSetupStatus(context.Background(),
-		connect.NewRequest(&moderationv1.GetModerationSetupStatusRequest{}))
+	client := reviewv1connect.NewReviewModerationServiceClient(muxTransport{handler: mux}, "http://test")
+	_, err := client.GetReviewModerationJobsForReviewer(context.Background(),
+		connect.NewRequest(&reviewv1.GetReviewModerationJobsForReviewerRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnimplemented {
 		t.Fatalf("internal admin RPC code = %v, want unimplemented (not mounted)", connect.CodeOf(err))
 	}
@@ -358,9 +290,8 @@ func TestRetryErroredJobGenerationFencing(t *testing.T) {
 
 	t.Run("matching generation requeues exactly once", func(t *testing.T) {
 		resp, err := admin.RetryErroredJob(ctx, connect.NewRequest(&reviewv1.RetryErroredJobRequest{
-			JobId:                   jobID.String(),
-			ExpectedRunGeneration:   1,
-			UseCurrentConfiguration: true,
+			JobId:                 jobID.String(),
+			ExpectedRunGeneration: 1,
 		}))
 		if err != nil {
 			t.Fatalf("retry: %v", err)

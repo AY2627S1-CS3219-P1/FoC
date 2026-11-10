@@ -8,7 +8,6 @@ CREATE TABLE moderation_jobs (
     reviewer_id       uuid        NOT NULL,
     content_revision  integer     NOT NULL,
     comment           text        NOT NULL,
-    config_version_id text,
     policy_version    text,
     run_generation    integer     NOT NULL DEFAULT 1,
     status            text        NOT NULL DEFAULT 'queued'

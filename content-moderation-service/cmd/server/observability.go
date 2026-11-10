@@ -28,11 +28,9 @@ func reportOperationalState(
 				slog.WarnContext(ctx, "read moderation operational state", "error", err)
 			}
 		} else {
-			active, _ := q.GetActiveConfigVersion(queryCtx)
 			slog.InfoContext(ctx, "moderation operational state", "queue_depth", stats.QueueDepth,
 				"oldest_job_at", stats.OldestJobAt, "exhausted_jobs", stats.ExhaustedJobs,
-				"pending_outbox", stats.PendingOutbox, "oldest_outbox_at", stats.OldestOutboxAt,
-				"active_config", active)
+				"pending_outbox", stats.PendingOutbox, "oldest_outbox_at", stats.OldestOutboxAt)
 			if components.pool != nil {
 				components.pool.LogStatistics(ctx)
 			}

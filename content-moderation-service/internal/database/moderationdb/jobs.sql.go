@@ -13,17 +13,12 @@ import (
 )
 
 const claimEligibleJob = `-- name: ClaimEligibleJob :one
-SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j
 WHERE ((
         status IN ('queued','retry_wait')
         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
     )
    OR (status = 'processing' AND lease_until <= now()))
-AND NOT EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-)
 ORDER BY created_at ASC, id ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1
@@ -41,7 +36,6 @@ func (q *Queries) ClaimEligibleJob(ctx context.Context) (ModerationJob, error) {
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -204,7 +198,7 @@ func (q *Queries) ExhaustJob(ctx context.Context, arg ExhaustJobParams) (int64, 
 }
 
 const getJobByID = `-- name: GetJobByID :one
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE id = $1
 `
 
@@ -219,7 +213,6 @@ func (q *Queries) GetJobByID(ctx context.Context, id uuid.UUID) (ModerationJob, 
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -240,7 +233,7 @@ func (q *Queries) GetJobByID(ctx context.Context, id uuid.UUID) (ModerationJob, 
 }
 
 const getJobByModerationRequest = `-- name: GetJobByModerationRequest :one
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE moderation_request_id = $1
 `
 
@@ -255,7 +248,6 @@ func (q *Queries) GetJobByModerationRequest(ctx context.Context, moderationReque
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -276,17 +268,11 @@ func (q *Queries) GetJobByModerationRequest(ctx context.Context, moderationReque
 }
 
 const getJobViewByID = `-- name: GetJobViewByID :one
-SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at, COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-), false)::boolean AS configuration_paused
-FROM moderation_jobs j WHERE j.id = $1
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j WHERE j.id = $1
 `
 
 type GetJobViewByIDRow struct {
-	ModerationJob       ModerationJob
-	ConfigurationPaused bool
+	ModerationJob ModerationJob
 }
 
 func (q *Queries) GetJobViewByID(ctx context.Context, id uuid.UUID) (GetJobViewByIDRow, error) {
@@ -300,7 +286,6 @@ func (q *Queries) GetJobViewByID(ctx context.Context, id uuid.UUID) (GetJobViewB
 		&i.ModerationJob.ReviewerID,
 		&i.ModerationJob.ContentRevision,
 		&i.ModerationJob.Comment,
-		&i.ModerationJob.ConfigVersionID,
 		&i.ModerationJob.PolicyVersion,
 		&i.ModerationJob.RunGeneration,
 		&i.ModerationJob.Status,
@@ -316,18 +301,12 @@ func (q *Queries) GetJobViewByID(ctx context.Context, id uuid.UUID) (GetJobViewB
 		&i.ModerationJob.CreatedAt,
 		&i.ModerationJob.UpdatedAt,
 		&i.ModerationJob.FinishedAt,
-		&i.ConfigurationPaused,
 	)
 	return i, err
 }
 
 const getJobViewsForReviewer = `-- name: GetJobViewsForReviewer :many
-SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.config_version_id, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at, COALESCE(j.status IN ('queued', 'retry_wait', 'processing') AND EXISTS (
-    SELECT 1 FROM moderation_config_pauses p
-    WHERE p.version_id::text = COALESCE(j.config_version_id,
-        (SELECT active_version_id::text FROM moderation_config_state))
-), false)::boolean AS configuration_paused
-FROM moderation_jobs j
+SELECT j.id, j.moderation_request_id, j.source_event_id, j.review_id, j.reviewer_id, j.content_revision, j.comment, j.policy_version, j.run_generation, j.status, j.attempt_count, j.next_attempt_at, j.claim_token, j.worker_id, j.lease_until, j.heartbeat_at, j.outcome, j.reason_codes, j.error_class, j.created_at, j.updated_at, j.finished_at FROM moderation_jobs j
 WHERE reviewer_id = $1
 AND moderation_request_id = ANY($2)
 ORDER BY created_at DESC
@@ -339,8 +318,7 @@ type GetJobViewsForReviewerParams struct {
 }
 
 type GetJobViewsForReviewerRow struct {
-	ModerationJob       ModerationJob
-	ConfigurationPaused bool
+	ModerationJob ModerationJob
 }
 
 func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsForReviewerParams) ([]GetJobViewsForReviewerRow, error) {
@@ -360,7 +338,6 @@ func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsFor
 			&i.ModerationJob.ReviewerID,
 			&i.ModerationJob.ContentRevision,
 			&i.ModerationJob.Comment,
-			&i.ModerationJob.ConfigVersionID,
 			&i.ModerationJob.PolicyVersion,
 			&i.ModerationJob.RunGeneration,
 			&i.ModerationJob.Status,
@@ -376,7 +353,6 @@ func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsFor
 			&i.ModerationJob.CreatedAt,
 			&i.ModerationJob.UpdatedAt,
 			&i.ModerationJob.FinishedAt,
-			&i.ConfigurationPaused,
 		); err != nil {
 			return nil, err
 		}
@@ -389,7 +365,7 @@ func (q *Queries) GetJobViewsForReviewer(ctx context.Context, arg GetJobViewsFor
 }
 
 const getJobsForReviewer = `-- name: GetJobsForReviewer :many
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE reviewer_id = $1
   AND moderation_request_id = ANY($2)
 ORDER BY created_at DESC
@@ -417,7 +393,6 @@ func (q *Queries) GetJobsForReviewer(ctx context.Context, arg GetJobsForReviewer
 			&i.ReviewerID,
 			&i.ContentRevision,
 			&i.Comment,
-			&i.ConfigVersionID,
 			&i.PolicyVersion,
 			&i.RunGeneration,
 			&i.Status,
@@ -478,7 +453,7 @@ INSERT INTO moderation_jobs (
     $7, $8, $9
 )
 ON CONFLICT DO NOTHING
-RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
+RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
 `
 
 type InsertJobParams struct {
@@ -514,7 +489,6 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) (Moderatio
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -535,7 +509,7 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) (Moderatio
 }
 
 const lockJob = `-- name: LockJob :one
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs WHERE id = $1 FOR UPDATE
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockJob(ctx context.Context, id uuid.UUID) (ModerationJob, error) {
@@ -549,7 +523,6 @@ func (q *Queries) LockJob(ctx context.Context, id uuid.UUID) (ModerationJob, err
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -570,7 +543,7 @@ func (q *Queries) LockJob(ctx context.Context, id uuid.UUID) (ModerationJob, err
 }
 
 const lockOwnedJob = `-- name: LockOwnedJob :one
-SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
+SELECT id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at FROM moderation_jobs
 WHERE id = $1 AND run_generation = $2
   AND claim_token = $3 AND status = 'processing'
   AND lease_until > clock_timestamp()
@@ -595,7 +568,6 @@ func (q *Queries) LockOwnedJob(ctx context.Context, arg LockOwnedJobParams) (Mod
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -615,29 +587,6 @@ func (q *Queries) LockOwnedJob(ctx context.Context, arg LockOwnedJobParams) (Mod
 	return i, err
 }
 
-const pinActiveConfig = `-- name: PinActiveConfig :exec
-UPDATE moderation_jobs
-SET config_version_id = $1,
-    policy_version = $2,
-    updated_at = now()
-WHERE id = $3
-  AND config_version_id IS NULL
-`
-
-type PinActiveConfigParams struct {
-	ConfigVersionID *string
-	PolicyVersion   *string
-	ID              uuid.UUID
-}
-
-// Pins the effective configuration (and its policy version) before the first
-// inference. Config and policy are pinned together once, then retained across
-// retries of the same generation.
-func (q *Queries) PinActiveConfig(ctx context.Context, arg PinActiveConfigParams) error {
-	_, err := q.db.Exec(ctx, pinActiveConfig, arg.ConfigVersionID, arg.PolicyVersion, arg.ID)
-	return err
-}
-
 const releaseJob = `-- name: ReleaseJob :one
 UPDATE moderation_jobs
 SET status = 'queued',
@@ -650,7 +599,7 @@ WHERE id = $1
   AND claim_token = $2
   AND status = 'processing'
   AND lease_until > clock_timestamp()
-RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, config_version_id, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
+RETURNING id, moderation_request_id, source_event_id, review_id, reviewer_id, content_revision, comment, policy_version, run_generation, status, attempt_count, next_attempt_at, claim_token, worker_id, lease_until, heartbeat_at, outcome, reason_codes, error_class, created_at, updated_at, finished_at
 `
 
 type ReleaseJobParams struct {
@@ -672,7 +621,6 @@ func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (Moderat
 		&i.ReviewerID,
 		&i.ContentRevision,
 		&i.Comment,
-		&i.ConfigVersionID,
 		&i.PolicyVersion,
 		&i.RunGeneration,
 		&i.Status,
@@ -692,50 +640,12 @@ func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (Moderat
 	return i, err
 }
 
-const resumeConfigurationPausedJobs = `-- name: ResumeConfigurationPausedJobs :many
-UPDATE moderation_jobs j
-SET run_generation = run_generation + 1, attempt_count = 0, status = 'queued',
-    config_version_id = $1, policy_version = $2,
-    next_attempt_at = NULL, outcome = NULL, reason_codes = NULL, error_class = NULL,
-    finished_at = NULL, claim_token = NULL, worker_id = NULL,
-    lease_until = NULL, heartbeat_at = NULL, updated_at = now()
-WHERE j.status IN ('queued', 'retry_wait', 'processing')
-  AND EXISTS (SELECT 1 FROM moderation_config_pauses p WHERE p.version_id::text = j.config_version_id)
-RETURNING j.id
-`
-
-type ResumeConfigurationPausedJobsParams struct {
-	ConfigVersionID *string
-	PolicyVersion   *string
-}
-
-func (q *Queries) ResumeConfigurationPausedJobs(ctx context.Context, arg ResumeConfigurationPausedJobsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, resumeConfigurationPausedJobs, arg.ConfigVersionID, arg.PolicyVersion)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const retryErroredJob = `-- name: RetryErroredJob :execrows
 UPDATE moderation_jobs
 SET run_generation = run_generation + 1,
     attempt_count = 0,
     status = 'queued',
-    config_version_id = $1,
-    policy_version = $2,
+    policy_version = $1,
     next_attempt_at = NULL,
     outcome = NULL,
     error_class = NULL,
@@ -745,28 +655,22 @@ SET run_generation = run_generation + 1,
     lease_until = NULL,
     heartbeat_at = NULL,
     updated_at = now()
-WHERE id = $3
-  AND run_generation = $4
+WHERE id = $2
+  AND run_generation = $3
   AND status = 'errored'
 `
 
 type RetryErroredJobParams struct {
-	ConfigVersionID *string
-	PolicyVersion   *string
-	ID              uuid.UUID
-	RunGeneration   int32
+	PolicyVersion *string
+	ID            uuid.UUID
+	RunGeneration int32
 }
 
 // Retries a terminal errored job exactly once for the expected generation. The
 // service supplies the config/policy to retain (original) or pin (active), so
 // "retain original" preserves the pinned configuration across retries.
 func (q *Queries) RetryErroredJob(ctx context.Context, arg RetryErroredJobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, retryErroredJob,
-		arg.ConfigVersionID,
-		arg.PolicyVersion,
-		arg.ID,
-		arg.RunGeneration,
-	)
+	result, err := q.db.Exec(ctx, retryErroredJob, arg.PolicyVersion, arg.ID, arg.RunGeneration)
 	if err != nil {
 		return 0, err
 	}

@@ -12,29 +12,26 @@ import (
 )
 
 const insertAdminAudit = `-- name: InsertAdminAudit :exec
-INSERT INTO moderation_admin_audit (action, job_id, config_version_id, actor, detail)
+INSERT INTO moderation_admin_audit (action, job_id, actor, detail)
 VALUES (
     $1,
     $2,
     $3,
-    $4,
-    $5
+    $4
 )
 `
 
 type InsertAdminAuditParams struct {
-	Action          string
-	JobID           *uuid.UUID
-	ConfigVersionID *uuid.UUID
-	Actor           string
-	Detail          []byte
+	Action string
+	JobID  *uuid.UUID
+	Actor  string
+	Detail []byte
 }
 
 func (q *Queries) InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error {
 	_, err := q.db.Exec(ctx, insertAdminAudit,
 		arg.Action,
 		arg.JobID,
-		arg.ConfigVersionID,
 		arg.Actor,
 		arg.Detail,
 	)

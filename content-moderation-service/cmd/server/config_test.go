@@ -26,6 +26,8 @@ func TestLoadConfigWorkerConcurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg, err := loadConfig(func(key string) string {
 				switch key {
+				case "CMS_LLM_MODEL_ID":
+					return "test-model"
 				case "CMS_WORKER_CONCURRENCY":
 					return tt.value
 				case "INTERNAL_PORT":
@@ -64,6 +66,8 @@ func TestLoadConfigRejectsInvalidDurations(t *testing.T) {
 			t.Run(name+"/"+value, func(t *testing.T) {
 				_, err := loadConfig(func(key string) string {
 					switch key {
+					case "CMS_LLM_MODEL_ID":
+						return "test-model"
 					case name:
 						return value
 					case "INTERNAL_PORT":
@@ -96,6 +100,8 @@ func TestLoadConfigLoggingInterval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg, err := loadConfig(func(key string) string {
 				switch key {
+				case "CMS_LLM_MODEL_ID":
+					return "test-model"
 				case "CMS_LOGGING_INTERVAL":
 					return tt.value
 				case "INTERNAL_PORT":
@@ -115,5 +121,12 @@ func TestLoadConfigLoggingInterval(t *testing.T) {
 				t.Fatalf("LoggingInterval = %s, want %s", cfg.LoggingInterval, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRequiresModel(t *testing.T) {
+	_, err := loadConfig(func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "CMS_LLM_MODEL_ID") {
+		t.Fatalf("expected required model error, got %v", err)
 	}
 }

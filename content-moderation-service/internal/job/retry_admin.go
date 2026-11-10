@@ -1,4 +1,4 @@
-package moderation
+package job
 
 import (
 	"context"
@@ -13,19 +13,18 @@ func (s *Service) RetryErroredJob(
 	ctx context.Context,
 	jobID uuid.UUID,
 	expectedRunGeneration int32,
-	useCurrentConfiguration bool,
 	createdBy string,
 ) (JobView, error) {
 	var updated JobView
-	if err := database.Within(ctx, s.JobService.pool, func(q *moderationdb.Queries) error {
+	if err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		var err error
 		_, err = NewTransitions(q).
-			Retry(ctx, jobID, expectedRunGeneration, useCurrentConfiguration, createdBy)
+			Retry(ctx, jobID, expectedRunGeneration, createdBy)
 		if err != nil {
 			return err
 		}
 		row, err := q.GetJobViewByID(ctx, jobID)
-		updated = JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused}
+		updated = JobView{ModerationJob: row.ModerationJob}
 		return err
 	}); err != nil {
 		return JobView{}, err

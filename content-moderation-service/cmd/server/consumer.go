@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"log/slog"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	userseventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/google/uuid"
@@ -21,7 +21,7 @@ const (
 // consume runs the ingestion subscription until ctx ends. A failed subscriber
 // cannot restart, so each failure builds a new one after a growing delay;
 // the uncommitted delivery is then redelivered.
-func consume(ctx context.Context, brokers []string, store *moderation.Service, logger *slog.Logger) {
+func consume(ctx context.Context, brokers []string, store *moderationjob.Service, logger *slog.Logger) {
 	consumeWithRetry(ctx, logger, func() error {
 		return subscribe(ctx, brokers, store, logger)
 	})
@@ -53,7 +53,7 @@ func consumeWithRetry(ctx context.Context, logger *slog.Logger, runSubscription 
 	}
 }
 
-func subscribe(ctx context.Context, brokers []string, store *moderation.Service, logger *slog.Logger) error {
+func subscribe(ctx context.Context, brokers []string, store *moderationjob.Service, logger *slog.Logger) error {
 	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: consumerGroup})
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func subscribe(ctx context.Context, brokers []string, store *moderation.Service,
 	// Create the ingestion handler
 	handler := &ingestionHandler{store: store}
 
-	err = kafka.Register(subscriber, moderation.UsersReviewSubmittedTopic,
+	err = kafka.Register(subscriber, moderationjob.UsersReviewSubmittedTopic,
 		func() *userseventsv1.ReviewSubmitted { return new(userseventsv1.ReviewSubmitted) },
 		handler.Handle,
 	)
@@ -75,7 +75,7 @@ func subscribe(ctx context.Context, brokers []string, store *moderation.Service,
 
 // ingestionHandler adapts the Kafka subscriber interface to the job store.
 type ingestionHandler struct {
-	store *moderation.Service
+	store *moderationjob.Service
 }
 
 // Handle processes a review submitted event. A required identifier that is
@@ -92,8 +92,8 @@ func (h *ingestionHandler) Handle(
 	reviewerID, reviewerErr := parseRequiredUUID(event.ReviewerId)
 	if sourceErr != nil || reqErr != nil || reviewErr != nil || reviewerErr != nil ||
 		event.ContentRevision <= 0 || event.OccurredAt == nil || event.OccurredAt.CheckValid() != nil {
-		if qErr := h.store.QuarantineMalformed(ctx, moderation.MalformedInput{
-			Topic:      moderation.UsersReviewSubmittedTopic,
+		if qErr := h.store.QuarantineMalformed(ctx, moderationjob.MalformedInput{
+			Topic:      moderationjob.UsersReviewSubmittedTopic,
 			MessageKey: string(meta.Key),
 			EventID:    event.EventId,
 			Reason:     "missing or malformed submission metadata",
@@ -104,7 +104,7 @@ func (h *ingestionHandler) Handle(
 		return nil
 	}
 
-	input := moderation.IngestionInput{
+	input := moderationjob.IngestionInput{
 		SourceEventID:       sourceEventID,
 		ModerationRequestID: moderationRequestID,
 		ReviewID:            reviewID,

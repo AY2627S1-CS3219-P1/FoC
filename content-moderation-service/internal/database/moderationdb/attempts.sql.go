@@ -80,7 +80,7 @@ func (q *Queries) FinishResumedAttempts(ctx context.Context, jobID uuid.UUID) er
 }
 
 const getAttempts = `-- name: GetAttempts :many
-SELECT job_id, run_generation, attempt_number, config_version_id, model_id, outcome, error_class, detail, started_at, finished_at FROM moderation_attempts
+SELECT job_id, run_generation, attempt_number, model_id, outcome, error_class, detail, started_at, finished_at FROM moderation_attempts
 WHERE job_id = $1
   AND run_generation = $2
 ORDER BY attempt_number ASC
@@ -104,7 +104,6 @@ func (q *Queries) GetAttempts(ctx context.Context, arg GetAttemptsParams) ([]Mod
 			&i.JobID,
 			&i.RunGeneration,
 			&i.AttemptNumber,
-			&i.ConfigVersionID,
 			&i.ModelID,
 			&i.Outcome,
 			&i.ErrorClass,
@@ -124,19 +123,18 @@ func (q *Queries) GetAttempts(ctx context.Context, arg GetAttemptsParams) ([]Mod
 
 const insertAttempt = `-- name: InsertAttempt :exec
 INSERT INTO moderation_attempts (
-    job_id, run_generation, attempt_number, config_version_id, model_id
+    job_id, run_generation, attempt_number, model_id
 ) VALUES (
     $1, $2, $3,
-    $4, $5
+    $4
 )
 `
 
 type InsertAttemptParams struct {
-	JobID           uuid.UUID
-	RunGeneration   int32
-	AttemptNumber   int32
-	ConfigVersionID *string
-	ModelID         *string
+	JobID         uuid.UUID
+	RunGeneration int32
+	AttemptNumber int32
+	ModelID       *string
 }
 
 func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) error {
@@ -144,7 +142,6 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) er
 		arg.JobID,
 		arg.RunGeneration,
 		arg.AttemptNumber,
-		arg.ConfigVersionID,
 		arg.ModelID,
 	)
 	return err

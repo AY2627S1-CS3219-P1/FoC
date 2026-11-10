@@ -1,6 +1,7 @@
-package moderation
+package job
 
 import (
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"time"
 
 	moderationevents "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/moderation/events/v1"
@@ -13,11 +14,11 @@ import (
 // Rejections must publish REJECTED (with their reason codes): user-service
 // drops an ERROR event that carries content reasons, so mapping a rejection to
 // ERROR would silently discard every rejection.
-func outcomeTypeFor(outcome ModerationOutcome) moderationevents.ModerationOutcomeType {
+func outcomeTypeFor(outcome moderation.ModerationOutcome) moderationevents.ModerationOutcomeType {
 	switch outcome {
-	case OutcomeApproved:
+	case moderation.OutcomeApproved:
 		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_APPROVED
-	case OutcomeRejected:
+	case moderation.OutcomeRejected:
 		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_REJECTED
 	default:
 		return moderationevents.ModerationOutcomeType_MODERATION_OUTCOME_TYPE_ERROR
@@ -43,11 +44,6 @@ func buildOutboxPayload(
 	if job.PolicyVersion != nil {
 		policyVersion = *job.PolicyVersion
 	}
-	configVersion := ""
-	if job.ConfigVersionID != nil {
-		configVersion = *job.ConfigVersionID
-	}
-
 	finished := &moderationevents.ReviewModerationFinished{
 		EventId:             eventID.String(),
 		JobId:               job.ID.String(),
@@ -58,7 +54,6 @@ func buildOutboxPayload(
 		ContentRevision:     job.ContentRevision,
 		RunGeneration:       job.RunGeneration,
 		PolicyVersion:       policyVersion,
-		ConfigVersionId:     configVersion,
 		Outcome:             outcome,
 		ReasonCodes:         reasonCodes,
 		FinishedAt:          timestamppb.New(finishedAt),
@@ -69,8 +64,8 @@ func buildOutboxPayload(
 
 // reasonCodesOrDefault returns reason codes for a rejected assessment, empty
 // otherwise, so approved and error events never carry content reasons.
-func reasonCodesFor(outcome ModerationOutcome, reasonCodes []string) []string {
-	if outcome == OutcomeRejected {
+func reasonCodesFor(outcome moderation.ModerationOutcome, reasonCodes []string) []string {
+	if outcome == moderation.OutcomeRejected {
 		return reasonCodes
 	}
 	return nil

@@ -68,8 +68,8 @@ message ReviewModerationJobSummary {
   string policy_version = 10;
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp finished_at = 12;
-  // Processing awaits successful configuration revalidation, rather than a timed retry.
-  bool configuration_paused = 13;
+  reserved 13;
+  reserved "configuration_paused";
 }
 
 message GetReviewModerationJobRequest {
@@ -87,7 +87,8 @@ message GetReviewModerationJobResponse {
 message ModerationAttempt {
   int32 run_generation = 1;
   int32 attempt_number = 2;
-  string config_version_id = 3;
+  reserved 3;
+  reserved "config_version_id";
   string model_id = 4;
   google.protobuf.Timestamp started_at = 5;
   google.protobuf.Timestamp finished_at = 6;
@@ -102,9 +103,8 @@ message RetryErroredJobRequest {
   // Optimistic concurrency: the caller's known current generation. The retry
   // is applied only if this still matches the job's generation.
   int32 expected_run_generation = 2 [(buf.validate.field).int32.gte = 1];
-  // When true the retry uses the currently active configuration; otherwise it
-  // retains the configuration pinned when the job first ran.
-  bool use_current_configuration = 3;
+  reserved 3;
+  reserved "use_current_configuration";
 }
 
 message RetryErroredJobResponse {

@@ -258,10 +258,8 @@ type ReviewModerationJobSummary struct {
 	PolicyVersion string                 `protobuf:"bytes,10,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	// Processing awaits successful configuration revalidation, rather than a timed retry.
-	ConfigurationPaused bool `protobuf:"varint,13,opt,name=configuration_paused,json=configurationPaused,proto3" json:"configuration_paused,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReviewModerationJobSummary) Reset() {
@@ -378,13 +376,6 @@ func (x *ReviewModerationJobSummary) GetFinishedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ReviewModerationJobSummary) GetConfigurationPaused() bool {
-	if x != nil {
-		return x.ConfigurationPaused
-	}
-	return false
-}
-
 type GetReviewModerationJobRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -485,13 +476,12 @@ func (x *GetReviewModerationJobResponse) GetAttempts() []*ModerationAttempt {
 // One recorded evaluation attempt. Diagnostics are classified and bounded;
 // they never contain credentials, raw provider bodies or prompts.
 type ModerationAttempt struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	RunGeneration   int32                  `protobuf:"varint,1,opt,name=run_generation,json=runGeneration,proto3" json:"run_generation,omitempty"`
-	AttemptNumber   int32                  `protobuf:"varint,2,opt,name=attempt_number,json=attemptNumber,proto3" json:"attempt_number,omitempty"`
-	ConfigVersionId string                 `protobuf:"bytes,3,opt,name=config_version_id,json=configVersionId,proto3" json:"config_version_id,omitempty"`
-	ModelId         string                 `protobuf:"bytes,4,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
-	StartedAt       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RunGeneration int32                  `protobuf:"varint,1,opt,name=run_generation,json=runGeneration,proto3" json:"run_generation,omitempty"`
+	AttemptNumber int32                  `protobuf:"varint,2,opt,name=attempt_number,json=attemptNumber,proto3" json:"attempt_number,omitempty"`
+	ModelId       string                 `protobuf:"bytes,4,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	// "completed" or a stable error class, e.g. "timeout", "rate_limited",
 	// "invalid_output", "configuration".
 	Outcome       string `protobuf:"bytes,7,opt,name=outcome,proto3" json:"outcome,omitempty"`
@@ -544,13 +534,6 @@ func (x *ModerationAttempt) GetAttemptNumber() int32 {
 	return 0
 }
 
-func (x *ModerationAttempt) GetConfigVersionId() string {
-	if x != nil {
-		return x.ConfigVersionId
-	}
-	return ""
-}
-
 func (x *ModerationAttempt) GetModelId() string {
 	if x != nil {
 		return x.ModelId
@@ -592,11 +575,8 @@ type RetryErroredJobRequest struct {
 	// Optimistic concurrency: the caller's known current generation. The retry
 	// is applied only if this still matches the job's generation.
 	ExpectedRunGeneration int32 `protobuf:"varint,2,opt,name=expected_run_generation,json=expectedRunGeneration,proto3" json:"expected_run_generation,omitempty"`
-	// When true the retry uses the currently active configuration; otherwise it
-	// retains the configuration pinned when the job first ran.
-	UseCurrentConfiguration bool `protobuf:"varint,3,opt,name=use_current_configuration,json=useCurrentConfiguration,proto3" json:"use_current_configuration,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *RetryErroredJobRequest) Reset() {
@@ -641,13 +621,6 @@ func (x *RetryErroredJobRequest) GetExpectedRunGeneration() int32 {
 		return x.ExpectedRunGeneration
 	}
 	return 0
-}
-
-func (x *RetryErroredJobRequest) GetUseCurrentConfiguration() bool {
-	if x != nil {
-		return x.UseCurrentConfiguration
-	}
-	return false
 }
 
 type RetryErroredJobResponse struct {
@@ -704,7 +677,7 @@ const file_moderation_review_v1_review_moderation_proto_rawDesc = "" +
 	"reviewerId\x12I\n" +
 	"\x16moderation_request_ids\x18\x02 \x03(\tB\x13\xbaH\x10\x92\x01\r\b\x01\x10d\x18\x01\"\x05r\x03\xb0\x01\x01R\x14moderationRequestIds\"r\n" +
 	"*GetReviewModerationJobsForReviewerResponse\x12D\n" +
-	"\x04jobs\x18\x01 \x03(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x04jobs\"\x8f\x05\n" +
+	"\x04jobs\x18\x01 \x03(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x04jobs\"\xf8\x04\n" +
 	"\x1aReviewModerationJobSummary\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x122\n" +
 	"\x15moderation_request_id\x18\x02 \x01(\tR\x13moderationRequestId\x12\x1b\n" +
@@ -720,17 +693,15 @@ const file_moderation_review_v1_review_moderation_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12;\n" +
 	"\vfinished_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\x121\n" +
-	"\x14configuration_paused\x18\r \x01(\bR\x13configurationPaused\"@\n" +
+	"finishedAtJ\x04\b\r\x10\x0eR\x14configuration_paused\"@\n" +
 	"\x1dGetReviewModerationJobRequest\x12\x1f\n" +
 	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\"\xa9\x01\n" +
 	"\x1eGetReviewModerationJobResponse\x12B\n" +
 	"\x03job\x18\x01 \x01(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x03job\x12C\n" +
-	"\battempts\x18\x02 \x03(\v2'.moderation.review.v1.ModerationAttemptR\battempts\"\xdb\x02\n" +
+	"\battempts\x18\x02 \x03(\v2'.moderation.review.v1.ModerationAttemptR\battempts\"\xc8\x02\n" +
 	"\x11ModerationAttempt\x12%\n" +
 	"\x0erun_generation\x18\x01 \x01(\x05R\rrunGeneration\x12%\n" +
-	"\x0eattempt_number\x18\x02 \x01(\x05R\rattemptNumber\x12*\n" +
-	"\x11config_version_id\x18\x03 \x01(\tR\x0fconfigVersionId\x12\x19\n" +
+	"\x0eattempt_number\x18\x02 \x01(\x05R\rattemptNumber\x12\x19\n" +
 	"\bmodel_id\x18\x04 \x01(\tR\amodelId\x129\n" +
 	"\n" +
 	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
@@ -738,11 +709,10 @@ const file_moderation_review_v1_review_moderation_proto_rawDesc = "" +
 	"finishedAt\x12\x18\n" +
 	"\aoutcome\x18\a \x01(\tR\aoutcome\x12\x1f\n" +
 	"\verror_class\x18\b \x01(\tR\n" +
-	"errorClass\"\xb6\x01\n" +
+	"errorClassJ\x04\b\x03\x10\x04R\x11config_version_id\"\x9b\x01\n" +
 	"\x16RetryErroredJobRequest\x12\x1f\n" +
 	"\x06job_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05jobId\x12?\n" +
-	"\x17expected_run_generation\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x15expectedRunGeneration\x12:\n" +
-	"\x19use_current_configuration\x18\x03 \x01(\bR\x17useCurrentConfiguration\"]\n" +
+	"\x17expected_run_generation\x18\x02 \x01(\x05B\a\xbaH\x04\x1a\x02(\x01R\x15expectedRunGenerationJ\x04\b\x03\x10\x04R\x19use_current_configuration\"]\n" +
 	"\x17RetryErroredJobResponse\x12B\n" +
 	"\x03job\x18\x01 \x01(\v20.moderation.review.v1.ReviewModerationJobSummaryR\x03job*\xf2\x01\n" +
 	"\x13ModerationJobStatus\x12%\n" +

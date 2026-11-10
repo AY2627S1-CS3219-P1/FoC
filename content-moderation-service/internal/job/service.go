@@ -1,8 +1,9 @@
-package moderation
+package job
 
 import (
 	"context"
 	"errors"
+	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"math/rand"
 	"strings"
 	"sync"
@@ -25,40 +26,28 @@ var ErrFenced = errors.New("moderation job claim is stale")
 // Kafka subscriber.
 const UsersReviewSubmittedTopic = "users.review_submitted"
 
-// JobService implements job queries, durable ingestion, claims, and fenced transitions.
-type JobService struct {
-	pool            *pgxpool.Pool
-	retry           RetrySettings
-	providerBaseURL string
-	// rngMu guards rng: one JobService is shared by every pool worker, and
+// Service implements job queries, durable ingestion, claims, and fenced transitions.
+type Service struct {
+	pool    *pgxpool.Pool
+	retry   RetrySettings
+	modelID string
+	// rngMu guards rng: one Service is shared by every pool worker, and
 	// math/rand.Rand is not safe for concurrent use.
 	rngMu sync.Mutex
 	rng   *rand.Rand
 }
 
-type JobOption func(*JobService)
-
-// WithProviderIdentity makes queued work wait for explicit revalidation after an endpoint change.
-func WithProviderIdentity(baseURL string) JobOption {
-	return func(store *JobService) {
-		store.providerBaseURL = baseURL
-	}
-}
-
-func NewJobService(pool *pgxpool.Pool, retry RetrySettings, rng *rand.Rand, options ...JobOption) *JobService {
+func NewService(pool *pgxpool.Pool, retry RetrySettings, rng *rand.Rand) *Service {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
-	store := &JobService{pool: pool, retry: retry, rng: rng}
-	for _, option := range options {
-		option(store)
-	}
+	store := &Service{pool: pool, retry: retry, rng: rng}
 	return store
 }
 
 // Heartbeat extends the claim's lease while an assessment runs. The boolean is
 // false when the claim vanished (lost lease), so the worker can cancel.
-func (s *JobService) Heartbeat(
+func (s *Service) Heartbeat(
 	ctx context.Context,
 	jobID uuid.UUID,
 	claimToken uuid.UUID,
@@ -82,7 +71,7 @@ func (s *JobService) Heartbeat(
 
 // Release returns owned work on shutdown, requeueing it so a later cycle
 // retries promptly. The boolean is false when the claim was already gone.
-func (s *JobService) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) (bool, error) {
+func (s *Service) Release(ctx context.Context, jobID uuid.UUID, claimToken uuid.UUID) (bool, error) {
 	var released bool
 	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		if _, err := q.LockJob(ctx, jobID); errors.Is(err, pgx.ErrNoRows) {
@@ -107,10 +96,10 @@ func (s *JobService) Release(ctx context.Context, jobID uuid.UUID, claimToken uu
 }
 
 // Claim performs the short claim transaction: lock the oldest eligible job, pin
-// its active configuration before first inference, mark it processing, and
+// the immutable content, mark it processing, and
 // record the started attempt. The claim lock is released by the transaction, so
 // no lock is held during inference.
-func (s *JobService) Claim(
+func (s *Service) Claim(
 	ctx context.Context,
 	workerID string,
 	lease time.Duration,
@@ -145,53 +134,9 @@ func (s *JobService) Claim(
 			return nil
 		}
 
-		var config moderationdb.ModerationConfigVersion
-		if job.ConfigVersionID != nil {
-			pinnedID, err := uuid.Parse(*job.ConfigVersionID)
-			if err != nil {
-				return err
-			}
-			config, err = q.GetConfigVersionById(ctx, pinnedID)
-			if err != nil {
-				return err
-			}
-		} else {
-			config, err = q.GetActiveConfigVersionFull(ctx)
-			if errors.Is(err, pgx.ErrNoRows) {
-				outcome = ClaimNoConfiguration
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		if s.providerBaseURL != "" &&
-			config.ProviderFingerprint != ProviderFingerprint(s.providerBaseURL, config.ModelID) {
-			if err := q.PauseConfiguration(ctx, config.VersionID); err != nil {
-				return err
-			}
-			outcome = ClaimNoConfiguration
-			return nil
-		}
-
-		configVersionID := config.VersionID.String()
-		policyVersion := config.PolicyVersion
-		if job.ConfigVersionID == nil {
-			if err := q.PinActiveConfig(ctx, moderationdb.PinActiveConfigParams{
-				ConfigVersionID: &configVersionID,
-				PolicyVersion:   &policyVersion,
-				ID:              job.ID,
-			}); err != nil {
-				return err
-			}
-		}
-		job.ConfigVersionID = &configVersionID
-		job.PolicyVersion = &policyVersion
-
 		claimToken := uuid.New()
 		attemptNumber := job.AttemptCount + 1
-		modelID := config.ModelID
+		modelID := s.modelID
 
 		if err := q.ClaimJob(ctx, moderationdb.ClaimJobParams{
 			ClaimToken:   &claimToken,
@@ -202,11 +147,10 @@ func (s *JobService) Claim(
 			return err
 		}
 		if err := q.InsertAttempt(ctx, moderationdb.InsertAttemptParams{
-			JobID:           job.ID,
-			RunGeneration:   job.RunGeneration,
-			AttemptNumber:   attemptNumber,
-			ConfigVersionID: &configVersionID,
-			ModelID:         &modelID,
+			JobID:         job.ID,
+			RunGeneration: job.RunGeneration,
+			AttemptNumber: attemptNumber,
+			ModelID:       &modelID,
 		}); err != nil {
 			return err
 		}
@@ -216,7 +160,6 @@ func (s *JobService) Claim(
 			Job:           jobSnapshot(job),
 			ClaimToken:    claimToken,
 			AttemptNumber: attemptNumber,
-			Config:        configurationSnapshot(config),
 		}
 		return nil
 	})
@@ -228,13 +171,9 @@ func (s *JobService) Claim(
 
 // Complete runs a valid assessment to a terminal completed outcome, finishing
 // the attempt and enqueuing the outbox event atomically, fenced by claim token.
-func (s *JobService) Complete(ctx context.Context, c ClaimedJob, assessment ReviewAssessment) error {
+func (s *Service) Complete(ctx context.Context, c ClaimedJob, assessment moderation.ReviewAssessment) error {
 	if err := validateAssessment(assessment); err != nil {
 		return err
-	}
-	if assessment.PolicyVersion != c.Config.PolicyVersion || c.Job.PolicyVersion == nil ||
-		assessment.PolicyVersion != *c.Job.PolicyVersion {
-		return WrapConfigurationError(errors.New("assessment policy differs from pinned configuration"))
 	}
 	reasonCodes := reasonCodesFor(assessment.Outcome, assessment.ReasonCodes)
 	outcomeStr := string(assessment.Outcome)
@@ -242,6 +181,7 @@ func (s *JobService) Complete(ctx context.Context, c ClaimedJob, assessment Revi
 	eventID := uuid.New()
 	policyVersion := assessment.PolicyVersion
 
+	c.Job.PolicyVersion = &assessment.PolicyVersion
 	payload, err := buildOutboxPayload(eventID, c.Job,
 		outcomeTypeFor(assessment.Outcome), reasonCodes, finishedAt)
 	if err != nil {
@@ -284,8 +224,8 @@ func (s *JobService) Complete(ctx context.Context, c ClaimedJob, assessment Revi
 // FinalizeFailed records a failed attempt and either schedules a bounded retry
 // or errors the job terminally, enqueuing the outbox event only on terminal
 // failure.
-func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr error) error {
-	errorClass, kind, retryAfter := Classify(evalErr)
+func (s *Service) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr error) error {
+	errorClass, kind, retryAfter := moderation.Classify(evalErr)
 	finishedAt := time.Now()
 	diagnostic := errorClass
 	eventID := uuid.New()
@@ -299,14 +239,14 @@ func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr e
 			return err
 		}
 
-		invalidClass := ErrorClassInvalidOutput
+		invalidClass := moderation.ErrorClassInvalidOutput
 		invalidCount, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
 			JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &invalidClass,
 		})
 		if err != nil {
 			return err
 		}
-		filterClass := ErrorClassContentFilter
+		filterClass := moderation.ErrorClassContentFilter
 		filterCount, err := q.CountAttemptsByClass(ctx, moderationdb.CountAttemptsByClassParams{
 			JobID: c.Job.ID, RunGeneration: c.Job.RunGeneration, ErrorClass: &filterClass,
 		})
@@ -320,7 +260,7 @@ func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr e
 		decision := s.retry.decide(kind, int(c.AttemptNumber), int(invalidCount)+1, int(filterCount)+1, s.rng)
 		s.rngMu.Unlock()
 		wait := decision.wait
-		if kind == kindDurable && retryAfter > 0 {
+		if kind == moderation.KindDurable && retryAfter > 0 {
 			wait = retryAfter
 			if wait > s.retry.MaxDelay {
 				wait = s.retry.MaxDelay
@@ -348,9 +288,6 @@ func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr e
 				// Roll back the attempt update if its lease expired during finalization.
 				return ErrFenced
 			}
-			if kind == kindConfiguration {
-				return q.PauseConfiguration(ctx, c.Config.VersionID)
-			}
 			return nil
 		}
 
@@ -377,7 +314,7 @@ func (s *JobService) FinalizeFailed(ctx context.Context, c ClaimedJob, evalErr e
 	})
 }
 
-func (s *JobService) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb.ModerationJob, error) {
+func (s *Service) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb.ModerationJob, error) {
 	job, err := moderationdb.New(s.pool).GetJobByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return moderationdb.ModerationJob{}, ErrJobNotFound
@@ -387,18 +324,17 @@ func (s *JobService) GetJobByID(ctx context.Context, id uuid.UUID) (moderationdb
 
 type JobView struct {
 	moderationdb.ModerationJob
-	ConfigurationPaused bool
 }
 
-func (s *JobService) GetJobViewByID(ctx context.Context, id uuid.UUID) (JobView, error) {
+func (s *Service) GetJobViewByID(ctx context.Context, id uuid.UUID) (JobView, error) {
 	row, err := moderationdb.New(s.pool).GetJobViewByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return JobView{}, ErrJobNotFound
 	}
-	return JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused}, err
+	return JobView{ModerationJob: row.ModerationJob}, err
 }
 
-func (s *JobService) GetJobsForReviewer(
+func (s *Service) GetJobsForReviewer(
 	ctx context.Context,
 	reviewerID uuid.UUID,
 	requestIDs []uuid.UUID,
@@ -411,12 +347,12 @@ func (s *JobService) GetJobsForReviewer(
 	}
 	views := make([]JobView, 0, len(rows))
 	for _, row := range rows {
-		views = append(views, JobView{ModerationJob: row.ModerationJob, ConfigurationPaused: row.ConfigurationPaused})
+		views = append(views, JobView{ModerationJob: row.ModerationJob})
 	}
 	return views, nil
 }
 
-func (s *JobService) GetAttempts(
+func (s *Service) GetAttempts(
 	ctx context.Context,
 	jobID uuid.UUID,
 	runGeneration int32,
@@ -428,29 +364,33 @@ func (s *JobService) GetAttempts(
 
 // validateAssessment enforces generic outcome and reason-code shape. The
 // evaluator validates codes against its policy vocabulary.
-func validateAssessment(a ReviewAssessment) error {
+func validateAssessment(a moderation.ReviewAssessment) error {
 	switch a.Outcome {
-	case OutcomeApproved:
+	case moderation.OutcomeApproved:
 		if len(a.ReasonCodes) > 0 {
-			return WrapInvalidOutputError(errors.New("approved assessment must carry no reason codes"))
+			return moderation.WrapInvalidOutputError(errors.New("approved assessment must carry no reason codes"))
 		}
 		if a.PolicyVersion == "" {
-			return WrapInvalidOutputError(errors.New("assessment missing policy version"))
+			return moderation.WrapInvalidOutputError(errors.New("assessment missing policy version"))
 		}
-	case OutcomeRejected:
+	case moderation.OutcomeRejected:
 		if len(a.ReasonCodes) == 0 {
-			return WrapInvalidOutputError(errors.New("rejected assessment must carry at least one reason code"))
+			return moderation.WrapInvalidOutputError(
+				errors.New("rejected assessment must carry at least one reason code"),
+			)
 		}
 		for _, code := range a.ReasonCodes {
 			if strings.TrimSpace(code) == "" {
-				return WrapInvalidOutputError(errors.New("rejected assessment contains an empty reason code"))
+				return moderation.WrapInvalidOutputError(
+					errors.New("rejected assessment contains an empty reason code"),
+				)
 			}
 		}
 		if a.PolicyVersion == "" {
-			return WrapInvalidOutputError(errors.New("assessment missing policy version"))
+			return moderation.WrapInvalidOutputError(errors.New("assessment missing policy version"))
 		}
 	default:
-		return WrapInvalidOutputError(errors.New("assessment outcome is not approved or rejected"))
+		return moderation.WrapInvalidOutputError(errors.New("assessment outcome is not approved or rejected"))
 	}
 	return nil
 }
@@ -478,3 +418,5 @@ func exhaustJob(ctx context.Context, q *moderationdb.Queries, job moderationdb.M
 		AvailableAt:    now,
 	})
 }
+
+func (s *Service) SetModelID(modelID string) { s.modelID = modelID }

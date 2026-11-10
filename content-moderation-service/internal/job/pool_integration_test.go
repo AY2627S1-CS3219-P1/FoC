@@ -3,11 +3,12 @@
 // Integration test for the per-process worker pool: the configured concurrency
 // must bound concurrent Evaluate calls exactly, and every ingested job must be
 // processed to a terminal state through the durable store.
-package moderation_test
+package job_test
 
 import (
 	"context"
 	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -87,7 +88,7 @@ func (e *blockingEvaluator) peakConcurrency() int {
 
 func ingestJobs(t *testing.T, pool *poolT, n int) {
 	t.Helper()
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	for range n {
 		if _, err := store.Ingest(context.Background(), ingestInput("pool me")); err != nil {
 			t.Fatalf("ingest: %v", err)
@@ -107,21 +108,21 @@ func countTerminal(t *testing.T, pool *poolT) int {
 
 func TestPoolRespectsConcurrencyCap(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
+
 	ingestJobs(t, pool, 4)
 
 	eval := newBlockingEvaluator()
-	p := moderation.NewPool(
-		moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+	p := moderationjob.NewPool(
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
 		eval,
 		moderation.NewInferenceLimiter(2),
-		moderation.PoolConfig{
+		moderationjob.PoolConfig{
 			Concurrency:       2,
 			Lease:             30 * time.Second,
 			HeartbeatInterval: 5 * time.Second,
 			PollInterval:      10 * time.Millisecond,
 			LLMRequestTimeout: 10 * time.Second,
-			RetrySettings:     moderation.DefaultRetrySettings(),
+			RetrySettings:     moderationjob.DefaultRetrySettings(),
 		},
 		nil,
 	)
@@ -161,21 +162,21 @@ func TestPoolRespectsConcurrencyCap(t *testing.T) {
 
 func TestPoolConcurrencyOneSerializes(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
+
 	ingestJobs(t, pool, 3)
 
 	eval := newBlockingEvaluator()
-	p := moderation.NewPool(
-		moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+	p := moderationjob.NewPool(
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
 		eval,
 		moderation.NewInferenceLimiter(1),
-		moderation.PoolConfig{
+		moderationjob.PoolConfig{
 			Concurrency:       1,
 			Lease:             30 * time.Second,
 			HeartbeatInterval: 5 * time.Second,
 			PollInterval:      10 * time.Millisecond,
 			LLMRequestTimeout: 10 * time.Second,
-			RetrySettings:     moderation.DefaultRetrySettings(),
+			RetrySettings:     moderationjob.DefaultRetrySettings(),
 		},
 		nil,
 	)
@@ -201,12 +202,12 @@ func TestIndependentPoolsScaleConcurrency(t *testing.T) {
 	for _, tc := range []struct{ replicas, concurrency int }{{1, 3}, {2, 2}} {
 		t.Run(fmt.Sprintf("%d-pools-%d-workers", tc.replicas, tc.concurrency), func(t *testing.T) {
 			pool := newTestPool(t)
-			activateTestConfig(t, pool)
+
 			total := tc.replicas * tc.concurrency
 			ingestJobs(t, pool, total)
 			eval := newBlockingEvaluator()
 			ctx, cancel := context.WithCancel(context.Background())
-			var pools []*moderation.Pool
+			var pools []*moderationjob.Pool
 			t.Cleanup(func() {
 				cancel()
 				eval.release(total)
@@ -215,14 +216,14 @@ func TestIndependentPoolsScaleConcurrency(t *testing.T) {
 				}
 			})
 			for range tc.replicas {
-				p := moderation.NewPool(
-					moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+				p := moderationjob.NewPool(
+					moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
 					eval,
 					moderation.NewInferenceLimiter(tc.concurrency),
-					moderation.PoolConfig{
+					moderationjob.PoolConfig{
 						Concurrency: tc.concurrency, Lease: 30 * time.Second,
 						HeartbeatInterval: time.Second, PollInterval: 10 * time.Millisecond,
-						LLMRequestTimeout: 10 * time.Second, RetrySettings: moderation.DefaultRetrySettings(),
+						LLMRequestTimeout: 10 * time.Second, RetrySettings: moderationjob.DefaultRetrySettings(),
 					},
 					nil,
 				)

@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"log/slog"
-	"time"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/openaiadapter"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/outbox"
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/router"
-	configrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/config"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/health"
 	reviewrpc "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/rpc/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
@@ -20,9 +18,9 @@ import (
 // serverComponents bundles the handlers and background workers assembled at startup.
 type serverComponents struct {
 	rpc     router.RPCServices
-	pool    *moderation.Pool
+	pool    *moderationjob.Pool
 	relay   *outbox.Relay
-	service *moderation.Service
+	service *moderationjob.Service
 }
 
 func newServerComponents(
@@ -31,27 +29,11 @@ func newServerComponents(
 	cfg appConfig,
 	logger *slog.Logger,
 ) (serverComponents, error) {
-	policy := moderation.RetrySettingsFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
-	jobStore := moderation.NewJobService(
-		pool,
-		policy,
-		nil,
-		moderation.WithProviderIdentity(cfg.LLMBaseURL),
-	)
-	configStore := moderation.NewConfigurationStore(pool)
-
-	if err := configStore.EnsureConfigState(ctx); err != nil {
-		return serverComponents{}, fmt.Errorf("initialize moderation configuration state: %w", err)
-	}
-
-	settings := moderation.Settings{
-		BaseURL:       cfg.LLMBaseURL,
-		APIKey:        cfg.LLMAPIKey,
-		PolicyVersion: "review-text-v1",
-	}
+	policy := moderationjob.RetrySettingsFromConfig(cfg.JobMaxAttempts, cfg.JobRetryInitialDelay, cfg.JobRetryMaxDelay)
+	jobStore := moderationjob.NewService(pool, policy, nil)
+	jobStore.SetModelID(cfg.LLMModelID)
 
 	var client moderation.CompletionClient
-	var modelLister moderation.ModelLister
 	var limiter *moderation.InferenceLimiter
 
 	if cfg.LLMAPIKey != "" && cfg.LLMBaseURL != "" {
@@ -64,27 +46,19 @@ func newServerComponents(
 			logger.Warn("failed to create LLM adapter", "error", err)
 		} else {
 			client = adapter
-			modelLister, _ = openaiadapter.NewModelLister(cfg.LLMBaseURL, cfg.LLMAPIKey, 10*time.Second)
 			limiter = moderation.NewInferenceLimiter(cfg.WorkerConcurrency)
 		}
 	}
 
-	service := moderation.NewService(
-		configStore, jobStore,
-		modelLister,
-		client,
-		limiter,
-		settings,
-		time.Now,
-	)
+	service := moderation.NewService(client, cfg.LLMModelID)
 
-	var jobPool *moderation.Pool
+	var jobPool *moderationjob.Pool
 	if client != nil {
-		jobPool = moderation.NewPool(
-			service,
+		jobPool = moderationjob.NewPool(
+			jobStore,
 			service,
 			limiter,
-			moderation.PoolConfig{
+			moderationjob.PoolConfig{
 				Concurrency:       cfg.WorkerConcurrency,
 				Lease:             cfg.JobLease,
 				HeartbeatInterval: cfg.JobHeartbeatInterval,
@@ -114,9 +88,8 @@ func newServerComponents(
 		}
 	}
 
-	ownerHandler := reviewrpc.NewOwnerHandler(service)
-	adminHandler := reviewrpc.NewAdminHandler(service)
-	configHandler := configrpc.NewHandler(service)
+	ownerHandler := reviewrpc.NewOwnerHandler(jobStore)
+	adminHandler := reviewrpc.NewAdminHandler(jobStore)
 
 	return serverComponents{
 		rpc: router.RPCServices{
@@ -125,10 +98,9 @@ func newServerComponents(
 			},
 			ReviewModeration:      ownerHandler,
 			ReviewModerationAdmin: adminHandler,
-			ModerationAdmin:       configHandler,
 		},
 		pool:    jobPool,
 		relay:   outboxRelay,
-		service: service,
+		service: jobStore,
 	}, nil
 }

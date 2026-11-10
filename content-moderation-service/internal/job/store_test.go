@@ -1,7 +1,8 @@
-package moderation_test
+package job_test
 
 import (
 	"context"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"testing"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func TestDefaultPolicy(t *testing.T) {
-	policy := moderation.DefaultRetrySettings()
+	policy := moderationjob.DefaultRetrySettings()
 	if policy.MaxAttempts != 5 {
 		t.Errorf("MaxAttempts = %d, want 5", policy.MaxAttempts)
 	}
@@ -41,9 +42,6 @@ func TestEvaluationInput(t *testing.T) {
 		ReviewerID:          "revi-1",
 		ContentRevision:     1,
 		Comment:             "test comment",
-		Config: moderation.ReviewConfig{
-			ModelID: "test-model",
-		},
 	}
 
 	if input.ModerationRequestID != "req-1" {
@@ -54,24 +52,8 @@ func TestEvaluationInput(t *testing.T) {
 	}
 }
 
-func TestEffectiveConfig(t *testing.T) {
-	cfg := moderation.ReviewConfig{
-		VersionID:       "version-1",
-		ModelID:         "test-model",
-		OutputMode:      moderation.OutputModeJSONObject,
-		ReasoningEffort: "high",
-	}
-
-	if cfg.ModelID != "test-model" {
-		t.Errorf("ModelID = %q, want test-model", cfg.ModelID)
-	}
-	if cfg.OutputMode != moderation.OutputModeJSONObject {
-		t.Errorf("OutputMode = %v, want %v", cfg.OutputMode, moderation.OutputModeJSONObject)
-	}
-}
-
 func TestIngestionInput(t *testing.T) {
-	input := moderation.IngestionInput{
+	input := moderationjob.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            uuid.New(),
@@ -113,7 +95,7 @@ func TestOutputMode(t *testing.T) {
 }
 
 func TestPolicy(t *testing.T) {
-	p := moderation.RetrySettings{
+	p := moderationjob.RetrySettings{
 		MaxAttempts: 5,
 		MaxDelay:    5 * time.Minute,
 	}

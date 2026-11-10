@@ -1,7 +1,5 @@
 package moderation
 
-import "context"
-
 // ModerationOutcome is the terminal business result of an assessment.
 type ModerationOutcome string
 
@@ -26,8 +24,6 @@ type ReviewInput struct {
 	ContentRevision     int32
 	// Comment is the complete immutable review snapshot; never truncated.
 	Comment string
-	// Config is the effective immutable configuration pinned for this run.
-	Config ReviewConfig
 }
 
 // OutputMode selects how the service requests structured LLM output.
@@ -41,28 +37,6 @@ const (
 	OutputModeJSONObject = "json_object"
 )
 
-// ReviewConfig is the pinned immutable evaluation configuration.
-type ReviewConfig struct {
-	SystemMessage string
-	VersionID     string
-	ModelID       string
-	OutputMode    OutputMode
-
-	Temperature      *float64
-	TopP             *float64
-	PresencePenalty  *float64
-	FrequencyPenalty *float64
-	// MaxCompletionTokens or MaxTokens is set, never both.
-	MaxCompletionTokens *int64
-	MaxTokens           *int64
-	Stop                []string
-	Seed                *int64
-	ReasoningEffort     string
-	// Advanced holds validated additional provider parameters from the
-	// service-owned allowlist.
-	Advanced map[string]string
-}
-
 // ReviewAssessment is a validated review result. An error return means the
 // evaluation failed technically; ReviewAssessment is then unused.
 type ReviewAssessment struct {
@@ -72,9 +46,4 @@ type ReviewAssessment struct {
 	// PolicyVersion is the code-owned rubric/schema version that judged the
 	// content, e.g. "review-text-v1".
 	PolicyVersion string
-}
-
-// reviewAssessmentService is the worker's view of Service.AssessReview.
-type reviewAssessmentService interface {
-	AssessReview(ctx context.Context, input ReviewInput) (ReviewAssessment, error)
 }

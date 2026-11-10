@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"os"
 	"sync"
 	"testing"
@@ -63,8 +64,7 @@ func setup(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-			moderation_quarantine, moderation_config_pauses, moderation_config_versions,
-			moderation_config_state, moderation_admin_audit`); err != nil {
+			moderation_quarantine, moderation_admin_audit`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool
@@ -84,21 +84,9 @@ func testDatabaseURL(t *testing.T) string {
 func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	if err := moderation.NewConfigurationStore(pool).EnsureConfigState(ctx); err != nil {
-		t.Fatalf("ensure config state: %v", err)
-	}
-	store := moderation.NewConfigurationStore(pool)
-	id, err := store.InsertConfigVersion(ctx, "test-model", []byte(`{}`),
-		moderation.OutputModeJSONSchema, "review-text-v1", "fp", "tester", "")
-	if err != nil {
-		t.Fatalf("insert config version: %v", err)
-	}
-	if err := store.ActivateConfigVersion(ctx, id, "tester", nil); err != nil {
-		t.Fatalf("activate config: %v", err)
-	}
 
 	reviewID := uuid.New()
-	in := moderation.IngestionInput{
+	in := moderationjob.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            reviewID,
@@ -106,7 +94,7 @@ func completedJob(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID) {
 		ContentRevision:     1,
 		Comment:             "relay me",
 	}
-	jobStore := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	jobStore := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	if _, err := jobStore.Ingest(ctx, in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}

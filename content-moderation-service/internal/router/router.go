@@ -9,7 +9,6 @@ import (
 	"connectrpc.com/validate"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	reviewv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1/reviewv1connect"
-	moderationv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/v1/moderationv1connect"
 )
 
 // RPCServices contains RPC servers constructed at the composition root.
@@ -17,7 +16,6 @@ type RPCServices struct {
 	Health                grpchealth.Checker
 	ReviewModeration      reviewv1connect.ReviewModerationServiceHandler
 	ReviewModerationAdmin reviewv1connect.ReviewModerationAdminServiceHandler
-	ModerationAdmin       moderationv1connect.ModerationAdminServiceHandler
 }
 
 // Public mounts the health checks and the review moderation RPCs.
@@ -43,15 +41,6 @@ func Public(services RPCServices, authenticate func(http.Handler) http.Handler) 
 		),
 	)
 	mux.Handle(reviewAdminPath, authenticate(reviewAdminHandler))
-
-	moderationAdminPath, moderationAdminHandler := moderationv1connect.NewModerationAdminServiceHandler(
-		services.ModerationAdmin,
-		connect.WithInterceptors(
-			auth.RequireAdmin(),
-			validate.NewInterceptor(),
-		),
-	)
-	mux.Handle(moderationAdminPath, authenticate(moderationAdminHandler))
 
 	return mux
 }

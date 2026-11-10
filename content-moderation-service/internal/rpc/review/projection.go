@@ -2,8 +2,9 @@ package review
 
 import (
 	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/database/moderationdb"
-	"github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/moderation"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
+	reviewv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/moderation/review/v1"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -52,7 +53,7 @@ func outcomeFor(job moderationdb.ModerationJob) reviewv1.ModerationOutcomeType {
 
 // summarize renders the owner-visible summary of one job. Reason codes appear
 // only for a rejected verdict, never for approval or error.
-func summarize(view moderation.JobView) *reviewv1.ReviewModerationJobSummary {
+func summarize(view moderationjob.JobView) *reviewv1.ReviewModerationJobSummary {
 	job := view.ModerationJob
 	summary := &reviewv1.ReviewModerationJobSummary{
 		JobId:               job.ID.String(),
@@ -70,7 +71,6 @@ func summarize(view moderation.JobView) *reviewv1.ReviewModerationJobSummary {
 	if job.FinishedAt != nil {
 		summary.FinishedAt = timestamppb.New(*job.FinishedAt)
 	}
-	summary.ConfigurationPaused = view.ConfigurationPaused
 	summary.Outcome = outcomeFor(job)
 	if job.Status == "completed" && job.Outcome != nil && *job.Outcome == "rejected" {
 		summary.ReasonCodes = job.ReasonCodes
@@ -82,13 +82,12 @@ func summarize(view moderation.JobView) *reviewv1.ReviewModerationJobSummary {
 // exposed; the raw diagnostic (Detail) is deliberately dropped.
 func attemptOf(m moderationdb.ModerationAttempt) *reviewv1.ModerationAttempt {
 	a := &reviewv1.ModerationAttempt{
-		RunGeneration:   m.RunGeneration,
-		AttemptNumber:   m.AttemptNumber,
-		ConfigVersionId: derefOr(m.ConfigVersionID, ""),
-		ModelId:         derefOr(m.ModelID, ""),
-		Outcome:         m.Outcome,
-		ErrorClass:      derefOr(m.ErrorClass, ""),
-		StartedAt:       timestamppb.New(m.StartedAt),
+		RunGeneration: m.RunGeneration,
+		AttemptNumber: m.AttemptNumber,
+		ModelId:       derefOr(m.ModelID, ""),
+		Outcome:       m.Outcome,
+		ErrorClass:    derefOr(m.ErrorClass, ""),
+		StartedAt:     timestamppb.New(m.StartedAt),
 	}
 	if m.FinishedAt != nil {
 		a.FinishedAt = timestamppb.New(*m.FinishedAt)

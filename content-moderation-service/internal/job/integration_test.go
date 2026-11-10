@@ -3,12 +3,13 @@
 // Integration tests for the durable moderation engine against a real
 // PostgreSQL. Set TEST_DATABASE_URL to a throwaway database; the tests apply
 // the module migrations and truncate all tables between subtests.
-package moderation_test
+package job_test
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	moderationjob "github.com/AY2627S1-CS3219-P1/FoC/content-moderation-service/internal/job"
 	"os"
 	"strings"
 	"sync"
@@ -49,35 +50,14 @@ func truncateAll(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE moderation_jobs, moderation_attempts, moderation_outbox,
-			moderation_quarantine, moderation_config_pauses, moderation_config_versions,
-			moderation_config_state, moderation_admin_audit`)
+			moderation_quarantine, moderation_admin_audit`)
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 }
 
-// activateTestConfig inserts and activates one configuration version so claims
-// can pin it.
-func activateTestConfig(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
-	t.Helper()
-	store := moderation.NewConfigurationStore(pool)
-	if err := store.EnsureConfigState(context.Background()); err != nil {
-		t.Fatalf("ensure config state: %v", err)
-	}
-	id, err := store.InsertConfigVersion(
-		context.Background(), "test-model", []byte(`{}`), moderation.OutputModeJSONSchema,
-		"review-text-v1", "fp-test", "tester", "")
-	if err != nil {
-		t.Fatalf("insert config version: %v", err)
-	}
-	if err := store.ActivateConfigVersion(context.Background(), id, "tester", nil); err != nil {
-		t.Fatalf("activate config: %v", err)
-	}
-	return id
-}
-
-func ingestInput(comment string) moderation.IngestionInput {
-	return moderation.IngestionInput{
+func ingestInput(comment string) moderationjob.IngestionInput {
+	return moderationjob.IngestionInput{
 		SourceEventID:       uuid.New(),
 		ModerationRequestID: uuid.New(),
 		ReviewID:            uuid.New(),
@@ -100,7 +80,7 @@ func jobIDByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) uuid.
 
 func jobByRequest(t *testing.T, pool *pgxpool.Pool, requestID uuid.UUID) moderationdb.ModerationJob {
 	t.Helper()
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	job, err := store.GetJobByID(context.Background(), jobIDByRequest(t, pool, requestID))
 	if err != nil {
 		t.Fatalf("load job: %v", err)
@@ -151,13 +131,13 @@ func countAttempts(t *testing.T, pool *pgxpool.Pool, jobID uuid.UUID, generation
 		jobID, generation)
 }
 
-func mustClaim(t *testing.T, store *moderation.JobService, workerID string) *moderation.ClaimedJob {
+func mustClaim(t *testing.T, store *moderationjob.Service, workerID string) *moderationjob.ClaimedJob {
 	t.Helper()
 	outcome, claimed, err := store.Claim(context.Background(), workerID, 30*time.Second)
 	if err != nil {
 		t.Fatalf("claim: %v", err)
 	}
-	if outcome != moderation.ClaimReady {
+	if outcome != moderationjob.ClaimReady {
 		t.Fatalf("claim outcome = %v, want ready", outcome)
 	}
 	return claimed
@@ -176,7 +156,7 @@ func forceDue(t *testing.T, pool *pgxpool.Pool) {
 }
 
 // claimDue force-due and claims one job.
-func claimDue(t *testing.T, store *moderation.JobService, pool *pgxpool.Pool) *moderation.ClaimedJob {
+func claimDue(t *testing.T, store *moderationjob.Service, pool *pgxpool.Pool) *moderationjob.ClaimedJob {
 	t.Helper()
 	forceDue(t, pool)
 	return mustClaim(t, store, "retry-worker")
@@ -197,7 +177,7 @@ func waitFor(t *testing.T, cond func() bool, within time.Duration, what string) 
 
 func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 	pool := newTestPool(t)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	t.Run("first delivery inserts one queued job", func(t *testing.T) {
@@ -206,7 +186,7 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ingest: %v", err)
 		}
-		if result != moderation.IngestionInserted {
+		if result != moderationjob.IngestionInserted {
 			t.Fatalf("result = %v, want inserted", result)
 		}
 		job := jobByRequest(t, pool, in.ModerationRequestID)
@@ -227,7 +207,7 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("duplicate ingest: %v", err)
 		}
-		if result != moderation.IngestionDeduplicated {
+		if result != moderationjob.IngestionDeduplicated {
 			t.Fatalf("result = %v, want deduplicated", result)
 		}
 		if countJobs(t, pool) != 2 { // one from the first subtest + this one
@@ -251,7 +231,7 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("conflict ingest must ack: %v", err)
 		}
-		if result != moderation.IngestionConflictQuarantined {
+		if result != moderationjob.IngestionConflictQuarantined {
 			t.Fatalf("result = %v, want conflict_quarantined", result)
 		}
 		if countQuarantined(t, pool) == 0 {
@@ -261,8 +241,8 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 
 	t.Run("malformed event is quarantined and acknowledged", func(t *testing.T) {
 		before := countQuarantined(t, pool)
-		err := store.QuarantineMalformed(ctx, moderation.MalformedInput{
-			Topic: moderation.UsersReviewSubmittedTopic, MessageKey: "not-a-uuid",
+		err := store.QuarantineMalformed(ctx, moderationjob.MalformedInput{
+			Topic: moderationjob.UsersReviewSubmittedTopic, MessageKey: "not-a-uuid",
 			EventID: "evt-1", Reason: "unparseable identifiers", Comment: "",
 		})
 		if err != nil {
@@ -276,8 +256,8 @@ func TestIngestionDeduplicatesAndQuarantines(t *testing.T) {
 
 func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	const total = 6
@@ -301,7 +281,7 @@ func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 			t.Errorf("claim: %v", err)
 			return
 		}
-		if outcome != moderation.ClaimReady || claimed == nil {
+		if outcome != moderationjob.ClaimReady || claimed == nil {
 			t.Errorf("unexpected claim outcome %v", outcome)
 			return
 		}
@@ -334,8 +314,8 @@ func TestClaimsAreExclusiveAndCoverTheQueue(t *testing.T) {
 
 func TestStaleClaimCannotFinalize(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("fencing target")
@@ -350,7 +330,7 @@ func TestStaleClaimCannotFinalize(t *testing.T) {
 	err := store.Complete(ctx, stale, moderation.ReviewAssessment{
 		Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1",
 	})
-	if !errors.Is(err, moderation.ErrFenced) {
+	if !errors.Is(err, moderationjob.ErrFenced) {
 		t.Fatalf("stale complete error = %v, want ErrFenced", err)
 	}
 	job := jobByRequest(t, pool, in.ModerationRequestID)
@@ -381,8 +361,8 @@ func TestStaleClaimCannotFinalize(t *testing.T) {
 
 func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("recover me")
@@ -404,7 +384,7 @@ func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 	}
 
 	outcome, recovered, err := store.Claim(ctx, "recovery-worker", 30*time.Second)
-	if err != nil || outcome != moderation.ClaimReady || recovered == nil {
+	if err != nil || outcome != moderationjob.ClaimReady || recovered == nil {
 		t.Fatalf("recovery claim: %v %v %v", outcome, recovered, err)
 	}
 	if recovered.Job.ModerationRequestID != in.ModerationRequestID {
@@ -433,9 +413,9 @@ func TestExpiredLeaseRecoveryRecordsAbandonedAttempt(t *testing.T) {
 
 func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	policy := moderation.DefaultRetrySettings()
-	store := moderation.NewJobService(pool, policy, nil)
+
+	policy := moderationjob.DefaultRetrySettings()
+	store := moderationjob.NewService(pool, policy, nil)
 	ctx := context.Background()
 
 	in := ingestInput("doomed review")
@@ -509,16 +489,16 @@ func TestRetryBudgetAndTerminalOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("claim: %v", err)
 	}
-	if outcome == moderation.ClaimReady && claimed2 != nil && claimed2.Job.ID == job.ID {
+	if outcome == moderationjob.ClaimReady && claimed2 != nil && claimed2.Job.ID == job.ID {
 		t.Fatalf("terminal job was claimed again")
 	}
 }
 
 func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	policy := moderation.DefaultRetrySettings()
-	store := moderation.NewJobService(pool, policy, nil)
+
+	policy := moderationjob.DefaultRetrySettings()
+	store := moderationjob.NewService(pool, policy, nil)
 	ctx := context.Background()
 
 	in := ingestInput("invalid output case")
@@ -550,74 +530,13 @@ func TestInvalidOutputBudgetEndsInError(t *testing.T) {
 	}
 }
 
-func TestConfigurationErrorPausesWithoutBurningBudget(t *testing.T) {
-	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
-	ctx := context.Background()
-
-	in := ingestInput("config error case")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatalf("ingest: %v", err)
-	}
-	claimed := mustClaim(t, store, "worker-a")
-	if err := store.FinalizeFailed(
-		ctx,
-		*claimed,
-		moderation.WrapConfigurationError(errors.New("bad key")),
-	); err != nil {
-		t.Fatalf("finalize: %v", err)
-	}
-	job := jobByRequest(t, pool, in.ModerationRequestID)
-	if job.Status != "retry_wait" {
-		t.Fatalf("status = %q, want retry_wait", job.Status)
-	}
-	if job.ErrorClass == nil || *job.ErrorClass != moderation.ErrorClassConfiguration {
-		t.Fatalf("configuration class must be surfaced: %v", job.ErrorClass)
-	}
-	// A fixed configuration error must never error the job: the policy pauses
-	// with MaxDelay instead of burning the terminal budget.
-	if int(job.AttemptCount) >= moderation.DefaultRetrySettings().MaxAttempts {
-		t.Fatalf("configuration errors must not burn the whole budget: %d", job.AttemptCount)
-	}
-}
-
-func TestClaimWithoutConfigurationQueuesWithoutAttempts(t *testing.T) {
-	pool := newTestPool(t) // truncated: config state exists (as at startup), no active version
-	if err := moderation.NewConfigurationStore(pool).EnsureConfigState(context.Background()); err != nil {
-		t.Fatalf("ensure config state: %v", err)
-	}
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
-	ctx := context.Background()
-
-	in := ingestInput("queued while unconfigured")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatalf("ingest must work without configuration: %v", err)
-	}
-	outcome, claimed, err := store.Claim(ctx, "worker-a", 30*time.Second)
-	if err != nil {
-		t.Fatalf("claim: %v", err)
-	}
-	if outcome != moderation.ClaimNoConfiguration || claimed != nil {
-		t.Fatalf("outcome = %v claimed = %v; want no-configuration", outcome, claimed)
-	}
-	job := jobByRequest(t, pool, in.ModerationRequestID)
-	if job.Status != "queued" || job.AttemptCount != 0 || job.ConfigVersionID != nil {
-		t.Fatalf("unconfigured claim must leave the job queued and untouched: %+v", job)
-	}
-	if n := countWhere(t, pool,
-		`SELECT count(*) FROM moderation_attempts WHERE job_id = $1`, job.ID); n != 0 {
-		t.Fatalf("unconfigured claim must not burn an attempt: %d rows", n)
-	}
-}
-
 func TestRetryThenSucceedCompletesCleanly(t *testing.T) {
 	// Regression for the completed_decision_is_present violation: a job that
 	// failed once (error_class set by ScheduleJobRetry) must complete after a
 	// successful retry — CompleteJob clears error_class and next_attempt_at.
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("retry then succeed")
@@ -660,8 +579,8 @@ func TestRejectedAssessmentPublishesRejectedOutcome(t *testing.T) {
 	// service drops an ERROR event carrying content reasons, so mapping a
 	// rejection to ERROR silently discarded every rejection.
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("this is harassment")
@@ -705,8 +624,8 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 	// outbox row — the phantom row would block the rightful owner's terminal
 	// write on UNIQUE(job_id, run_generation) forever.
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("stale finalize target")
@@ -729,7 +648,7 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 	// Stale worker reaches the terminal branch: must be fenced, and the outbox
 	// must stay empty.
 	err := store.FinalizeFailed(ctx, *stale, moderation.WrapConnectionError(errors.New("late failure")))
-	if !errors.Is(err, moderation.ErrFenced) {
+	if !errors.Is(err, moderationjob.ErrFenced) {
 		t.Fatalf("stale terminal finalize error = %v, want ErrFenced", err)
 	}
 	if n := countOutbox(t, pool, jobID, 1); n != 0 {
@@ -744,7 +663,7 @@ func TestStaleFinalizeCannotWriteOutboxOrSchedule(t *testing.T) {
 		moderation.WrapConnectionError(errors.New("late failure")),
 	); !errors.Is(
 		err,
-		moderation.ErrFenced,
+		moderationjob.ErrFenced,
 	) {
 		t.Fatalf("stale retry finalize error = %v, want ErrFenced", err)
 	}
@@ -762,8 +681,8 @@ func TestReleaseRequeuesForPromptRetry(t *testing.T) {
 	// it (queued, claim cleared) instead of failing the processing_is_claimed
 	// CHECK and silently waiting out the lease.
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 
 	in := ingestInput("release me")
@@ -786,7 +705,7 @@ func TestReleaseRequeuesForPromptRetry(t *testing.T) {
 	}
 	// And it must be immediately claimable again.
 	outcome, again, err := store.Claim(ctx, "next-worker", 30*time.Second)
-	if err != nil || outcome != moderation.ClaimReady || again == nil || again.Job.ID != jobID {
+	if err != nil || outcome != moderationjob.ClaimReady || again == nil || again.Job.ID != jobID {
 		t.Fatalf("released job not reclaimable: %v %v %v", outcome, again, err)
 	}
 }
@@ -796,26 +715,25 @@ func TestReleasedJobReclaimsAfterShutdownContextCancel(t *testing.T) {
 	// must detach the context so the write still lands and the job is
 	// promptly requeued instead of waiting out the lease.
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
 
 	in := ingestInput("cancel then release")
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	if _, err := store.Ingest(context.Background(), in); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 
 	eval := newBlockingEvaluator()
-	p := moderation.NewPool(
-		moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil),
+	p := moderationjob.NewPool(
+		moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil),
 		eval,
 		moderation.NewInferenceLimiter(1),
-		moderation.PoolConfig{
+		moderationjob.PoolConfig{
 			Concurrency:       1,
 			Lease:             30 * time.Second,
 			HeartbeatInterval: 5 * time.Second,
 			PollInterval:      10 * time.Millisecond,
 			LLMRequestTimeout: 10 * time.Second,
-			RetrySettings:     moderation.DefaultRetrySettings(),
+			RetrySettings:     moderationjob.DefaultRetrySettings(),
 		},
 		nil,
 	)
@@ -865,58 +783,9 @@ func TestAdminAuditRejectsUnknownAction(t *testing.T) {
 	}
 }
 
-func TestAutomaticRetryRetainsPinnedConfiguration(t *testing.T) {
-	pool := newTestPool(t)
-	first := activateTestConfig(t, pool)
-	store := moderation.NewJobService(
-		pool,
-		moderation.RetrySettingsFromConfig(2, time.Millisecond, time.Millisecond),
-		nil,
-	)
-	ctx := context.Background()
-	in := ingestInput("pin my model")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatal(err)
-	}
-	claimed := claimDue(t, store, pool)
-	originalSystemMessage := claimed.Config.SystemMessage
-	if originalSystemMessage == "" {
-		t.Fatal("missing persisted default system message")
-	}
-	if err := store.FinalizeFailed(ctx, *claimed, moderation.WrapServerError(errors.New("temporary"))); err != nil {
-		t.Fatal(err)
-	}
-	configStore := moderation.NewConfigurationStore(pool)
-	second, err := configStore.InsertConfigVersion(
-		ctx,
-		"different-model",
-		[]byte(`{}`),
-		moderation.OutputModeJSONObject,
-		"review-text-v1",
-		"other",
-		"admin", "Changed policy for new jobs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := configStore.ActivateConfigVersion(ctx, second, "admin", &first); err != nil {
-		t.Fatal(err)
-	}
-	claimed = claimDue(t, store, pool)
-	if claimed.Config.SystemMessage != originalSystemMessage || claimed.Config.VersionID != first ||
-		*claimed.Job.ConfigVersionID != first.String() {
-		t.Fatalf("automatic retry changed configuration: %+v", claimed.Config)
-	}
-	if err := store.FinalizeFailed(ctx, *claimed, moderation.WrapServerError(errors.New("temporary"))); err != nil {
-		t.Fatal(err)
-	}
-	if job := jobByRequest(t, pool, in.ModerationRequestID); job.Status != "errored" || job.AttemptCount != 2 {
-		t.Fatalf("configured retry budget ignored: %+v", job)
-	}
-}
-
 func TestConcurrentIngestionVerifiesImmutableSnapshot(t *testing.T) {
 	pool := newTestPool(t)
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	ctx := context.Background()
 	in := ingestInput("original immutable text")
 	errorsC := make(chan error, 8)
@@ -936,21 +805,21 @@ func TestConcurrentIngestionVerifiesImmutableSnapshot(t *testing.T) {
 	}
 	conflict := in
 	conflict.Comment = "changed text"
-	if result, err := store.Ingest(ctx, conflict); err != nil || result != moderation.IngestionConflictQuarantined {
+	if result, err := store.Ingest(ctx, conflict); err != nil || result != moderationjob.IngestionConflictQuarantined {
 		t.Fatalf("changed snapshot = %v, %v", result, err)
 	}
 	conflict = in
 	conflict.ModerationRequestID = uuid.New()
-	if result, err := store.Ingest(ctx, conflict); err != nil || result != moderation.IngestionConflictQuarantined {
+	if result, err := store.Ingest(ctx, conflict); err != nil || result != moderationjob.IngestionConflictQuarantined {
 		t.Fatalf("reused source event = %v, %v", result, err)
 	}
 }
 
 func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 	pool := newTestPool(t)
-	activateTestConfig(t, pool)
+
 	ctx := context.Background()
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
+	store := moderationjob.NewService(pool, moderationjob.DefaultRetrySettings(), nil)
 	in := ingestInput("clock fencing")
 	if _, err := store.Ingest(ctx, in); err != nil {
 		t.Fatal(err)
@@ -987,7 +856,7 @@ func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 		moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"},
 	); !errors.Is(
 		err,
-		moderation.ErrFenced,
+		moderationjob.ErrFenced,
 	) {
 		t.Fatalf("expired owner completed: %v", err)
 	}
@@ -1000,151 +869,5 @@ func TestLeaseUsesDatabaseClockAndRejectsExpiredOwner(t *testing.T) {
 	); err != nil ||
 		ok {
 		t.Fatalf("expired owner renewed: %v, %v", ok, err)
-	}
-}
-
-func TestConfigurationPauseSurvivesRestartAndRequiresValidatedAdminRecovery(t *testing.T) {
-	pool := newTestPool(t)
-	first := activateTestConfig(t, pool)
-	ctx := context.Background()
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
-	input := ingestInput("private review")
-	if _, err := store.Ingest(ctx, input); err != nil {
-		t.Fatal(err)
-	}
-	claimed := mustClaim(t, store, "worker")
-	if err := store.FinalizeFailed(
-		ctx,
-		*claimed,
-		moderation.WrapConfigurationError(errors.New("sk-private-secret private-review")),
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE moderation_jobs SET next_attempt_at=now() - interval '1 day' WHERE moderation_request_id=$1`,
-		input.ModerationRequestID,
-	); err != nil {
-		t.Fatal(err)
-	}
-	// No wall-clock backoff or process restart can retry an unchanged broken moderation.
-	for range 3 {
-		store = moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
-		if outcome, _, err := store.Claim(
-			ctx,
-			"restarted",
-			time.Minute,
-		); err != nil ||
-			outcome != moderation.ClaimNone {
-			t.Fatalf("paused configuration claimed again: %v, %v", outcome, err)
-		}
-	}
-	job := jobByRequest(t, pool, input.ModerationRequestID)
-	if job.AttemptCount != 1 {
-		t.Fatalf("paused job consumed attempts: %d", job.AttemptCount)
-	}
-	pausedJob, err := store.GetJobByID(ctx, job.ID)
-	if err != nil || pausedJob.Status != "retry_wait" || pausedJob.ErrorClass == nil ||
-		*pausedJob.ErrorClass != "configuration" {
-		t.Fatalf("configuration pause not persisted: %+v, %v", pausedJob, err)
-	}
-
-	var detail string
-	if err := pool.QueryRow(ctx, `SELECT detail FROM moderation_attempts WHERE job_id=$1`, job.ID).
-		Scan(&detail); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(detail, "private") {
-		t.Fatalf("unsafe persisted diagnostic: %q", detail)
-	}
-
-	configs := moderation.NewConfigurationStore(pool)
-	second, err := configs.InsertConfigVersion(
-		ctx,
-		"corrected",
-		[]byte(`{}`),
-		moderation.OutputModeJSONObject,
-		"review-text-v1",
-		"test",
-		"admin", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := configs.ActivateAndResume(ctx, second, "admin", &first, false); err != nil {
-		t.Fatal(err)
-	}
-	// Ordinary activation does not silently rebind old pinned moderation.
-	if outcome, _, err := store.Claim(ctx, "worker", time.Minute); err != nil || outcome != moderation.ClaimNone {
-		t.Fatalf("old configuration unexpectedly resumed: %v, %v", outcome, err)
-	}
-	fresh := ingestInput("fresh work uses new configuration")
-	if _, err := store.Ingest(ctx, fresh); err != nil {
-		t.Fatal(err)
-	}
-	ready := mustClaim(t, store, "worker")
-	if ready.Job.ModerationRequestID != fresh.ModerationRequestID || ready.Config.VersionID != second {
-		t.Fatal("paused work starved new configuration")
-	}
-	if err := store.Complete(
-		ctx,
-		*ready,
-		moderation.ReviewAssessment{Outcome: moderation.OutcomeApproved, PolicyVersion: "review-text-v1"},
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := configs.ActivateAndResume(
-		ctx,
-		second,
-		"admin",
-		&first,
-		true,
-	); !errors.Is(
-		err,
-		moderation.ErrConfigurationConflict,
-	) {
-		t.Fatalf("stale activation resumed work: %v", err)
-	}
-	if err := configs.ActivateAndResume(ctx, second, "admin", &second, true); err != nil {
-		t.Fatal(err)
-	}
-	recovered := mustClaim(t, store, "worker")
-	if recovered.Job.ID != job.ID || recovered.Job.RunGeneration != 2 || recovered.AttemptNumber != 1 ||
-		recovered.Config.VersionID != second {
-		t.Fatalf("explicit recovery = %+v", recovered)
-	}
-	var audits int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_admin_audit WHERE action='RESUME_CONFIGURATION_PAUSED_JOB' AND job_id=$1`, job.ID).
-		Scan(&audits); err != nil {
-		t.Fatal(err)
-	}
-	if audits != 1 {
-		t.Fatalf("recovery audit count = %d", audits)
-	}
-}
-
-func TestRevalidatingSameConfigurationResumesPinnedJob(t *testing.T) {
-	pool := newTestPool(t)
-	version := activateTestConfig(t, pool)
-	ctx := context.Background()
-	store := moderation.NewJobService(pool, moderation.DefaultRetrySettings(), nil)
-	in := ingestInput("credentials rotated")
-	if _, err := store.Ingest(ctx, in); err != nil {
-		t.Fatal(err)
-	}
-	claimed := mustClaim(t, store, "worker")
-	if err := store.FinalizeFailed(
-		ctx,
-		*claimed,
-		moderation.WrapConfigurationError(errors.New("bad credential")),
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := moderation.NewConfigurationStore(pool).
-		ActivateConfigVersion(ctx, version, "admin", &version); err != nil {
-		t.Fatal(err)
-	}
-	recovered := mustClaim(t, store, "worker")
-	if recovered.Config.VersionID != version || recovered.Job.RunGeneration != 1 || recovered.AttemptNumber != 2 {
-		t.Fatalf("same-config revalidation = %+v", recovered)
 	}
 }

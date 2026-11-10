@@ -1,4 +1,4 @@
-package moderation
+package job
 
 import (
 	"context"
@@ -62,7 +62,7 @@ func (r ingestionResult) String() string {
 // Ingest deduplicates on moderation_request_id and, on first sight, inserts the
 // durable job. Conflicting or malformed events are quarantined and acknowledged
 // (not retried); the event is never reprocessed.
-func (s *JobService) Ingest(ctx context.Context, in IngestionInput) (ingestionResult, error) {
+func (s *Service) Ingest(ctx context.Context, in IngestionInput) (ingestionResult, error) {
 	var result ingestionResult
 	err := database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		existing, err := q.GetJobByModerationRequest(ctx, in.ModerationRequestID)
@@ -121,13 +121,13 @@ func (s *JobService) Ingest(ctx context.Context, in IngestionInput) (ingestionRe
 
 // QuarantineMalformed records a decoded-but-unprocessable event and acknowledges
 // it so the partition can advance.
-func (s *JobService) QuarantineMalformed(ctx context.Context, in MalformedInput) error {
+func (s *Service) QuarantineMalformed(ctx context.Context, in MalformedInput) error {
 	return database.Within(ctx, s.pool, func(q *moderationdb.Queries) error {
 		return s.quarantine(ctx, q, in.MessageKey, in.EventID, in.Reason, in.Comment)
 	})
 }
 
-func (s *JobService) quarantine(
+func (s *Service) quarantine(
 	ctx context.Context,
 	q *moderationdb.Queries,
 	messageKey, eventID, reason, comment string,
