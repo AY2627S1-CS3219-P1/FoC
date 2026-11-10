@@ -42,6 +42,7 @@ async function open(path, { authenticated = true, overrides = {}, viewport = { w
 		};
 		const body = JSON.parse(route.request().postData() || '{}');
 		const json = await (overrides[method] ?? defaults[method] ?? (() => ({})))(body);
+		if (json.__failure) return route.fulfill({ status: 503, json: { code: 'unavailable', message: 'Starting' } });
 		return route.fulfill({ json });
 	});
 	await page.goto(base + path);
@@ -64,6 +65,24 @@ try {
 	assert(controlsVisible.equals(controlsHidden), 'map controls do not paint over the drawer');
 	await context.close();
 	console.log('PASS drawer paints above map switches and Leaflet controls');
+
+	// Startup and transient status failures must recover without a page reload.
+	for (const initial of ['starting', 'unavailable']) {
+		let statusCalls = 0;
+		({ page, context } = await open('/orders/' + id, { overrides: {
+			GetTelegramLink: () => {
+				statusCalls++;
+				if (statusCalls === 1) return initial === 'unavailable' ? { __failure: true } : { linked: true };
+				return { linked: true, botUrl: 'https://t.me/foc_regression_bot' };
+			}
+		} }));
+		const chat = page.getByRole('link', { name: 'Chat on Telegram', exact: true });
+		await chat.waitFor({ timeout: 25000 });
+		assert.equal(await chat.getAttribute('href'), `https://t.me/foc_regression_bot?start=chat_${id}`);
+		assert.equal(statusCalls, 2, 'missing bot URL is retried before caching');
+		await context.close();
+	}
+	console.log('PASS Telegram startup and status failures recover without reload');
 
 	({ page, context } = await open('/suppliers', { overrides: {
 		ListLocations: body => ({

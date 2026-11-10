@@ -267,6 +267,39 @@ func (r *Relay) ShowChats(ctx context.Context, msg *telegram.Message) error {
 	)
 }
 
+// OpenChat selects orderID's chat for the sender, as the app's Chat button
+// does through /start chat_<order id>. It reports false and sends nothing when
+// the sender isn't linked or isn't a participant, so the order stays private.
+func (r *Relay) OpenChat(ctx context.Context, msg *telegram.Message, orderID uuid.UUID) (bool, error) {
+	sender, err := r.Links.GetByChat(ctx, msg.Chat.ID)
+	if errors.Is(err, linking.ErrNotLinked) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get sender link: %w", err)
+	}
+	order, err := r.Store.GetOrder(ctx, orderID)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get order: %w", err)
+	}
+	if _, participant := order.Other(sender.UserID); !participant {
+		return false, nil
+	}
+	now := r.Now()
+	if !order.IsOpen(now) {
+		return true, r.reply(ctx, msg.Chat.ID, closedReply, nil)
+	}
+	if err := r.Store.Select(ctx, sender.UserID, order.ID, now); err != nil {
+		return false, fmt.Errorf("select order: %w", err)
+	}
+	return true, r.reply(ctx, msg.Chat.ID, fmt.Sprintf(
+		"Your messages now go to your %s for the %s. Send a message to start.",
+		otherRole(order, sender.UserID), order.Label()), nil)
+}
+
 // HandleCallback handles a press of a /chat order button.
 func (r *Relay) HandleCallback(ctx context.Context, cb *telegram.CallbackQuery) error {
 	data, ok := strings.CutPrefix(cb.Data, selectPrefix)
