@@ -96,6 +96,7 @@ func kafkaBroker(t *testing.T, ctx context.Context) string {
 		"order.status_changed",
 		"order.outcome",
 		"order.courier_warning_requested",
+		"order.offer_made",
 		"order.changed",
 	} {
 		topics = append(topics, kafkago.TopicConfig{Topic: name, NumPartitions: 1, ReplicationFactor: 1})

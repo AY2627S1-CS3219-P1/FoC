@@ -3,15 +3,61 @@
 package order
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
 	"slices"
 	"testing"
 	"time"
 
 	db "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/database/orderdb"
 	"github.com/google/uuid"
+	"github.com/pressly/goose/v3"
 )
+
+func TestOrderChangeMigrationPreservesOfferFacts(t *testing.T) {
+	f := setup(t)
+	o := f.create(t)
+	f.mustTransition(t, o.ID, ConfirmReservation, Actor{Kind: System})
+	assigner := NewAssigner(f.repo, nil, AssignmentOptions{})
+	courier := Caller{ID: uuid.NewString()}
+	if _, err := assigner.MakeOffer(f.ctx, courier, o.ID, 20, uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+
+	sqlDB, err := sql.Open("pgx", f.pool.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, os.DirFS("../../database/schema"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.DownTo(f.ctx, 9); err != nil {
+		t.Fatal(err)
+	}
+	assertFacts := func(wantOffers, wantChanges int) {
+		t.Helper()
+		var offers, changes int
+		if err := f.pool.QueryRow(f.ctx, `SELECT
+			count(*) FILTER (WHERE kind='order.offer_made'),
+			count(*) FILTER (WHERE kind='order.changed')
+			FROM order_outbox WHERE order_id=$1`, o.ID).Scan(&offers, &changes); err != nil ||
+			offers != wantOffers || changes != wantChanges {
+			t.Fatalf("offer facts=%d changes=%d, want %d/%d: %v", offers, changes, wantOffers, wantChanges, err)
+		}
+	}
+	assertFacts(1, 0)
+	if _, err := provider.Up(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := assigner.MakeOffer(f.ctx, courier, o.ID, 25, uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+	assertFacts(2, 1)
+}
 
 func TestOrderChangeAtomicityWorkflowAndPublicationLanes(t *testing.T) {
 	f := setup(t)

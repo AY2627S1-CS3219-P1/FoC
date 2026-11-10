@@ -14,6 +14,12 @@ documented in LANDMINES.
 Order's integration suite uses PostgreSQL 18 and **resets the supplied database
 schema**. Point `TEST_DATABASE_URL` only at a disposable database:
 
+Order migration `00010_change_events.sql` follows the offer-publication migration
+`00009_offer_made_facts.sql`. The integration suite downgrades to version 9 with
+an unpublished offer fact, reapplies version 10, and verifies both offer facts
+and advisory changes can still be recorded. Rolling back version 10 removes
+only `order.changed` rows and retains `order.offer_made` support.
+
 ```sh
 cd order-service
 GOWORK=off go test -mod=readonly -tags=integration -p 1 ./internal/order -count=1 -timeout=10m
