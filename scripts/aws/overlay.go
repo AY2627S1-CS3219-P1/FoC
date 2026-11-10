@@ -240,9 +240,6 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 		case "applications", "initialization":
 			for _, service := range services {
 				kind, name := "Deployment", service+"-service"
-				if service == "moderation" {
-					name = "content-moderation-service"
-				}
 				if stage == "initialization" {
 					kind, name = "Job", service+"-migrate"
 				}

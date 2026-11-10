@@ -28,7 +28,7 @@ var jobs = []string{
 	"order-migrate",
 	"credit-migrate",
 	"communication-migrate",
-	"moderation-migrate",
+	"content-moderation-migrate",
 	"kafka-init",
 }
 var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}

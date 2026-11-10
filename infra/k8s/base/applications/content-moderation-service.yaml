@@ -28,7 +28,7 @@ spec:
             - configMapRef:
                 name: foc-config
             - secretRef:
-                name: moderation-db
+                name: content-moderation-db
             - secretRef:
                 name: moderation-llm
           ports:

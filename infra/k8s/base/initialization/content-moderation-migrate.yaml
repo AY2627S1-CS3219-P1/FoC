@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: moderation-migrate
+  name: content-moderation-migrate
   labels:
     foc.dev/stage: initialization
 spec:
@@ -10,17 +10,17 @@ spec:
   template:
     metadata:
       labels:
-        app: moderation-migrate
+        app: content-moderation-migrate
       annotations:
         sidecar.istio.io/nativeSidecar: "true"
     spec:
-      serviceAccountName: moderation-migrate
+      serviceAccountName: content-moderation-migrate
       restartPolicy: Never
       containers:
-        - name: moderation-migrate
+        - name: content-moderation-migrate
           image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["-dir", "/migrations/moderation", "up"]
+          args: ["-dir", "/migrations/content-moderation", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
@@ -33,5 +33,5 @@ spec:
             - name: GOOSE_DBSTRING
               valueFrom:
                 secretKeyRef:
-                  name: moderation-db
+                  name: content-moderation-db
                   key: DATABASE_URL

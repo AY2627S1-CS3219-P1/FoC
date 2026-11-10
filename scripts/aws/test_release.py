@@ -180,7 +180,7 @@ class ReleaseCLITest(unittest.TestCase):
         calls = state["calls"]
         self.assertEqual(sum(call[0] == "terraform" and "apply" in call for call in calls), 1)
         self.assertIn(["make", "k8s-deploy", "service="], calls)
-        secret_check = next(call for call in calls if "moderation-db" in call and "secret" in call)
+        secret_check = next(call for call in calls if "content-moderation-db" in call and "secret" in call)
         self.assertIn("moderation-llm", secret_check)
         self.assertIn(["kubectl", "--context", "foc-release", "--request-timeout=15s", "-n",
                        "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], calls)
@@ -382,7 +382,7 @@ class ReleaseRBACContractTest(unittest.TestCase):
         role = next(obj for obj in objects if obj["kind"] == "Role" and obj["metadata"]["namespace"] == "foc")
         secrets = next(rule for rule in role["rules"] if "secrets" in rule["resources"])
         self.assertEqual(secrets["verbs"], ["get"])
-        self.assertTrue({"moderation-db", "moderation-llm"}.issubset(secrets["resourceNames"]))
+        self.assertTrue({"content-moderation-db", "moderation-llm"}.issubset(secrets["resourceNames"]))
         self.assertNotIn("rds-provision-admin", secrets["resourceNames"])
 
     def test_logging_access_is_namespace_scoped_and_preserves_admin_rbac(self):

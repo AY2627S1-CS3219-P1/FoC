@@ -284,11 +284,7 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 			t.Fatalf("got %d application image names, want nine", len(images))
 		}
 		for _, service := range services {
-			deployment := service + "-service"
-			if service == "moderation" {
-				deployment = "content-moderation-service"
-			}
-			for _, pair := range [][2]string{{"Deployment", deployment}, {"Job", service + "-migrate"}} {
+			for _, pair := range [][2]string{{"Deployment", service + "-service"}, {"Job", service + "-migrate"}} {
 				containers := array(podSpec(namedManifest(t, objects, pair[0], pair[1]))["containers"])
 				if len(containers) != 1 ||
 					!strings.Contains(compactJSON(object(containers[0])["volumeMounts"]), "/var/run/foc/rds") {

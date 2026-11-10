@@ -50,8 +50,8 @@ The overlay sets the public CMS URL and mounts the RDS CA in CMS and its migrati
 ### 3. Provision the service database and database Secret
 
 Use the **same retained** `.local/aws/db` directory on retries. The preparer
-preserves existing credentials and adds `foc_moderation` / `moderation_db`, with
-a `moderation-db` Secret containing its TLS-verified `DATABASE_URL`.
+preserves existing credentials and adds `foc_content_moderation` / `content_moderation_db`, with
+a `content-moderation-db` Secret containing its TLS-verified `DATABASE_URL`.
 
 ```sh
 DATABASE_SECRET_ARN=$(python3 -c 'import json; print(json.load(open(".local/aws/deployment.json"))["database_secret_arn"])')
@@ -87,7 +87,7 @@ chmod 600 .local/aws/CMS_LLM_API_KEY
 k -n foc create secret generic moderation-llm \
   --from-file=CMS_LLM_API_KEY=.local/aws/CMS_LLM_API_KEY \
   --dry-run=client -o yaml | k apply -f -
-k -n foc get secret moderation-db moderation-llm -o name
+k -n foc get secret content-moderation-db moderation-llm -o name
 ```
 
 Install the remaining signing/email/application Secrets using the
@@ -109,7 +109,7 @@ Wait for workflow success: Secret checks, nine image builds/pushes, migrations,
 Kafka topics, application rollout and public HTTPS smoke must all pass.
 
 ```sh
-k -n foc wait --for=condition=complete job/moderation-migrate --timeout=180s
+k -n foc wait --for=condition=complete job/content-moderation-migrate --timeout=180s
 k -n foc rollout status deployment/content-moderation-service --timeout=180s
 k -n foc logs deployment/content-moderation-service --tail=30
 ```
