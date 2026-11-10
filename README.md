@@ -458,3 +458,33 @@ flowchart TB
 - Operational runbooks: `docs/runbooks/`
 - Project glossary: [`glossary.md`](glossary.md)
 - Non-obvious failure notes (update when a problem bites): `LANDMINES/`
+
+---
+
+## AI Use Summary
+This project is done with AI assistance.
+
+**Tools:** AI coding assistants (chat-based and agentic coding
+tools such as Opencode, Codex using models such as DeepSeek and GPT 6.1).
+
+**Prohibited phases avoided:** requirements elicitation and prioritization;
+architecture and design decisions (component boundaries, design patterns,
+data schemas, interfaces); and drafting of decision rationales.
+
+**Used for:**
+
+- Learning support to understand and compare candidate tools, technologies,
+  architectures, and design approaches, and to evaluate the trade-offs
+  between them. All final decisions, their rationale, and the records in
+  `docs/adr/` were made, written, and validated by the team.
+- Generating scaffolding and boilerplate when creating a new service (folder
+  structure, configuration, build and container definitions, generated-code
+  stubs).
+- Writing implementation code (functions, classes, unit tests) after the
+  team finalized the relevant requirements and design.
+- Debugging assistance (error explanations, test suggestions) and
+  refactoring and documentation improvements (docstrings, comments, README
+  content).
+
+**Verification:** All AI outputs were reviewed, tested, verified, and edited
+  as necessary by the team.
