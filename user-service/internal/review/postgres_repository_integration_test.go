@@ -757,8 +757,15 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			nil,
 		)
 		assertExternal(t, err, http.StatusConflict)
-		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 1 {
-			t.Fatalf("duplicate review persisted: count=%d, want 1", c)
+
+		// The committed row still proves duplication when Order is unavailable,
+		// even when the original photo IDs can no longer be prepared.
+		unavailable := buildReviewService(t, sqlDB, UnavailableOrderGateway{})
+		err = unavailable.SubmitReview(ctx, reviewer, reviewee, order,
+			ReviewSubmission{Rating: 1, Comment: "lost response retry"}, []uuid.UUID{uuid.New()})
+		assertExternal(t, err, http.StatusConflict)
+		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 1 || avg != 5 {
+			t.Fatalf("duplicate retry changed stats: count=%d avg=%v, want 1 and 5", c, avg)
 		}
 	})
 

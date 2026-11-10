@@ -47,6 +47,16 @@ func (s *Service) SubmitReview(
 	if !participants.RevieweeExists {
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
 	}
+	// A prior submission committed, usually a lost-response retry; the pre-check
+	// runs before remote validation and photo preparation so an Order outage or
+	// already-attached photos cannot mask the canonical 409.
+	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
 	orderParticipants, err := s.orders.GetOrderParticipants(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, errOrderNotFound) {
@@ -59,15 +69,6 @@ func (s *Service) SubmitReview(
 	}
 	if !orderParticipants.Contains(reviewerID, revieweeID) {
 		return errs.NewForbiddenError("not a participant of this order")
-	}
-	// A prior submission committed, usually a lost-response retry; the pre-check
-	// runs before photo preparation so the retry gets the canonical 409.
-	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
 	}
 	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
 	if err != nil {

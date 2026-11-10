@@ -180,3 +180,50 @@ func orderGatewayForIntegration(t *testing.T, orders *stubOrders) OrderGateway {
 	t.Cleanup(server.Close)
 	return NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL))
 }
+
+func TestReviewRetryDuringOrderOutage(t *testing.T) {
+	reviewer, reviewee, other, orderID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	for _, tc := range []struct {
+		name             string
+		existingReviewer uuid.UUID
+		code             connect.Code
+		lookup           bool
+	}{
+		{"committed retry returns conflict without order lookup", reviewer, connect.CodeAlreadyExists, false},
+		{"another reviewer does not bypass order validation", other, connect.CodeInternal, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := &participantRPC{err: connect.NewError(connect.CodeUnavailable, errors.New("order unavailable"))}
+			path, handler := orderv1connect.NewOrderInternalServiceHandler(stub)
+			mux := http.NewServeMux()
+			mux.Handle(path, handler)
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			repo := &fakeRepository{
+				exists:          map[uuid.UUID]bool{reviewer: true, reviewee: true},
+				existingReviews: map[uuid.UUID][]uuid.UUID{tc.existingReviewer: {orderID}},
+			}
+			service := newTestService(
+				repo,
+				NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(server.Client(), server.URL)),
+			)
+			client := reviewClient(t, service, auth.Caller{ID: reviewer.String()})
+			_, err := client.SubmitReview(context.Background(), connect.NewRequest(&reviewv1.SubmitReviewRequest{
+				From: reviewer.String(), To: reviewee.String(), OrderId: orderID.String(),
+				Submission: &reviewv1.ReviewSubmission{Rating: 5, Comment: "retry"},
+				// The committed submission's photos may already be attached or cleaned up.
+				PhotoIds: []string{uuid.NewString()},
+			}))
+			if connect.CodeOf(err) != tc.code {
+				t.Fatalf("retry: want %v, got %v", tc.code, err)
+			}
+			if (stub.requested != "") != tc.lookup {
+				t.Fatalf("order lookup: got %q, want called=%v", stub.requested, tc.lookup)
+			}
+			if repo.insertedID != uuid.Nil || repo.recalcCount != 0 || len(repo.attached) != 0 {
+				t.Fatal("rejected submission must not write reviews, ratings, or photo attachments")
+			}
+		})
+	}
+}
