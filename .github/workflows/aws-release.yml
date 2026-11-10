@@ -1,29 +1,94 @@
 name: AWS release
 
 on:
+  # Continuous deployment: release each main commit whose CI passed.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       config_version:
-        description: Exact S3 configuration VersionId from the publication receipt
-        required: true
+        description: Exact S3 configuration VersionId; defaults to the aws-demo AWS_CONFIG_VERSION variable
+        required: false
         type: string
       config_sha256:
-        description: Configuration SHA-256 from the publication receipt
-        required: true
+        description: Configuration SHA-256; defaults to the aws-demo AWS_CONFIG_SHA256 variable
+        required: false
         type: string
 
 permissions:
   contents: read
   id-token: write
 
+# One release at a time. A newer pending run replaces an older pending one, so
+# the newest tested commit wins; a running release is never cancelled.
 concurrency:
   group: foc-aws-demo-release
   cancel-in-progress: false
 
+env:
+  # The exact commit CI tested, not whatever main points to when this job starts.
+  SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
+  launch-runner:
+    # Never run deployment credentials for a PR, a fork, a failed CI run, or an
+    # arbitrary dispatch ref.
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    environment: aws-demo-runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      instance_id: ${{ steps.launch.outputs.instance_id }}
+      runner_id: ${{ steps.launch.outputs.runner_id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - name: Create a short-lived runner-registration token
+        id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Assume the scoped launcher role
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_LAUNCHER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: foc-launch-${{ github.run_id }}
+          role-duration-seconds: 3600
+          unset-current-credentials: true
+      - name: Launch one disposable private runner
+        id: launch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          CI_CONFIGURATION: >-
+            {"account_id": "${{ vars.AWS_ACCOUNT_ID }}", "region": "${{ vars.AWS_REGION }}",
+             "bucket": "${{ vars.AWS_CONFIG_BUCKET }}", "prefix": "${{ vars.AWS_CONFIG_PREFIX }}",
+             "launch_template_id": "${{ vars.RUNNER_LAUNCH_TEMPLATE_ID }}",
+             "launch_template_version": "${{ vars.RUNNER_LAUNCH_TEMPLATE_VERSION }}",
+             "registration_parameter": "${{ vars.RUNNER_REGISTRATION_PARAMETER }}",
+             "runner_name": "${{ vars.RUNNER_NAME }}"}
+        run: |
+          set -eu
+          umask 077
+          printf '%s' "$CI_CONFIGURATION" > "$RUNNER_TEMP/ci.json"
+          python3 scripts/aws/launch_runner.py --configuration "$RUNNER_TEMP/ci.json" \
+            --runner-group "${{ vars.RUNNER_GROUP_ID }}" --keep-running
+
   release:
-    # Never execute deployment credentials on a PR or an arbitrary dispatch ref.
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: launch-runner
     environment: aws-demo
     runs-on:
       group: foc-release
@@ -35,14 +100,14 @@ jobs:
       AWS_RELEASE_ROLE_ARN: ${{ vars.AWS_RELEASE_ROLE_ARN }}
       AWS_CONFIG_BUCKET: ${{ vars.AWS_CONFIG_BUCKET }}
       AWS_CONFIG_PREFIX: ${{ vars.AWS_CONFIG_PREFIX }}
-      CONFIG_VERSION: ${{ inputs.config_version }}
-      CONFIG_SHA256: ${{ inputs.config_sha256 }}
+      CONFIG_VERSION: ${{ inputs.config_version || vars.AWS_CONFIG_VERSION }}
+      CONFIG_SHA256: ${{ inputs.config_sha256 || vars.AWS_CONFIG_SHA256 }}
       RELEASE_ID: run${{ github.run_id }}-attempt${{ github.run_attempt }}
       AQUA_ROOT_DIR: ${{ github.workspace }}/.tools/aqua
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
       - name: Check release prerequisites
         shell: bash
@@ -55,6 +120,7 @@ jobs:
           test -n "$AWS_CONFIG_PREFIX"
           test -n "$CONFIG_VERSION"
           [[ "$CONFIG_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ]
           command -v aws
           command -v docker
           command -v python3
@@ -90,3 +156,48 @@ jobs:
             --release-id "$RELEASE_ID"
       # No .local, credentials, state/plans, kubeconfig, or generated Secrets are
       # uploaded or cached. Use an ephemeral, trusted runner for every attempt.
+
+  cleanup-runner:
+    # The runner normally deregisters and terminates itself after its one job.
+    # This also covers a release that never started, failed, or was cancelled.
+    needs: [launch-runner, release]
+    if: always() && needs.launch-runner.outputs.instance_id != ''
+    environment: aws-demo-runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Create a short-lived runner-registration token
+        id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Assume the scoped launcher role
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_LAUNCHER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: foc-cleanup-${{ github.run_id }}
+          unset-current-credentials: true
+      - name: Terminate the runner and remove its registration
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          INSTANCE_ID: ${{ needs.launch-runner.outputs.instance_id }}
+          RUNNER_ID: ${{ needs.launch-runner.outputs.runner_id }}
+        run: |
+          set -eu
+          [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ && "$RUNNER_ID" =~ ^[0-9]+$ ]]
+          state=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --query 'Reservations[0].Instances[0].State.Name' --output text)
+          if [ "$state" != terminated ]; then
+            aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --query 'TerminatingInstances[0].CurrentState.Name' --output text
+          fi
+          aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID"
+          echo "Runner instance $INSTANCE_ID terminated"
+          if gh api "orgs/${{ github.repository_owner }}/actions/runners/$RUNNER_ID" >/dev/null 2>&1; then
+            gh api --method DELETE "orgs/${{ github.repository_owner }}/actions/runners/$RUNNER_ID"
+            echo "Removed runner registration $RUNNER_ID"
+          else
+            echo "Runner registration $RUNNER_ID already removed"
+          fi

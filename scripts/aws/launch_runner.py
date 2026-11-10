@@ -134,6 +134,10 @@ def main():
         print("OUTPUT: GitHub runner online; private EKS TLS probe precedes registration; Standard CPU credits; bootstrap profile detached", flush=True)
         if args.keep_running:
             transferred = True
+            if os.environ.get("GITHUB_OUTPUT"):
+                # Identifiers only, so a later cleanup job can find this exact runner.
+                with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                    output.write("instance_id=" + instance_id + "\nrunner_id=" + str(runner_id) + "\n")
             print("OUTPUT: runner waiting for one approved job; owner receipt=" + str(directory / "owner.json"), flush=True)
     except BaseException as error:
         uncertain = not isinstance(error, Exception)

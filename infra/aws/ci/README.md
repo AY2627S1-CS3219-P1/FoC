@@ -49,7 +49,29 @@ A retained runner waits for one job, then shuts down and terminates. Bootstrap f
 
 Bootstrap emits fixed stage names and exit codes to the EC2 serial console, without shell tracing or registration material. A failed package installation also emits its final package-manager lines before registration is fetched. The launcher saves console output in its private launch directory on failure before cleanup deletes the disk. It prefers buffered state-transition output and falls back to a live snapshot if buffering is delayed; AWS console snapshots can be incomplete. Inspect that protected output to distinguish installation, downloads, private TLS, and registration failures; do not publish raw diagnostics.
 
-This is an operator-launched ephemeral runner, not an automatic autoscaler. There is no standing manager or long-lived GitHub application credential. Use the dedicated group only for trusted release code. Registering online proves bootstrap and private TLS reachability, not OIDC exchange, deployment authorization, image builds, migrations, or application release success.
+The workflow also launches this runner itself for continuous deployment (below). Manual launches remain available for recovery.
+
+## Continuous deployment
+
+`aws-release.yml` runs after the **CI** workflow succeeds on a push to `main` and releases that exact commit. It has three jobs:
+
+1. `launch-runner` runs on a GitHub-hosted runner in environment `aws-demo-runner`. It assumes the launcher role through OIDC and gets a short-lived GitHub App installation token. Then it runs `scripts/aws/launch_runner.py --keep-running`. The launcher role can only start instances from the runner launch template, pass the bootstrap role, write the one-time registration parameter, take the `runner-bootstrap` lock, and terminate instances tagged as the runner. It cannot deploy.
+2. `release` runs on that private runner in environment `aws-demo`, using the existing deployment role and the configuration pinned by `AWS_CONFIG_VERSION` and `AWS_CONFIG_SHA256`.
+3. `cleanup-runner` always runs after a successful launch. It terminates the runner instance and removes its GitHub registration if the runner did not already do so.
+
+Workflow concurrency allows one release at a time. A newer pending run replaces an older pending run, and a running release is never cancelled. A failed CI run, a pull request, a fork, or a branch other than `main` never starts a release. Missing configuration variables fail the release before any build. Terraform applies and `prepare-database` remain manual.
+
+One-time administrator setup:
+
+1. Apply this root to create the launcher role. Record `launcher_role_arn` from `terraform output -json ci`.
+2. Create an organization GitHub App with **Organization → Self-hosted runners: Read and write** and no other permissions. Install it on the organization, selecting only FoC. Webhooks are not needed.
+3. Create environment `aws-demo-runner` with `main` as its only deployment branch and no required reviewers. Add secret `RUNNER_APP_PRIVATE_KEY` (the App's private key). Add variables `RUNNER_APP_ID`, `AWS_LAUNCHER_ROLE_ARN`, `RUNNER_GROUP_ID`, `RUNNER_LAUNCH_TEMPLATE_ID`, `RUNNER_LAUNCH_TEMPLATE_VERSION`, `RUNNER_REGISTRATION_PARAMETER`, and `RUNNER_NAME` from the `ci` output and the runner group. Also add `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_CONFIG_BUCKET`, and `AWS_CONFIG_PREFIX`.
+4. In environment `aws-demo`, add variables `AWS_CONFIG_VERSION` and `AWS_CONFIG_SHA256` from the latest publication receipt. Update both after every infrastructure publication. The release never selects an unpinned latest object.
+5. Remove the required reviewer from `aws-demo` after one automatic release has succeeded with the reviewer still in place. Keep `main` as its only deployment branch.
+
+Update `RUNNER_LAUNCH_TEMPLATE_VERSION` whenever this root changes the launch template.
+
+There is no standing autoscaler or manager. The GitHub App private key is the one long-lived GitHub credential. It lives only in the `aws-demo-runner` environment, and it can only manage self-hosted runners. Use the dedicated group only for trusted release code. Registering online proves bootstrap and private TLS reachability, not OIDC exchange, deployment authorization, image builds, migrations, or application release success.
 
 ## Verification
 

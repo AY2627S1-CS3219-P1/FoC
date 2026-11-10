@@ -21,6 +21,12 @@ mock_provider "aws" {
   mock_resource "aws_iam_instance_profile" {
     defaults = { arn = "arn:aws:iam::123456789012:instance-profile/foc-demo-ci-runner-bootstrap" }
   }
+  mock_resource "aws_launch_template" {
+    defaults = { arn = "arn:aws:ec2:ap-southeast-1:123456789012:launch-template/lt-0123456789abcdef0" }
+  }
+  mock_resource "aws_security_group" {
+    defaults = { arn = "arn:aws:ec2:ap-southeast-1:123456789012:security-group/sg-0fedcba9876543210" }
+  }
 }
 variables {
   account_id        = "123456789012"
@@ -55,6 +61,22 @@ run "isolated_release_identity_and_private_disposable_runner" {
   assert {
     condition     = strcontains(aws_iam_role_policy.bootstrap.policy, "parameter/foc-demo/ci/runner-jit") && !strcontains(aws_iam_role_policy.bootstrap.policy, "s3:") && !strcontains(aws_iam_role_policy.bootstrap.policy, "eks:")
     error_message = "Bootstrap identity must not inherit deployment or state permissions."
+  }
+}
+
+run "launcher_identity_can_only_launch_the_runner" {
+  command = plan
+  assert {
+    condition     = jsondecode(aws_iam_role.launcher.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo-runner"
+    error_message = "Only the repository's runner-launch environment may assume the launcher identity."
+  }
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.launcher.policy, "eks:") && !strcontains(aws_iam_role_policy.launcher.policy, "ecr:") && !strcontains(aws_iam_role_policy.launcher.policy, "/config/") && !strcontains(aws_iam_role_policy.launcher.policy, "locks/aws-demo") && !strcontains(aws_iam_role_policy.launcher.policy, "tfstate")
+    error_message = "The launcher must not deploy, read release configuration, or take the release lock."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.launcher.policy).Statement[0].Condition.ArnEquals["ec2:LaunchTemplate"] == "arn:aws:ec2:ap-southeast-1:123456789012:launch-template/lt-0123456789abcdef0" && jsondecode(aws_iam_role_policy.launcher.policy).Statement[3].Resource == "arn:aws:iam::123456789012:role/foc-ci-test" && jsondecode(aws_iam_role_policy.launcher.policy).Statement[5].Condition.StringEquals["aws:ResourceTag/Name"] == "foc-demo-ci-runner"
+    error_message = "Instances must come from the runner launch template, only the bootstrap role may be passed, and only runner instances may be terminated."
   }
 }
 
