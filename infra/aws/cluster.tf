@@ -90,7 +90,9 @@ locals {
     }, var.ses_sender_email == null ? {} : {
     email               = "system:serviceaccount:foc:user-service"
     communication_email = "system:serviceaccount:foc:communication-service"
-  })
+    }, var.enable_moderation_service ? {
+    moderation = "system:serviceaccount:foc:moderation-service"
+  } : {})
 }
 
 data "aws_iam_policy_document" "workload_trust" {

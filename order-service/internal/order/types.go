@@ -46,11 +46,24 @@ func (s Status) IsTerminal() bool {
 	return s == Completed || s == Cancelled || s == Expired || s == Failed || s == Rejected
 }
 
+type Coordinates struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+type OpenOrderSort string
+
+const (
+	SortNewest    OpenOrderSort = "newest"
+	SortProximity OpenOrderSort = "proximity"
+)
+
 type LocationSnapshot struct {
-	LocationID   string  `json:"location_id"`
-	Name         string  `json:"name"`
-	BuildingName string  `json:"building_name"`
-	Floor        *string `json:"floor,omitempty"`
+	Coordinates  *Coordinates `json:"coordinates,omitempty"`
+	LocationID   string       `json:"location_id"`
+	Name         string       `json:"name"`
+	BuildingName string       `json:"building_name"`
+	Floor        *string      `json:"floor,omitempty"`
 }
 
 type Order struct {
@@ -66,6 +79,7 @@ type Order struct {
 	ExpiresAt                                                  time.Time
 	AssignedAt, PickedUpAt, DeliveredAt, CompletedAt, ClosedAt *time.Time
 	CloseReason, ItemLocation                                  *string
+	AutomaticallyCompleted                                     bool
 	UnattendedDelivery                                         bool
 	Revision                                                   int64
 	CreatedAt, UpdatedAt                                       time.Time
@@ -138,6 +152,8 @@ const (
 	Deliver            Action = "deliver"
 	Timeout            Action = "timeout"
 	ConfirmReceipt     Action = "confirm_receipt"
+	// AutoComplete completes a delivered order whose requester never confirmed.
+	AutoComplete       Action = "auto_complete"
 	RecordItemLocation Action = "record_item_location"
 )
 
@@ -181,6 +197,8 @@ func (p PageInfo) TotalPages() int32 {
 }
 
 type ListRequest struct {
+	Sort                 OpenOrderSort
+	Origin               *Coordinates
 	Page                 Page
 	Status               Status
 	Role                 Role
@@ -195,11 +213,21 @@ type OrderPage struct {
 	PageInfo PageInfo
 }
 
+// ProofRequiredError is a definitive refusal of a photoless confirmation. It
+// unwraps to ErrPrecondition so receipt recovery keeps classifying it as a
+// precondition rejection, while the RPC boundary can attach a distinct reason.
+type ProofRequiredError struct{}
+
+func (ProofRequiredError) Error() string { return "delivery proof photo is required" }
+func (ProofRequiredError) Unwrap() error { return ErrPrecondition }
+
 // Domain errors are translated by the RPC boundary.
 var (
-	ErrNotFound     = errors.New("order not found")
-	ErrForbidden    = errors.New("permission denied")
-	ErrInvalid      = errors.New("invalid argument")
-	ErrPrecondition = errors.New("ineligible order action")
-	ErrConflict     = errors.New("revision conflict")
+	ErrNotFound            = errors.New("order not found")
+	ErrForbidden           = errors.New("permission denied")
+	ErrInvalid             = errors.New("invalid argument")
+	ErrPrecondition        = errors.New("ineligible order action")
+	ErrProofRequired error = ProofRequiredError{}
+
+	ErrConflict = errors.New("revision conflict")
 )

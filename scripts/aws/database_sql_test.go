@@ -68,6 +68,8 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		t.Fatalf("legacy content moderation data: %s", output)
 	}
 	a, directory, _ := testApplication(t)
+	config := testConfiguration()
+	config["moderation_enabled"] = true
 	legacy, err := json.Marshal(map[string]any{
 		"DB_HOST":      stringValue(testConfiguration(), "database_host"),
 		"DB_USER":      "foc_moderation",
@@ -98,7 +100,7 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err := a.prepareDatabase(
-		testConfiguration(),
+		config,
 		map[string]any{"username": "foc_admin", "password": "offline-test-only"},
 		directory,
 	); err != nil {
@@ -132,14 +134,22 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 	if err != nil || strings.TrimSpace(output) != "pending" {
 		t.Fatalf("content moderation data did not follow the renamed database: %s", output)
 	}
+	output, err = sqlIn(
+		"SELECT count(*) FROM pg_tables WHERE tablename = 'legacy_jobs';",
+		"foc_moderation",
+		"moderation_db",
+	)
+	if err != nil || strings.TrimSpace(output) != "0" {
+		t.Fatalf("reports/appeals inherited content moderation's original database: %s", output)
+	}
 	output, err = sql(
-		"SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database WHERE datname IN ('user_db','supplier_db','order_db','credit_db','communication_db','content_moderation_db');",
+		"SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database WHERE datname IN ('user_db','supplier_db','order_db','credit_db','communication_db','content_moderation_db','moderation_db');",
 		"fixture_owner",
 	)
 	if err != nil {
 		t.Fatal(output)
 	}
-	for _, expected := range []string{"user_db:foc_user", "supplier_db:foc_supplier", "order_db:foc_order", "credit_db:foc_credit", "communication_db:foc_communication", "content_moderation_db:foc_content_moderation"} {
+	for _, expected := range []string{"user_db:foc_user", "supplier_db:foc_supplier", "order_db:foc_order", "credit_db:foc_credit", "communication_db:foc_communication", "content_moderation_db:foc_content_moderation", "moderation_db:foc_moderation"} {
 		if !strings.Contains(output, expected) {
 			t.Fatal("service database has wrong owner")
 		}
@@ -150,6 +160,22 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 	)
 	if err != nil || strings.TrimSpace(output) != "0" {
 		t.Fatal("temporary SET/INHERIT privileges remain")
+	}
+	// Each service owns its database, not a shared schema or another service's data.
+	names := []string{"user", "supplier", "order", "credit", "communication", "content_moderation", "moderation"}
+	for _, service := range names {
+		for _, database := range names {
+			cmd := exec.Command(client, "-X", "-h", socket, "-p", port, "-U", "foc_"+service,
+				"-d", database+"_db", "-Atc", "SELECT current_user")
+			output, err := cmd.CombinedOutput()
+			if service == database {
+				if err != nil || strings.TrimSpace(string(output)) != "foc_"+service {
+					t.Fatalf("%s cannot access its own database: %s", service, output)
+				}
+			} else if err == nil || !strings.Contains(string(output), "permission denied for database") {
+				t.Fatalf("%s must not access %s's database: %s", service, database, output)
+			}
+		}
 	}
 	if output, err := sql("ALTER DATABASE order_db OWNER TO fixture_owner;", "fixture_owner"); err != nil {
 		t.Fatal(output)
@@ -165,6 +191,6 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		t.Fatal(output)
 	}
 	t.Log(
-		"PASS: real PostgreSQL non-superuser created six owned databases, renamed content moderation's original database in place, retried, rejected wrong ownership, and removed temporary privileges",
+		"PASS: real PostgreSQL created seven owned databases, renamed content moderation's original database in place, gave reports/appeals an empty database, allowed seven owner connections, denied all 42 cross-service connections, retried, rejected wrong ownership, and removed temporary privileges",
 	)
 }

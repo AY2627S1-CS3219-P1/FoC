@@ -14,3 +14,6 @@ postgres_instance_class = "db.t4g.small"
 # Optional SES API delivery for Communication Service; null/default retains SMTP.
 # Verify this email in the region above before enabling. No SMTP login needed.
 # ses_sender_email = "sender@example.edu"
+
+# Optional reports/appeals resources. Does not deploy the moderation runtime.
+# enable_moderation_service = true

@@ -283,7 +283,15 @@ func (s *Proofs) confirmReceipt(
 		return Order{}, err
 	}
 	in.ProofIDs, err = normalizedProofIDs(in.ProofIDs)
-	if err != nil || (len(in.ProofIDs) == 0) != in.WithoutProof {
+	if err != nil {
+		return Order{}, err
+	}
+
+	// Proof is mandatory; the outage option is the only zero-photo exception.
+	if len(in.ProofIDs) == 0 && !in.WithoutProof {
+		return Order{}, ErrProofRequired
+	}
+	if len(in.ProofIDs) > 0 && in.WithoutProof {
 		return Order{}, ErrInvalid
 	}
 
@@ -342,7 +350,7 @@ func (s *Proofs) confirmReceipt(
 			at = receipt.ReceivedAt
 		}
 		if receipt == nil && !s.isCurrentProofOutage(outage, at) {
-			return Order{}, ErrPrecondition
+			return Order{}, ErrProofRequired
 		}
 	} else {
 		for _, upload := range uploads {

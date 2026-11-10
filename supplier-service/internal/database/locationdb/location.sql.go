@@ -427,26 +427,30 @@ WHERE ($1::TEXT = ''
         OR ($6::TEXT = 'active' AND l.archived_at IS NULL)
         OR ($6::TEXT = 'archived' AND l.archived_at IS NOT NULL))
 ORDER BY
+    CASE WHEN $7::TEXT = 'proximity' AND NOT $8::BOOLEAN THEN ST_Distance(l.coordinates, ST_SetSRID(ST_MakePoint($9::double precision, $10::double precision),4326)::geography) END ASC,
+    CASE WHEN $7::TEXT = 'proximity' AND $8::BOOLEAN THEN ST_Distance(l.coordinates, ST_SetSRID(ST_MakePoint($9::double precision, $10::double precision),4326)::geography) END DESC,
     CASE WHEN $7::TEXT = 'building' AND NOT $8::BOOLEAN THEN lower(b.name) END ASC,
     CASE WHEN $7::TEXT = 'building' AND $8::BOOLEAN THEN lower(b.name) END DESC,
     CASE WHEN NOT $8::BOOLEAN THEN lower(l.name) END ASC,
     CASE WHEN $8::BOOLEAN THEN lower(l.name) END DESC,
     CASE WHEN NOT $8::BOOLEAN THEN l.id END ASC,
     CASE WHEN $8::BOOLEAN THEN l.id END DESC
-LIMIT $10 OFFSET $9
+LIMIT $12 OFFSET $11
 `
 
 type ListLocationsParams struct {
-	Search        string
-	RawSearch     string
-	BuildingID    *uuid.UUID
-	CategoryID    *uuid.UUID
-	SuppliersOnly bool
-	ArchiveFilter string
-	SortField     string
-	Descending    bool
-	PageOffset    int32
-	PageLimit     int32
+	Search          string
+	RawSearch       string
+	BuildingID      *uuid.UUID
+	CategoryID      *uuid.UUID
+	SuppliersOnly   bool
+	ArchiveFilter   string
+	SortField       string
+	Descending      bool
+	OriginLongitude float64
+	OriginLatitude  float64
+	PageOffset      int32
+	PageLimit       int32
 }
 
 type ListLocationsRow struct {
@@ -483,6 +487,8 @@ func (q *Queries) ListLocations(ctx context.Context, arg ListLocationsParams) ([
 		arg.ArchiveFilter,
 		arg.SortField,
 		arg.Descending,
+		arg.OriginLongitude,
+		arg.OriginLatitude,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

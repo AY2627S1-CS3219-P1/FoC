@@ -358,8 +358,10 @@ type Order struct {
 	DeliveryBuildingName string `protobuf:"bytes,23,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
 	// Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
 	CancellationPending bool `protobuf:"varint,24,opt,name=cancellation_pending,json=cancellationPending,proto3" json:"cancellation_pending,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// The receipt timer completed this order without requester confirmation.
+	AutomaticallyCompleted bool `protobuf:"varint,25,opt,name=automatically_completed,json=automaticallyCompleted,proto3" json:"automatically_completed,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Order) Reset() {
@@ -560,21 +562,82 @@ func (x *Order) GetCancellationPending() bool {
 	return false
 }
 
+func (x *Order) GetAutomaticallyCompleted() bool {
+	if x != nil {
+		return x.AutomaticallyCompleted
+	}
+	return false
+}
+
 // A Supplier Location copied when the order is created, so later Location
 // edits or archiving don't change existing orders.
-type LocationSnapshot struct {
+type Coordinates struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	LocationId    string                 `protobuf:"bytes,1,opt,name=location_id,json=locationId,proto3" json:"location_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	BuildingName  string                 `protobuf:"bytes,3,opt,name=building_name,json=buildingName,proto3" json:"building_name,omitempty"`
-	Floor         *string                `protobuf:"bytes,4,opt,name=floor,proto3,oneof" json:"floor,omitempty"`
+	Latitude      float64                `protobuf:"fixed64,1,opt,name=latitude,proto3" json:"latitude,omitempty"`
+	Longitude     float64                `protobuf:"fixed64,2,opt,name=longitude,proto3" json:"longitude,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Coordinates) Reset() {
+	*x = Coordinates{}
+	mi := &file_order_v1_shared_types_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Coordinates) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Coordinates) ProtoMessage() {}
+
+func (x *Coordinates) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_shared_types_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Coordinates.ProtoReflect.Descriptor instead.
+func (*Coordinates) Descriptor() ([]byte, []int) {
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Coordinates) GetLatitude() float64 {
+	if x != nil {
+		return x.Latitude
+	}
+	return 0
+}
+
+func (x *Coordinates) GetLongitude() float64 {
+	if x != nil {
+		return x.Longitude
+	}
+	return 0
+}
+
+type LocationSnapshot struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	LocationId   string                 `protobuf:"bytes,1,opt,name=location_id,json=locationId,proto3" json:"location_id,omitempty"`
+	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	BuildingName string                 `protobuf:"bytes,3,opt,name=building_name,json=buildingName,proto3" json:"building_name,omitempty"`
+	Floor        *string                `protobuf:"bytes,4,opt,name=floor,proto3,oneof" json:"floor,omitempty"`
+	// Absent on legacy snapshots until backfilled.
+	Coordinates   *Coordinates `protobuf:"bytes,5,opt,name=coordinates,proto3" json:"coordinates,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LocationSnapshot) Reset() {
 	*x = LocationSnapshot{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[1]
+	mi := &file_order_v1_shared_types_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -586,7 +649,7 @@ func (x *LocationSnapshot) String() string {
 func (*LocationSnapshot) ProtoMessage() {}
 
 func (x *LocationSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[1]
+	mi := &file_order_v1_shared_types_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -599,7 +662,7 @@ func (x *LocationSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocationSnapshot.ProtoReflect.Descriptor instead.
 func (*LocationSnapshot) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{1}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LocationSnapshot) GetLocationId() string {
@@ -630,6 +693,13 @@ func (x *LocationSnapshot) GetFloor() string {
 	return ""
 }
 
+func (x *LocationSnapshot) GetCoordinates() *Coordinates {
+	if x != nil {
+		return x.Coordinates
+	}
+	return nil
+}
+
 type DeliveryDetails struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Exact destination. Absent without participant or authoritative case access.
@@ -642,7 +712,7 @@ type DeliveryDetails struct {
 
 func (x *DeliveryDetails) Reset() {
 	*x = DeliveryDetails{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[2]
+	mi := &file_order_v1_shared_types_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -654,7 +724,7 @@ func (x *DeliveryDetails) String() string {
 func (*DeliveryDetails) ProtoMessage() {}
 
 func (x *DeliveryDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[2]
+	mi := &file_order_v1_shared_types_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -667,7 +737,7 @@ func (x *DeliveryDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryDetails.ProtoReflect.Descriptor instead.
 func (*DeliveryDetails) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{2}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DeliveryDetails) GetLocation() *LocationSnapshot {
@@ -695,7 +765,7 @@ type ItemImage struct {
 
 func (x *ItemImage) Reset() {
 	*x = ItemImage{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[3]
+	mi := &file_order_v1_shared_types_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -707,7 +777,7 @@ func (x *ItemImage) String() string {
 func (*ItemImage) ProtoMessage() {}
 
 func (x *ItemImage) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[3]
+	mi := &file_order_v1_shared_types_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -720,7 +790,7 @@ func (x *ItemImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemImage.ProtoReflect.Descriptor instead.
 func (*ItemImage) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{3}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ItemImage) GetId() string {
@@ -753,7 +823,7 @@ type Offer struct {
 
 func (x *Offer) Reset() {
 	*x = Offer{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[4]
+	mi := &file_order_v1_shared_types_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -765,7 +835,7 @@ func (x *Offer) String() string {
 func (*Offer) ProtoMessage() {}
 
 func (x *Offer) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[4]
+	mi := &file_order_v1_shared_types_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -778,7 +848,7 @@ func (x *Offer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Offer.ProtoReflect.Descriptor instead.
 func (*Offer) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{4}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Offer) GetId() string {
@@ -846,7 +916,7 @@ type PageInfo struct {
 
 func (x *PageInfo) Reset() {
 	*x = PageInfo{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[5]
+	mi := &file_order_v1_shared_types_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -858,7 +928,7 @@ func (x *PageInfo) String() string {
 func (*PageInfo) ProtoMessage() {}
 
 func (x *PageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[5]
+	mi := &file_order_v1_shared_types_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,7 +941,7 @@ func (x *PageInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
 func (*PageInfo) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{5}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PageInfo) GetPage() int32 {
@@ -915,7 +985,7 @@ type AssignmentAttemptResult struct {
 
 func (x *AssignmentAttemptResult) Reset() {
 	*x = AssignmentAttemptResult{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[6]
+	mi := &file_order_v1_shared_types_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -927,7 +997,7 @@ func (x *AssignmentAttemptResult) String() string {
 func (*AssignmentAttemptResult) ProtoMessage() {}
 
 func (x *AssignmentAttemptResult) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[6]
+	mi := &file_order_v1_shared_types_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -940,7 +1010,7 @@ func (x *AssignmentAttemptResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AssignmentAttemptResult.ProtoReflect.Descriptor instead.
 func (*AssignmentAttemptResult) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{6}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AssignmentAttemptResult) GetAttemptId() string {
@@ -974,7 +1044,7 @@ type CancellationResult struct {
 
 func (x *CancellationResult) Reset() {
 	*x = CancellationResult{}
-	mi := &file_order_v1_shared_types_proto_msgTypes[7]
+	mi := &file_order_v1_shared_types_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -986,7 +1056,7 @@ func (x *CancellationResult) String() string {
 func (*CancellationResult) ProtoMessage() {}
 
 func (x *CancellationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_shared_types_proto_msgTypes[7]
+	mi := &file_order_v1_shared_types_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -999,7 +1069,7 @@ func (x *CancellationResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancellationResult.ProtoReflect.Descriptor instead.
 func (*CancellationResult) Descriptor() ([]byte, []int) {
-	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{7}
+	return file_order_v1_shared_types_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CancellationResult) GetOperationId() string {
@@ -1020,7 +1090,8 @@ var File_order_v1_shared_types_proto protoreflect.FileDescriptor
 
 const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\t\n" +
+	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\n" +
+	"\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12\"\n" +
@@ -1053,16 +1124,21 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
 	"\x16delivery_building_name\x18\x17 \x01(\tR\x14deliveryBuildingName\x121\n" +
-	"\x14cancellation_pending\x18\x18 \x01(\bR\x13cancellationPendingB\r\n" +
+	"\x14cancellation_pending\x18\x18 \x01(\bR\x13cancellationPending\x127\n" +
+	"\x17automatically_completed\x18\x19 \x01(\bR\x16automaticallyCompletedB\r\n" +
 	"\v_courier_idB\x0f\n" +
 	"\r_close_reasonB\x10\n" +
-	"\x0e_item_location\"\x91\x01\n" +
+	"\x0e_item_location\"y\n" +
+	"\vCoordinates\x123\n" +
+	"\blatitude\x18\x01 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80V@)\x00\x00\x00\x00\x00\x80V\xc0R\blatitude\x125\n" +
+	"\tlongitude\x18\x02 \x01(\x01B\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x80f@)\x00\x00\x00\x00\x00\x80f\xc0R\tlongitude\"\xca\x01\n" +
 	"\x10LocationSnapshot\x12\x1f\n" +
 	"\vlocation_id\x18\x01 \x01(\tR\n" +
 	"locationId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rbuilding_name\x18\x03 \x01(\tR\fbuildingName\x12\x19\n" +
-	"\x05floor\x18\x04 \x01(\tH\x00R\x05floor\x88\x01\x01B\b\n" +
+	"\x05floor\x18\x04 \x01(\tH\x00R\x05floor\x88\x01\x01\x127\n" +
+	"\vcoordinates\x18\x05 \x01(\v2\x15.order.v1.CoordinatesR\vcoordinatesB\b\n" +
 	"\x06_floor\"\x83\x01\n" +
 	"\x0fDeliveryDetails\x126\n" +
 	"\blocation\x18\x01 \x01(\v2\x1a.order.v1.LocationSnapshotR\blocation\x12'\n" +
@@ -1146,7 +1222,7 @@ func file_order_v1_shared_types_proto_rawDescGZIP() []byte {
 }
 
 var file_order_v1_shared_types_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_order_v1_shared_types_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_order_v1_shared_types_proto_goTypes = []any{
 	(OrderStatus)(0),                // 0: order.v1.OrderStatus
 	(ParticipantRole)(0),            // 1: order.v1.ParticipantRole
@@ -1154,41 +1230,43 @@ var file_order_v1_shared_types_proto_goTypes = []any{
 	(AssignmentAttemptStatus)(0),    // 3: order.v1.AssignmentAttemptStatus
 	(CancellationStatus)(0),         // 4: order.v1.CancellationStatus
 	(*Order)(nil),                   // 5: order.v1.Order
-	(*LocationSnapshot)(nil),        // 6: order.v1.LocationSnapshot
-	(*DeliveryDetails)(nil),         // 7: order.v1.DeliveryDetails
-	(*ItemImage)(nil),               // 8: order.v1.ItemImage
-	(*Offer)(nil),                   // 9: order.v1.Offer
-	(*PageInfo)(nil),                // 10: order.v1.PageInfo
-	(*AssignmentAttemptResult)(nil), // 11: order.v1.AssignmentAttemptResult
-	(*CancellationResult)(nil),      // 12: order.v1.CancellationResult
-	(*durationpb.Duration)(nil),     // 13: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),   // 14: google.protobuf.Timestamp
+	(*Coordinates)(nil),             // 6: order.v1.Coordinates
+	(*LocationSnapshot)(nil),        // 7: order.v1.LocationSnapshot
+	(*DeliveryDetails)(nil),         // 8: order.v1.DeliveryDetails
+	(*ItemImage)(nil),               // 9: order.v1.ItemImage
+	(*Offer)(nil),                   // 10: order.v1.Offer
+	(*PageInfo)(nil),                // 11: order.v1.PageInfo
+	(*AssignmentAttemptResult)(nil), // 12: order.v1.AssignmentAttemptResult
+	(*CancellationResult)(nil),      // 13: order.v1.CancellationResult
+	(*durationpb.Duration)(nil),     // 14: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),   // 15: google.protobuf.Timestamp
 }
 var file_order_v1_shared_types_proto_depIdxs = []int32{
 	0,  // 0: order.v1.Order.status:type_name -> order.v1.OrderStatus
-	6,  // 1: order.v1.Order.pickup:type_name -> order.v1.LocationSnapshot
-	7,  // 2: order.v1.Order.delivery:type_name -> order.v1.DeliveryDetails
-	8,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
-	13, // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
-	14, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
-	14, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
-	14, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
-	14, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
-	14, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
-	14, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
-	14, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
-	14, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
-	6,  // 13: order.v1.DeliveryDetails.location:type_name -> order.v1.LocationSnapshot
-	2,  // 14: order.v1.Offer.status:type_name -> order.v1.OfferStatus
-	14, // 15: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
-	14, // 16: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 17: order.v1.AssignmentAttemptResult.status:type_name -> order.v1.AssignmentAttemptStatus
-	4,  // 18: order.v1.CancellationResult.status:type_name -> order.v1.CancellationStatus
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	7,  // 1: order.v1.Order.pickup:type_name -> order.v1.LocationSnapshot
+	8,  // 2: order.v1.Order.delivery:type_name -> order.v1.DeliveryDetails
+	9,  // 3: order.v1.Order.item_images:type_name -> order.v1.ItemImage
+	14, // 4: order.v1.Order.delivery_duration:type_name -> google.protobuf.Duration
+	15, // 5: order.v1.Order.expires_at:type_name -> google.protobuf.Timestamp
+	15, // 6: order.v1.Order.assigned_at:type_name -> google.protobuf.Timestamp
+	15, // 7: order.v1.Order.picked_up_at:type_name -> google.protobuf.Timestamp
+	15, // 8: order.v1.Order.delivered_at:type_name -> google.protobuf.Timestamp
+	15, // 9: order.v1.Order.completed_at:type_name -> google.protobuf.Timestamp
+	15, // 10: order.v1.Order.closed_at:type_name -> google.protobuf.Timestamp
+	15, // 11: order.v1.Order.created_at:type_name -> google.protobuf.Timestamp
+	15, // 12: order.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
+	6,  // 13: order.v1.LocationSnapshot.coordinates:type_name -> order.v1.Coordinates
+	7,  // 14: order.v1.DeliveryDetails.location:type_name -> order.v1.LocationSnapshot
+	2,  // 15: order.v1.Offer.status:type_name -> order.v1.OfferStatus
+	15, // 16: order.v1.Offer.created_at:type_name -> google.protobuf.Timestamp
+	15, // 17: order.v1.Offer.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 18: order.v1.AssignmentAttemptResult.status:type_name -> order.v1.AssignmentAttemptStatus
+	4,  // 19: order.v1.CancellationResult.status:type_name -> order.v1.CancellationStatus
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_shared_types_proto_init() }
@@ -1197,15 +1275,15 @@ func file_order_v1_shared_types_proto_init() {
 		return
 	}
 	file_order_v1_shared_types_proto_msgTypes[0].OneofWrappers = []any{}
-	file_order_v1_shared_types_proto_msgTypes[1].OneofWrappers = []any{}
 	file_order_v1_shared_types_proto_msgTypes[2].OneofWrappers = []any{}
+	file_order_v1_shared_types_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_shared_types_proto_rawDesc), len(file_order_v1_shared_types_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

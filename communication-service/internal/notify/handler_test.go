@@ -433,7 +433,7 @@ func TestHandleQueuesOutcomesWithoutNeedingTheUserEmail(t *testing.T) {
 		}
 	}
 	if len(queue.queued) != 1 || queue.queued[0].eventID != eventID || queue.queued[0].userID != requesterID ||
-		queue.queued[0].text != "Your order from Fine Food is complete." {
+		queue.queued[0].text != "Your order from Fine Food was completed automatically because receipt wasn't confirmed in time. If something went wrong, you can report it in the FoC app." {
 		t.Fatalf("queued = %+v", queue.queued)
 	}
 	if len(sender.sent) != 1 || sender.sent[0].chatID != 2 {

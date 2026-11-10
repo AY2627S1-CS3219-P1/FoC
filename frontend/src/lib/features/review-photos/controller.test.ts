@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReviewPhotosController, putPhoto } from './controller';
+import { OversizedConversionError } from '$lib/features/image-upload/heic';
 import { ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 
 // The review flow has no verify or abandon RPC: a grant and a PUT decide a
@@ -224,6 +225,71 @@ describe('review photo staging', () => {
 		const snapshot = controller.snapshot();
 		expect(snapshot.files[0].outcome).toBe('Rejected');
 		expect(snapshot.files[0].message).toContain('temporarily limited');
+	});
+});
+
+describe('review photo heic transcode', () => {
+	const heic = () => new File([new Uint8Array(8)], 'IMG_0001.heic', { type: 'image/heic' });
+
+	function transcodeScenario(transcode: (file: File) => Promise<File>) {
+		const api: ReviewPhotoUploadAPI = {
+			createPhotoUpload: vi.fn(async () => ({
+				photoId: `photo-${crypto.randomUUID()}`,
+				uploadUrl: 'https://storage.invalid/upload',
+				uploadHeaders: {}
+			}))
+		};
+		const put = vi.fn(async (_grant: ReviewPhotoGrant, _file: File, _signal: AbortSignal) => {});
+		const controller = new ReviewPhotosController(api, () => {}, put, false, transcode);
+		return { api, put, controller };
+	}
+
+	it('uploads the converted JPEG for a HEIC pick', async () => {
+		const { api, put, controller } = transcodeScenario(async (file) => {
+			expect(file.type).toBe('image/heic');
+			return new File([new Uint8Array(4)], 'IMG_0001.jpg', { type: 'image/jpeg' });
+		});
+		controller.addFiles([heic()]);
+		await controller.upload();
+		const grant = vi.mocked(api.createPhotoUpload).mock.calls[0]![0];
+		expect(grant).toEqual({ contentType: 'image/jpeg', sizeBytes: 4 });
+		expect(put.mock.calls[0]![1].name).toBe('IMG_0001.jpg');
+		// The row keeps the converted file, so its preview matches what reviewers get.
+		const row = controller.snapshot().files[0]!;
+		expect(row.file.type).toBe('image/jpeg');
+		expect(row.outcome).toBe('Succeeded');
+	});
+
+	it('uploads the original HEIC bytes when conversion fails', async () => {
+		const { api, put, controller } = transcodeScenario(async (file) => file);
+		controller.addFiles([heic()]);
+		await controller.upload();
+		const grant = vi.mocked(api.createPhotoUpload).mock.calls[0]![0];
+		expect(grant).toEqual({ contentType: 'image/heic', sizeBytes: 8 });
+		expect(put.mock.calls[0]![1].name).toBe('IMG_0001.heic');
+		expect(controller.snapshot().files[0]!.outcome).toBe('Succeeded');
+	});
+
+	it('rejects a converted photo that cannot fit the upload cap without a grant', async () => {
+		const { api, put, controller } = transcodeScenario(async () => {
+			throw new OversizedConversionError();
+		});
+		controller.addFiles([heic()]);
+		await controller.upload();
+		const row = controller.snapshot().files[0]!;
+		expect(row.outcome).toBe('Rejected');
+		expect(row.message).toContain('10MB');
+		// No grant or PUT may run for bytes that can never pass the cap.
+		expect(api.createPhotoUpload).not.toHaveBeenCalled();
+		expect(put).not.toHaveBeenCalled();
+	});
+
+	it('does not convert files browsers can already decode', async () => {
+		const transcode = vi.fn(async (file: File) => file);
+		const { controller } = transcodeScenario(transcode);
+		controller.addFiles([photo('keep.png'), new File(['x'], 'keep.jpg', { type: 'image/jpeg' })]);
+		await controller.upload();
+		expect(transcode).not.toHaveBeenCalled();
 	});
 });
 

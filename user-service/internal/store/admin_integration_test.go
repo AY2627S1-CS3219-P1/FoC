@@ -10,12 +10,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
+	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
 )
 
 func bootstrapUser(email string) *models.User {
 	return &models.User{Email: email, DisplayName: "Admin"}
+}
+
+// userCreatedEvents returns the user's user-created outbox rows, which Credit
+// consumes to open their account.
+func userCreatedEvents(t *testing.T, db *gorm.DB, userID uuid.UUID) []models.UserCreatedOutbox {
+	t.Helper()
+	var rows []models.UserCreatedOutbox
+	if err := db.Where("user_id = ?", userID).Find(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	return rows
 }
 
 func bootstrapRow(t *testing.T, store *Store) models.AdminBootstrap {
@@ -39,6 +52,10 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 	if row := bootstrapRow(t, store); row.UserID != admin.ID {
 		t.Fatalf("bootstrap row: %+v", row)
 	}
+	if events := userCreatedEvents(t, db, admin.ID); len(events) != 1 || events[0].Email != admin.Email ||
+		events[0].DisplayName != admin.DisplayName || events[0].UserCreatedAt.Sub(admin.CreatedAt).Abs() > time.Millisecond {
+		t.Fatalf("user-created events: %+v", events)
+	}
 
 	// A deliberate demotion must survive a rerun with the same or another email.
 	if err := db.Model(&models.User{}).Where("id = ?", admin.ID).Update("role", models.RoleAdmin).Error; err != nil {
@@ -59,11 +76,63 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 	if _, err := store.GetByEmail(ctx, "other@example.com"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("rerun created user: %v", err)
 	}
+	if events := userCreatedEvents(t, db, admin.ID); len(events) != 1 {
+		t.Fatalf("rerun queued another user-created event: %+v", events)
+	}
+}
+
+func TestAdminBootstrapRerunQueuesMissingUserCreatedEvent(t *testing.T) {
+	ctx := context.Background()
+	store, db := setupAuthStore(t)
+
+	admin := bootstrapUser("admin@example.com")
+	if _, err := store.Admin.Bootstrap(ctx, admin); err != nil {
+		t.Fatal(err)
+	}
+	// Admins bootstrapped before the event was written have no outbox row.
+	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("other@example.com"))
+	if err != nil || outcome != BootstrapAlreadyDone {
+		t.Fatalf("rerun: %v, %v", outcome, err)
+	}
+	if events := userCreatedEvents(t, db, admin.ID); len(events) != 1 || events[0].Email != admin.Email {
+		t.Fatalf("user-created events: %+v", events)
+	}
+	if _, err := store.GetByEmail(ctx, "other@example.com"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rerun created user: %v", err)
+	}
+}
+
+func TestAdminBootstrapRerunSkipsDeletedAdmin(t *testing.T) {
+	ctx := context.Background()
+	store, db := setupAuthStore(t)
+
+	admin := bootstrapUser("admin@example.com")
+	if _, err := store.Admin.Bootstrap(ctx, admin); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Delete(&models.User{}, "id = ?", admin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("admin@example.com")); err != nil ||
+		outcome != BootstrapAlreadyDone {
+		t.Fatalf("rerun: %v, %v", outcome, err)
+	}
+	if events := userCreatedEvents(t, db, admin.ID); len(events) != 0 {
+		t.Fatalf("deleted admin queued a user-created event: %+v", events)
+	}
 }
 
 func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	ctx := context.Background()
-	store, _ := setupAuthStore(t)
+	store, db := setupAuthStore(t)
 	user := createStoreUser(t, store, "user@example.com")
 
 	got := bootstrapUser("user@example.com")
@@ -78,6 +147,30 @@ func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	}
 	if row := bootstrapRow(t, store); row.UserID != user.ID {
 		t.Fatalf("bootstrap row: %+v", row)
+	}
+	if events := userCreatedEvents(t, db, user.ID); len(events) != 1 {
+		t.Fatalf("user-created events: %+v", events)
+	}
+}
+
+func TestAdminBootstrapPromotionKeepsRegistrationEvent(t *testing.T) {
+	ctx := context.Background()
+	store, db := setupAuthStore(t)
+	user := createStoreUser(t, store, "user@example.com")
+	registered := userdomain.CreatedEvent{
+		EventID: uuid.New(), UserID: user.ID, Email: user.Email,
+		DisplayName: user.DisplayName, CreatedAt: user.CreatedAt,
+	}
+	if err := store.UserCreatedOutbox.Append(ctx, registered); err != nil {
+		t.Fatal(err)
+	}
+
+	if outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("user@example.com")); err != nil ||
+		outcome != BootstrapPromoted {
+		t.Fatalf("promote: %v, %v", outcome, err)
+	}
+	if events := userCreatedEvents(t, db, user.ID); len(events) != 1 || events[0].EventID != registered.EventID {
+		t.Fatalf("user-created events: %+v", events)
 	}
 }
 

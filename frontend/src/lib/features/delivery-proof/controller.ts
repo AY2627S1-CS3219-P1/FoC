@@ -4,6 +4,7 @@ export type ProofOutcome = 'Not Submitted' | 'Pending' | 'Succeeded' | 'Rejected
 export type ProofFile = {
 	id: string;
 	file: File;
+	uploadFile?: File;
 	proofId?: string;
 	uploadRequested?: boolean;
 	removalRequested?: boolean;
@@ -24,8 +25,45 @@ const maxBytes = 10_000_000;
 const apiTimeoutMs = 15_000;
 // Allow 64 KiB/s plus API-sized overhead for a bounded direct upload.
 const uploadBytesPerSecond = 64 * 1024;
+// The server admits pixel areas below 24 MP (8192 px per side). A 4000 px long
+// side keeps every aspect ratio inside that budget while shrinking uploads on
+// mobile data.
+const maxPixelSide = 4000;
 
 type PutPhoto = (grant: ProofGrant, file: File, signal: AbortSignal) => Promise<void>;
+type PreparePhoto = (file: File) => Promise<File>;
+
+// preparePhoto resamples an ordinary photo into the proof pixel budget before
+// the upload grant is requested. Formats the browser cannot decode (such as
+// HEIC outside Safari), processing failures and already-small photos upload the
+// original bytes.
+async function preparePhoto(file: File): Promise<File> {
+	if (typeof createImageBitmap !== 'function') return file;
+	try {
+		const bitmap = await createImageBitmap(file);
+		try {
+			const scale = Math.min(1, maxPixelSide / Math.max(bitmap.width, bitmap.height));
+			if (scale === 1) return file;
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+			canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+			const context = canvas.getContext('2d');
+			if (!context) return file;
+			context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+			for (const quality of [0.9, 0.75, 0.6]) {
+				const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+				if (blob && blob.size > 0 && blob.size <= maxBytes) {
+					return new File([blob], file.name || 'photo.jpeg', { type: 'image/jpeg' });
+				}
+			}
+			return file;
+		} finally {
+			bitmap.close();
+		}
+	} catch {
+		return file;
+	}
+}
 
 async function putPhoto(grant: ProofGrant, file: File, signal: AbortSignal): Promise<void> {
 	const response = await fetch(grant.uploadUrl, {
@@ -52,6 +90,7 @@ export class DeliveryProofController {
 		private api: DeliveryProofAPI,
 		private changed: (snapshot: ProofSnapshot) => void,
 		private put: PutPhoto = putPhoto,
+		private prepare: PreparePhoto = preparePhoto,
 		pending?: Parameters<DeliveryProofAPI['confirmDelivery']>[0]
 	) {
 		if (pending) {
@@ -166,18 +205,21 @@ export class DeliveryProofController {
 				this.publish();
 				try {
 					row.uploadRequested = true;
+					// One prepared copy per photo keeps a retry identical to its first grant.
+					row.uploadFile ??= await this.prepare(row.file);
+					const file = row.uploadFile;
 					const grant = await this.bounded((signal) => this.api.createUpload({
 						orderId: this.orderId,
 						uploadId: row.id,
-						contentType: row.file.type,
-						sizeBytes: row.file.size
+						contentType: file.type,
+						sizeBytes: file.size
 					}, signal));
 					row.proofId = grant.proofId;
 					// Always inspect after a PUT, including a lost response or a 412
 					// from retrying an already stored immutable object.
 					try {
-						const uploadTimeoutMs = apiTimeoutMs + Math.ceil(row.file.size / uploadBytesPerSecond) * 1000;
-						await this.bounded((signal) => this.put(grant, row.file, signal), uploadTimeoutMs);
+						const uploadTimeoutMs = apiTimeoutMs + Math.ceil(file.size / uploadBytesPerSecond) * 1000;
+						await this.bounded((signal) => this.put(grant, file, signal), uploadTimeoutMs);
 					} catch {
 						row.message = 'Checking whether the upload was saved…';
 						this.publish();

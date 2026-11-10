@@ -30,7 +30,8 @@ const (
 	LocationSortField_LOCATION_SORT_FIELD_UNSPECIFIED LocationSortField = 0
 	LocationSortField_LOCATION_SORT_FIELD_NAME        LocationSortField = 1
 	// Then by Location name.
-	LocationSortField_LOCATION_SORT_FIELD_BUILDING LocationSortField = 2
+	LocationSortField_LOCATION_SORT_FIELD_BUILDING  LocationSortField = 2
+	LocationSortField_LOCATION_SORT_FIELD_PROXIMITY LocationSortField = 3
 )
 
 // Enum value maps for LocationSortField.
@@ -39,11 +40,13 @@ var (
 		0: "LOCATION_SORT_FIELD_UNSPECIFIED",
 		1: "LOCATION_SORT_FIELD_NAME",
 		2: "LOCATION_SORT_FIELD_BUILDING",
+		3: "LOCATION_SORT_FIELD_PROXIMITY",
 	}
 	LocationSortField_value = map[string]int32{
 		"LOCATION_SORT_FIELD_UNSPECIFIED": 0,
 		"LOCATION_SORT_FIELD_NAME":        1,
 		"LOCATION_SORT_FIELD_BUILDING":    2,
+		"LOCATION_SORT_FIELD_PROXIMITY":   3,
 	}
 )
 
@@ -268,7 +271,8 @@ func (x *GetLocationResponse) GetLocation() *Location {
 }
 
 type ListLocationsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Origin *Coordinates           `protobuf:"bytes,10,opt,name=origin,proto3" json:"origin,omitempty"`
 	// Fuzzy, case-insensitive name match. Trimmed; empty matches all. The
 	// length limit applies before trimming.
 	Search        string             `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
@@ -314,6 +318,13 @@ func (x *ListLocationsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListLocationsRequest.ProtoReflect.Descriptor instead.
 func (*ListLocationsRequest) Descriptor() ([]byte, []int) {
 	return file_supplier_location_v1_discovery_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListLocationsRequest) GetOrigin() *Coordinates {
+	if x != nil {
+		return x.Origin
+	}
+	return nil
 }
 
 func (x *ListLocationsRequest) GetSearch() string {
@@ -626,8 +637,10 @@ const file_supplier_location_v1_discovery_proto_rawDesc = "" +
 	"\x12GetLocationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"Q\n" +
 	"\x13GetLocationResponse\x12:\n" +
-	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"\xa1\x04\n" +
-	"\x14ListLocationsRequest\x12 \n" +
+	"\blocation\x18\x01 \x01(\v2\x1e.supplier.location.v1.LocationR\blocation\"\xdc\x04\n" +
+	"\x14ListLocationsRequest\x129\n" +
+	"\x06origin\x18\n" +
+	" \x01(\v2!.supplier.location.v1.CoordinatesR\x06origin\x12 \n" +
 	"\x06search\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xc8\x01R\x06search\x12.\n" +
 	"\vbuilding_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\n" +
 	"buildingId\x88\x01\x01\x12.\n" +
@@ -658,11 +671,12 @@ const file_supplier_location_v1_discovery_proto_rawDesc = "" +
 	"\x16ListCategoriesResponse\x12>\n" +
 	"\n" +
 	"categories\x18\x01 \x03(\v2\x1e.supplier.location.v1.CategoryR\n" +
-	"categories*x\n" +
+	"categories*\x9b\x01\n" +
 	"\x11LocationSortField\x12#\n" +
 	"\x1fLOCATION_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18LOCATION_SORT_FIELD_NAME\x10\x01\x12 \n" +
-	"\x1cLOCATION_SORT_FIELD_BUILDING\x10\x02*l\n" +
+	"\x1cLOCATION_SORT_FIELD_BUILDING\x10\x02\x12!\n" +
+	"\x1dLOCATION_SORT_FIELD_PROXIMITY\x10\x03*l\n" +
 	"\rSortDirection\x12\x1e\n" +
 	"\x1aSORT_DIRECTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18SORT_DIRECTION_ASCENDING\x10\x01\x12\x1d\n" +
@@ -706,30 +720,32 @@ var file_supplier_location_v1_discovery_proto_goTypes = []any{
 	(*ListCategoriesRequest)(nil),  // 9: supplier.location.v1.ListCategoriesRequest
 	(*ListCategoriesResponse)(nil), // 10: supplier.location.v1.ListCategoriesResponse
 	(*Location)(nil),               // 11: supplier.location.v1.Location
-	(*Building)(nil),               // 12: supplier.location.v1.Building
-	(*Category)(nil),               // 13: supplier.location.v1.Category
+	(*Coordinates)(nil),            // 12: supplier.location.v1.Coordinates
+	(*Building)(nil),               // 13: supplier.location.v1.Building
+	(*Category)(nil),               // 14: supplier.location.v1.Category
 }
 var file_supplier_location_v1_discovery_proto_depIdxs = []int32{
 	11, // 0: supplier.location.v1.GetLocationResponse.location:type_name -> supplier.location.v1.Location
-	2,  // 1: supplier.location.v1.ListLocationsRequest.status_view:type_name -> supplier.location.v1.LocationStatusView
-	0,  // 2: supplier.location.v1.ListLocationsRequest.sort_field:type_name -> supplier.location.v1.LocationSortField
-	1,  // 3: supplier.location.v1.ListLocationsRequest.sort_direction:type_name -> supplier.location.v1.SortDirection
-	11, // 4: supplier.location.v1.ListLocationsResponse.locations:type_name -> supplier.location.v1.Location
-	12, // 5: supplier.location.v1.ListBuildingsResponse.buildings:type_name -> supplier.location.v1.Building
-	13, // 6: supplier.location.v1.ListCategoriesResponse.categories:type_name -> supplier.location.v1.Category
-	3,  // 7: supplier.location.v1.LocationDiscoveryService.GetLocation:input_type -> supplier.location.v1.GetLocationRequest
-	5,  // 8: supplier.location.v1.LocationDiscoveryService.ListLocations:input_type -> supplier.location.v1.ListLocationsRequest
-	7,  // 9: supplier.location.v1.LocationDiscoveryService.ListBuildings:input_type -> supplier.location.v1.ListBuildingsRequest
-	9,  // 10: supplier.location.v1.LocationDiscoveryService.ListCategories:input_type -> supplier.location.v1.ListCategoriesRequest
-	4,  // 11: supplier.location.v1.LocationDiscoveryService.GetLocation:output_type -> supplier.location.v1.GetLocationResponse
-	6,  // 12: supplier.location.v1.LocationDiscoveryService.ListLocations:output_type -> supplier.location.v1.ListLocationsResponse
-	8,  // 13: supplier.location.v1.LocationDiscoveryService.ListBuildings:output_type -> supplier.location.v1.ListBuildingsResponse
-	10, // 14: supplier.location.v1.LocationDiscoveryService.ListCategories:output_type -> supplier.location.v1.ListCategoriesResponse
-	11, // [11:15] is the sub-list for method output_type
-	7,  // [7:11] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	12, // 1: supplier.location.v1.ListLocationsRequest.origin:type_name -> supplier.location.v1.Coordinates
+	2,  // 2: supplier.location.v1.ListLocationsRequest.status_view:type_name -> supplier.location.v1.LocationStatusView
+	0,  // 3: supplier.location.v1.ListLocationsRequest.sort_field:type_name -> supplier.location.v1.LocationSortField
+	1,  // 4: supplier.location.v1.ListLocationsRequest.sort_direction:type_name -> supplier.location.v1.SortDirection
+	11, // 5: supplier.location.v1.ListLocationsResponse.locations:type_name -> supplier.location.v1.Location
+	13, // 6: supplier.location.v1.ListBuildingsResponse.buildings:type_name -> supplier.location.v1.Building
+	14, // 7: supplier.location.v1.ListCategoriesResponse.categories:type_name -> supplier.location.v1.Category
+	3,  // 8: supplier.location.v1.LocationDiscoveryService.GetLocation:input_type -> supplier.location.v1.GetLocationRequest
+	5,  // 9: supplier.location.v1.LocationDiscoveryService.ListLocations:input_type -> supplier.location.v1.ListLocationsRequest
+	7,  // 10: supplier.location.v1.LocationDiscoveryService.ListBuildings:input_type -> supplier.location.v1.ListBuildingsRequest
+	9,  // 11: supplier.location.v1.LocationDiscoveryService.ListCategories:input_type -> supplier.location.v1.ListCategoriesRequest
+	4,  // 12: supplier.location.v1.LocationDiscoveryService.GetLocation:output_type -> supplier.location.v1.GetLocationResponse
+	6,  // 13: supplier.location.v1.LocationDiscoveryService.ListLocations:output_type -> supplier.location.v1.ListLocationsResponse
+	8,  // 14: supplier.location.v1.LocationDiscoveryService.ListBuildings:output_type -> supplier.location.v1.ListBuildingsResponse
+	10, // 15: supplier.location.v1.LocationDiscoveryService.ListCategories:output_type -> supplier.location.v1.ListCategoriesResponse
+	12, // [12:16] is the sub-list for method output_type
+	8,  // [8:12] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_supplier_location_v1_discovery_proto_init() }
