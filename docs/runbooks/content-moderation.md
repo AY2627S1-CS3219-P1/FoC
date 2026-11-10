@@ -9,7 +9,7 @@ Start with the [AWS platform setup](../../infra/aws/README.md#1-private-inputs-a
 and [release administrator setup](aws-releases.md#administrator-setup) completed:
 EKS/RDS, cluster platform, operator kubeconfig and the two Terraform backends.
 Run the steps below from the repository root with the infrastructure/operator
-identity. The restricted release identity cannot provision databases or Secrets.
+identity. The restricted release identity cannot provision databases or CMS Secrets.
 
 ### 1. Apply the updated infrastructure
 
@@ -70,15 +70,16 @@ recreating them. After success, remove temporary administrator access:
 
 ```sh
 k -n foc delete job/rds-provision secret/rds-provision-admin serviceaccount/rds-provision
-rm .local/aws/rds-admin.json
+rm .local/aws/rds-admin.json .local/aws/db/secrets.json
 ```
 
-Retain `.local/aws/db/*.json` privately. Do not print credentials or provisioning logs.
+Retain the six per-service credential JSON files privately; the generated Secret
+list can be recreated. Do not print credentials or provisioning logs.
 
 ### 4. Install the provider Secret
 
 The operator supplies a private, nonempty `.local/aws/CMS_LLM_API_KEY` file
-containing only the provider key. Install it without putting the key in arguments:
+containing the key without quotes or a trailing newline. Install it from the file:
 
 ```sh
 test -s .local/aws/CMS_LLM_API_KEY
