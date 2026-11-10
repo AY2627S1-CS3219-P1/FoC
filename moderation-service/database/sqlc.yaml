@@ -1,0 +1,46 @@
+version: "2"
+sql:
+  - name: "report"
+    engine: "postgresql"
+    queries: "query/reports.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "reportdb"
+        out: "../internal/database/reportdb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "appeal"
+    engine: "postgresql"
+    queries: "query/appeals.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "appealdb"
+        out: "../internal/database/appealdb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "evidence"
+    engine: "postgresql"
+    queries: "query/evidence.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "evidencedb"
+        out: "../internal/database/evidencedb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "outbox"
+    engine: "postgresql"
+    queries: "query/outbox.sql"
+    schema: "schema"
+    gen:
+      go:
+        package: "outboxdb"
+        out: "../internal/database/outboxdb"
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
