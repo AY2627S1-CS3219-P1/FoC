@@ -17,8 +17,7 @@ type OrderParticipants struct {
 }
 
 // Contains reports whether reviewer and reviewee are exactly the order's two
-// participants. An unassigned courier never matches, so an order without a
-// courier has no reviewable pair.
+// participants.
 func (p OrderParticipants) Contains(reviewer, reviewee uuid.UUID) bool {
 	if p.CourierID == uuid.Nil {
 		return false
@@ -27,11 +26,6 @@ func (p OrderParticipants) Contains(reviewer, reviewee uuid.UUID) bool {
 		(reviewer == p.CourierID && reviewee == p.RequesterID)
 }
 
-// OrderGateway is the order data the review service reads from the order
-// service. The response is a pure function of the order id, so the call
-// carries no user identity: the order service's internal listener is mounted
-// separately from its public routes and never published to the internet, and
-// network reachability is its trust boundary.
 type OrderGateway interface {
 	GetOrderParticipants(ctx context.Context, orderID uuid.UUID) (OrderParticipants, error)
 }
