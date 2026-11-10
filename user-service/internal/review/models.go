@@ -9,16 +9,17 @@ import (
 
 // Review is one participant's rating of the other for a single request.
 type Review struct {
-	ID           uuid.UUID
-	ReviewerID   uuid.UUID
-	ReviewerName string
-	RevieweeID   uuid.UUID
-	RevieweeName string
-	OrderID      uuid.UUID
-	Rating       int
-	Comment      string
-	CreatedAt    time.Time
-	DeletedAt    time.Time
+	ModerationStatus ModerationStatus
+	ID               uuid.UUID
+	ReviewerID       uuid.UUID
+	ReviewerName     string
+	RevieweeID       uuid.UUID
+	RevieweeName     string
+	OrderID          uuid.UUID
+	Rating           int
+	Comment          string
+	CreatedAt        time.Time
+	DeletedAt        time.Time
 	// Photos carries freshly minted download URLs; empty without photos or storage.
 	Photos []ReviewPhotoView
 }

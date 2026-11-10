@@ -3,14 +3,15 @@ syntax = "proto3";
 package user.review.v1;
 
 import "buf/validate/validate.proto";
-import "pagination/v1/pagination.proto";
 import "google/protobuf/timestamp.proto";
+import "pagination/v1/pagination.proto";
 
 service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
   rpc CreateReviewPhotoUpload(CreateReviewPhotoUploadRequest) returns (CreateReviewPhotoUploadResponse) {}
   rpc ListReviewsForUser(ListReviewsForUserRequest) returns (ListReviewsForUserResponse) {}
   rpc ListMyReviews(ListMyReviewsRequest) returns (ListMyReviewsResponse) {}
+  rpc ListUnpublishedReviewsForUser(ListUnpublishedReviewsForUserRequest) returns (ListUnpublishedReviewsForUserResponse) {}
   rpc ListMyReviewsReceived(ListMyReviewsReceivedRequest) returns (ListMyReviewsReceivedResponse) {}
   rpc ListMyReviewsForOrders(ListMyReviewsForOrdersRequest) returns (ListMyReviewsForOrdersResponse) {}
   rpc GetMyReviewForOrder(GetMyReviewForOrderRequest) returns (GetMyReviewForOrderResponse) {}
@@ -59,11 +60,20 @@ message SubmitReviewRequest {
   // Ordered IDs returned by CreateReviewPhotoUpload.
   repeated string photo_ids = 5 [(buf.validate.field).repeated = {
     max_items: 5
-    items: {string: {uuid: true}}
+    items: {
+      string: {uuid: true}
+    }
   }];
 }
 
-message SubmitReviewResponse {}
+// Submission commits a pending review; success does not imply publication.
+message SubmitReviewResponse {
+  string review_id = 1;
+  reserved 2;
+  reserved "moderation_request_id";
+  // Always PENDING_MODERATION for newly gated submissions.
+  ModerationStatus moderation_status = 3;
+}
 
 message CreateReviewPhotoUploadRequest {
   string content_type = 1 [(buf.validate.field).string = {
@@ -120,7 +130,9 @@ message ListMyReviewsReceivedResponse {
 message ListMyReviewsForOrdersRequest {
   repeated string order_ids = 1 [(buf.validate.field).repeated = {
     max_items: 50
-    items: {string: {uuid: true}}
+    items: {
+      string: {uuid: true}
+    }
   }];
 }
 
@@ -138,6 +150,7 @@ message GetMyReviewForOrderRequest {
 
 message GetMyReviewForOrderResponse {
   Review review = 1;
+  ModerationStatus moderation_status = 2;
 }
 
 message RemoveReviewRequest {
@@ -168,4 +181,50 @@ message ListReviewRemovalsRequest {
 message ListReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
   pagination.v1.PageInfo pagination = 2;
+}
+
+// Public reads and ratings include only APPROVED reviews.
+enum ModerationStatus {
+  MODERATION_STATUS_UNSPECIFIED = 0;
+  MODERATION_STATUS_PENDING_MODERATION = 1;
+  MODERATION_STATUS_APPROVED = 2;
+  MODERATION_STATUS_REJECTED = 3;
+  // Technical failure to assess, not a content verdict.
+  MODERATION_STATUS_MODERATION_ERROR = 4;
+}
+
+// Lists reviews by author, unlike ListReviewsForUser which lists reviews received.
+// Does not call CMS; remains available during moderation outages.
+message ListUnpublishedReviewsForUserRequest {
+  // Owner or admin only, checked before lookup. Suspended callers may inspect their own.
+  string reviewer_id = 1 [(buf.validate.field).string.uuid = true];
+  pagination.v1.Pagination pagination = 2;
+  reserved 3, 4;
+  reserved "moderation_status_filter", "order_id";
+}
+
+message ListUnpublishedReviewsForUserResponse {
+  repeated UnpublishedReview reviews = 1;
+  pagination.v1.PageInfo pagination = 2;
+}
+
+message UnpublishedReview {
+  string id = 1;
+  string reviewer_id = 2;
+  string reviewee_id = 3;
+  string order_id = 4;
+  int32 rating = 5;
+  string comment = 6;
+  google.protobuf.Timestamp created_at = 7;
+  string reviewer_name = 8;
+  string reviewee_name = 9;
+  ModerationStatus moderation_status = 10;
+  // Correlates unpublished reviews with moderation job lookups.
+  string moderation_request_id = 11;
+  int32 content_revision = 12;
+  // Known rejection reason codes when rejected; empty otherwise.
+  repeated string moderation_reason_codes = 13;
+  optional google.protobuf.Timestamp moderated_at = 14;
+  // Generation of the last result applied by User, for distinguishing newer CMS retries.
+  int32 applied_run_generation = 15;
 }

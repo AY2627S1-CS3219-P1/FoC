@@ -17,6 +17,7 @@ var (
 	ErrReportNotFound    = errors.New("referenced report not found")
 	ErrChallengeRejected = errors.New("challenge invalid, expired, or used")
 	ErrSessionRejected   = errors.New("session invalid, expired, or revoked")
+	ErrPictureNotFound   = errors.New("profile picture not found")
 	// ErrInUse: the user is still referenced with ON DELETE RESTRICT
 	// (e.g. the admin_bootstrap row), so it cannot be deleted.
 	ErrInUse = errors.New("user cannot be deleted")
@@ -28,6 +29,7 @@ type Store struct {
 	*AuthTokens
 	*Sessions
 	*UserCreatedOutbox
+	*ProfilePictures
 
 	db *gorm.DB
 }
@@ -39,6 +41,7 @@ func New(db *gorm.DB) *Store {
 		AuthTokens:        NewAuthTokens(db),
 		Sessions:          NewSessions(db),
 		UserCreatedOutbox: NewUserCreatedOutbox(db),
+		ProfilePictures:   NewProfilePictures(db),
 		db:                db,
 	}
 }
