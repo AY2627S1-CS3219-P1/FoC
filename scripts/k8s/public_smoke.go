@@ -37,6 +37,6 @@ func (o *operator) publicSmoke() error {
 			return err
 		}
 	}
-	note("Public HTTPS smoke passed: frontend, five health RPCs, and private RPC routes")
+	note("Public HTTPS smoke passed: frontend, public health RPCs, and private RPC routes")
 	return nil
 }

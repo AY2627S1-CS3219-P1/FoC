@@ -22,9 +22,12 @@ Local verification passed with Go 1.27.0 and disposable PostgreSQL 18 databases:
   rendered with the User-only DENY intact.
 
 The suites ran against main `6cd9843f`. Upstream `883a485f` was subsequently
-merged without conflicts; binary diff comparison confirmed the suspension delta
-was unchanged. Only verification notes were then updated. The combined head has
-not received another local test run; CI remains the combined-head gate.
+merged without conflicts, with a byte-for-byte unchanged suspension delta. Further
+main updates through `5112805d` added CMS deployment and preserved User SES. Their
+shared edge-smoke expectation was reconciled to include every public health check
+and three private routes. The backend suspension delta is unchanged, but the final
+combined head and smoke-fixture adjustment have not been rerun locally. CI remains
+the combined-head gate.
 
 The final constructor return-type/nil-interface correction was included in the
 lint/type checks, but its unit test was not rerun after that adjustment. Live mesh

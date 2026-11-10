@@ -416,6 +416,9 @@ func (o *operator) meshSmoke() error {
 			return err
 		}
 	}
+	if _, err := o.gatewaySmokeRequest(gateway, "/user.review.v1.ReviewService/ListMyReviews", 401, true); err != nil {
+		return err
+	}
 	// Unrouted RPCs reach the frontend catchall, whose 404 can contain HTML.
 	// The status proves the RPC is unavailable; its error page format does not.
 	if _, err := o.gatewaySmokeRequest(gateway, keyPath, 404, true); err != nil {

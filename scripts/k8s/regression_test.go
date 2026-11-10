@@ -167,8 +167,17 @@ func TestAllKustomizeStagesRenderWithSelectedImages(t *testing.T) {
 					t.Fatal("unmodified application image remained")
 				}
 			}
-			if stage == "applications" && !strings.Contains(output, "/user.v1.AllowedDomainAdminService") {
-				t.Fatal("new public admin RPC is missing from gateway allowlist")
+			if stage == "applications" {
+				for _, service := range []string{
+					"/user.v1.AllowedDomainAdminService",
+					"/user.review.v1.ReviewService",
+					"/user.warning.v1.WarningService",
+					"/user.warning.v1.WarningAdminService",
+				} {
+					if !strings.Contains(output, service) {
+						t.Fatalf("public RPC %s is missing from gateway allowlist", service)
+					}
+				}
 			}
 			if overlay == "production" && stage == "provisioning" && strings.TrimSpace(output) != "" {
 				t.Fatal("production unexpectedly provisions local database")
