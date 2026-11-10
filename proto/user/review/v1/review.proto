@@ -3,8 +3,8 @@ syntax = "proto3";
 package user.review.v1;
 
 import "buf/validate/validate.proto";
-import "pagination/v1/pagination.proto";
 import "google/protobuf/timestamp.proto";
+import "pagination/v1/pagination.proto";
 
 service ReviewService {
   rpc SubmitReview(SubmitReviewRequest) returns (SubmitReviewResponse) {}
@@ -60,7 +60,9 @@ message SubmitReviewRequest {
   // Ordered IDs returned by CreateReviewPhotoUpload.
   repeated string photo_ids = 5 [(buf.validate.field).repeated = {
     max_items: 5
-    items: {string: {uuid: true}}
+    items: {
+      string: {uuid: true}
+    }
   }];
 }
 
@@ -128,7 +130,9 @@ message ListMyReviewsReceivedResponse {
 message ListMyReviewsForOrdersRequest {
   repeated string order_ids = 1 [(buf.validate.field).repeated = {
     max_items: 50
-    items: {string: {uuid: true}}
+    items: {
+      string: {uuid: true}
+    }
   }];
 }
 
@@ -185,7 +189,7 @@ enum ModerationStatus {
   MODERATION_STATUS_PENDING_MODERATION = 1;
   MODERATION_STATUS_APPROVED = 2;
   MODERATION_STATUS_REJECTED = 3;
-// Technical failure to assess, not a content verdict.
+  // Technical failure to assess, not a content verdict.
   MODERATION_STATUS_MODERATION_ERROR = 4;
 }
 

@@ -34,9 +34,8 @@ type Repository interface {
 	) ([]UnpublishedReview, error)
 	CountUnpublishedReviewsForUser(ctx context.Context, reviewerID uuid.UUID) (int64, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
-	CountReviewRemovals(
-		ctx context.Context,
-	) (int64, error) // ListReviewOrderStatuses separates live and removed reviews in one snapshot.
+	CountReviewRemovals(ctx context.Context) (int64, error)
+	// ListReviewOrderStatuses separates live and removed reviews in one snapshot.
 	ListReviewOrderStatuses(
 		ctx context.Context,
 		reviewerID uuid.UUID,

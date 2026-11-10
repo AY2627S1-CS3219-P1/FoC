@@ -187,6 +187,11 @@ func moderationCompletionFromEvent(
 		if len(completion.ReasonCodes) == 0 || len(completion.ReasonCodes) > 5 {
 			return ModerationCompletion{}, false
 		}
+		// These codes and the at-most-five limit must mirror the CMS rubric
+		// (content-moderation-service/internal/moderation/review_rules.go, policy
+		// review-text-v1). The check is defensive: a drifting or misbehaving
+		// CMS originates no reason codes this copy of the contract does not
+		// contain, so such completions are rejected outright.
 		seen := make(map[string]bool)
 		for _, code := range completion.ReasonCodes {
 			switch code {

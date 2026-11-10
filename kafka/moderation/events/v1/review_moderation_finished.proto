@@ -6,7 +6,7 @@ import "google/protobuf/timestamp.proto";
 
 // moderation.review_moderation_finished; keyed by review_id. At-least-once delivery.
 message ReviewModerationFinished {
-// Stable across delivery retries; deduplicate by this ID.
+  // Stable across delivery retries; deduplicate by this ID.
   string event_id = 1;
   string job_id = 2;
   string moderation_request_id = 3;
@@ -16,14 +16,14 @@ message ReviewModerationFinished {
   // Copied from the submission; User re-checks it against the saved review.
   string reviewer_id = 6;
   int32 content_revision = 7;
-// Starts at 1; increments on explicit retry of a terminal error. Ignore older generations.
+  // Starts at 1; increments on explicit retry of a terminal error. Ignore older generations.
   int32 run_generation = 8;
-// Historical rubric/schema version; does not select runtime settings.
+  // Historical rubric/schema version; does not select runtime settings.
   string policy_version = 9;
   reserved 10;
   reserved "config_version_id";
   ModerationOutcomeType outcome = 11;
-// Required for REJECTED; empty for APPROVED and ERROR.
+  // Required for REJECTED; empty for APPROVED and ERROR.
   repeated string reason_codes = 12;
   google.protobuf.Timestamp finished_at = 13;
 }
@@ -31,10 +31,10 @@ message ReviewModerationFinished {
 // UNSPECIFIED and unknown values must never be applied.
 enum ModerationOutcomeType {
   MODERATION_OUTCOME_TYPE_UNSPECIFIED = 0;
-// Requires empty reason_codes.
+  // Requires empty reason_codes.
   MODERATION_OUTCOME_TYPE_APPROVED = 1;
-// Requires at least one reason code.
+  // Requires at least one reason code.
   MODERATION_OUTCOME_TYPE_REJECTED = 2;
-// Technical failure to assess, not a content verdict.
+  // Technical failure to assess, not a content verdict.
   MODERATION_OUTCOME_TYPE_ERROR = 3;
 }
