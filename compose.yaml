@@ -183,18 +183,17 @@ services:
       PORT: ${PORT:-8080}
       INTERNAL_PORT: ${INTERNAL_PORT:-8081}
       DATABASE_URL: ${USER_DATABASE_URL:?set USER_DATABASE_URL in .env}
+      KAFKA_BROKERS: kafka:9092
       APP_ENV: ${APP_ENV:-local}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
-      KAFKA_BROKERS: kafka:9092
       BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-}
       BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: ${BOOTSTRAP_SUPERADMIN_DISPLAY_NAME:-}
-      SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
-      SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Communication's internal listener sends magic links. Communication
+      # starts after User Service, so it isn't a startup dependency.
+      COMMUNICATION_SERVICE_BASE_URL: ${COMMUNICATION_SERVICE_BASE_URL:-http://communication-service:8081}
       USER_S3_BUCKET: ${USER_S3_BUCKET:-user-images}
       USER_S3_ENDPOINT: http://floci:4566
       USER_S3_PUBLIC_ENDPOINT: http://localhost:${FLOCI_PORT:-4566}
@@ -210,8 +209,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   supplier-service:
@@ -298,8 +297,13 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Empty means the public Bot API; set it to point at a fake server.
       TELEGRAM_API_URL: ${TELEGRAM_API_URL:-}
-      # Order notifications also need a working bot token.
+      # Order notifications use Telegram, or email for users it can't reach.
       KAFKA_BROKERS: kafka:9092
+      # Magic links and email notifications. Empty SMTP_ADDR disables email.
+      SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
+      SMTP_FROM: ${SMTP_FROM:-FoC <no-reply@foc.local>}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     volumes:
       - ./communication-service:/app
       - ./pkg:/pkg
@@ -312,6 +316,8 @@ services:
         condition: service_started
       kafka-init:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_started
     restart: unless-stopped
 
   credit-service:

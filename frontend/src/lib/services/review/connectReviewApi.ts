@@ -8,6 +8,8 @@ import {
 	ReviewNotReadyError,
 	ReviewRejectedError,
 	ReviewAlreadyExistsError,
+	ReviewRemovedError,
+	type ReviewOrderStatuses,
 	type ReviewApi,
 	type ReviewPage,
 	type ReviewPhotoGrant,
@@ -39,6 +41,9 @@ function rethrow(cause: unknown): never {
 				reason: parsed.reason,
 				photoIds: parsed.photoIds
 			});
+		}
+		if (parsed?.reason === 'REVIEW_REMOVED') {
+			throw new ReviewRemovedError(parsed.message);
 		}
 		if (parsed?.reason === 'REVIEW_ALREADY_EXISTS') {
 			throw new ReviewAlreadyExistsError(parsed.message);
@@ -111,10 +116,51 @@ export class ConnectReviewApi implements ReviewApi {
 		}
 	}
 
-	async listReviewedOrderIds(orderIds: string[], signal: AbortSignal): Promise<string[]> {
+	async listReceived(
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage> {
+		try {
+			const response = await this.#client.listMyReviewsReceived(
+				{ pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) } },
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
+	async listMine(
+		page: { page: number; pageSize: number },
+		signal: AbortSignal
+	): Promise<ReviewPage> {
+		try {
+			const response = await this.#client.listMyReviews(
+				{ pagination: { page: BigInt(page.page), pageSize: BigInt(page.pageSize) } },
+				{ signal, timeoutMs: 15000 }
+			);
+			return {
+				reviews: response.reviews.map(toReview),
+				totalItems: Number(response.pagination?.totalItems ?? 0n),
+				totalPages: Number(response.pagination?.totalPages ?? 0n)
+			};
+		} catch (cause) {
+			rethrow(cause);
+		}
+	}
+
+	async listReviewOrderStatuses(orderIds: string[], signal: AbortSignal): Promise<ReviewOrderStatuses> {
 		try {
 			const response = await this.#client.listMyReviewsForOrders({ orderIds }, { signal, timeoutMs: 15000 });
-			return [...response.reviewedOrderIds];
+			return {
+				reviewedOrderIds: [...response.reviewedOrderIds],
+				removedOrderIds: [...response.removedOrderIds]
+			};
 		} catch (cause) {
 			rethrow(cause);
 		}

@@ -9,7 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/rs/cors"
 	"gorm.io/gorm"
@@ -17,14 +19,21 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
+
+// Communication sends magic links synchronously; its SMTP exchange is
+// bounded at 5s by default.
+const magicLinkTimeout = 15 * time.Second
 
 // newReviewService builds the review domain; photo storage is optional.
 func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
@@ -62,6 +71,10 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 		return tx.Commit()
 	}, reviewStorage)
 	return service, photos
+}
+
+func newWarningService(db warningdb.DBTX) *warningdomain.Service {
+	return warningdomain.NewService(warningdomain.NewPostgresRepository(warningdb.New(db)))
 }
 
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
@@ -115,7 +128,8 @@ func newAuthServices(
 
 	logic, err := service.NewService(service.Dependencies{
 		Resources: authResources(persistence, domainPolicy), WithTransaction: authTransactions(db),
-		TokenCodec: codec, EmailSender: cfg.smtp,
+		TokenCodec: codec,
+		MagicLinks: communication.NewMagicLinks(&http.Client{Timeout: magicLinkTimeout}, cfg.communicationURL),
 	}, service.Config{
 		FrontendBaseURL: *frontendURL, LocalDevelopment: cfg.appEnv == "local",
 		AccessTokenTTL: cfg.accessTokenTTL, RefreshTokenTTL: cfg.refreshTokenTTL,
@@ -160,7 +174,7 @@ func getCorsConfig(allowedOrigin string) *cors.Cors {
 
 // profilePictureStorage keeps a true nil interface when storage is absent;
 // a typed nil *images.S3 would bypass the service's nil checks.
-func profilePictureStorage(storage *images.S3) images.ObjectStorage {
+func profilePictureStorage(storage *images.S3) service.ProfilePictureStorage {
 	if storage == nil {
 		return nil
 	}

@@ -11,6 +11,7 @@
 	} from '$lib/features/review-photos/controller';
 	import {
 		ReviewAlreadyExistsError,
+		ReviewRemovedError,
 		ReviewLimitedError,
 		ReviewNotReadyError,
 		ReviewRejectedError,
@@ -37,11 +38,22 @@
 
 	let myReview = $state<ReviewRecord | null>(null);
 	let reviewLoading = $state(false);
+	let reviewRemoved = $state(false);
+	let reviewLoadError = $state('');
+	let reviewRevision = $state(0);
+
+	function showReviewFailure(cause: unknown) {
+		myReview = null;
+		reviewRemoved = cause instanceof ReviewRemovedError;
+		reviewLoadError = reviewRemoved ? '' : 'We could not load your review. Please try again.';
+	}
+
 	$effect(() => {
-		if (!reviewEligible) {
-			myReview = null;
-			return;
-		}
+		void reviewRevision;
+		myReview = null;
+		reviewRemoved = false;
+		reviewLoadError = '';
+		if (!reviewEligible) return;
 		let active = true;
 		const id = order.id;
 		reviewLoading = true;
@@ -50,8 +62,8 @@
 			.then((review) => {
 				if (active) myReview = review;
 			})
-			.catch(() => {
-				if (active) myReview = null;
+			.catch((cause) => {
+				if (active) showReviewFailure(cause);
 			})
 			.finally(() => {
 				if (active) reviewLoading = false;
@@ -131,7 +143,11 @@
 					// photo grants; a fetch failure still shows what was sent.
 					try {
 						myReview = await reviewApi.getMyReviewForOrder(target.id, AbortSignal.timeout(15000));
-					} catch {
+					} catch (cause) {
+						if (cause instanceof ReviewRemovedError) {
+							showReviewFailure(cause);
+							return;
+						}
 						myReview = null;
 					}
 					myReview ??= {
@@ -151,8 +167,8 @@
 						snackbarService.show(cause.message, { severity: 'info', timeout: 8000 });
 						try {
 							myReview = await reviewApi.getMyReviewForOrder(target.id, AbortSignal.timeout(15000));
-						} catch {
-							myReview = null;
+						} catch (lookupCause) {
+							showReviewFailure(lookupCause);
 						}
 					} else if (cause instanceof ReviewLimitedError) {
 						snackbarService.show(cause.message, { severity: 'warning', timeout: 8000 });
@@ -179,7 +195,7 @@
 		const section = document.getElementById('review-section');
 		if (!section) return;
 		section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-		if (myReview) {
+		if (myReview || reviewRemoved) {
 			document.getElementById('review-heading')?.focus();
 		} else {
 			section.querySelector<HTMLElement>('.star-chip[tabindex="0"]')?.focus();
@@ -220,6 +236,14 @@
 		<div class="panel-body review-card" id="review-section">
 			{#if reviewLoading && !myReview}
 				<div class="loading-state"><LoadingIndicator aria-label="Loading your review" /></div>
+			{:else if reviewRemoved}
+				<header class="title">
+					<h2 id="review-heading" tabindex="-1">Review removed</h2>
+					<p>Your review was removed. You cannot submit another review for this request.</p>
+				</header>
+			{:else if reviewLoadError}
+				<p role="alert">{reviewLoadError}</p>
+				<Button variant="outlined" onclick={() => reviewRevision++}>Try again</Button>
 			{:else if myReview}
 				<header class="title">
 					<h2 id="review-heading" tabindex="-1">Your review</h2>

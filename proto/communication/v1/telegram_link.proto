@@ -40,6 +40,10 @@ message GetTelegramLinkResponse {
   // unlinked or when the Telegram account has no username.
   optional string telegram_username = 2;
   google.protobuf.Timestamp linked_at = 3;
+  // The running bot, such as https://t.me/foc_bot, whether or not the caller
+  // is linked. Append ?start=chat_<order id> to open that order's chat as a
+  // linked participant. Absent while the bot is disabled.
+  optional string bot_url = 4;
 }
 
 // Stops all Telegram messages to the caller. Succeeds when nothing is linked.

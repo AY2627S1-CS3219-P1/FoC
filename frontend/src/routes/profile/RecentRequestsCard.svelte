@@ -2,7 +2,7 @@
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi, reviewApi } from '$lib/services';
+	import { authService, orderApi, reviewApi, realtimeService } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { participationLabel, statusLabel } from '$lib/services/order/presentation';
 
@@ -11,22 +11,35 @@
 	let more = $state(false);
 	let error = $state('');
 	let revision = $state(0);
-	// Order ids the caller has already reviewed; the CTA per completed row
-	// becomes "View review" instead of "Leave a review".
+	// Removed reviews get a notice rather than an action that cannot succeed.
 	let reviewedIds = $state<Set<string>>(new Set());
+	let removedIds = $state<Set<string>>(new Set());
+	let reviewStatusesLoaded = $state(false);
+	let loadedCaller: string | undefined;
 
 	$effect(() => {
 		const caller = authService.user?.id;
+		if (loadedCaller !== caller) {
+			orders = null;
+			loadedCaller = caller;
+		}
 		void revision;
+		reviewedIds = new Set();
+		removedIds = new Set();
+		reviewStatusesLoaded = false;
 		if (!caller) return;
 		let active = true;
 		error = '';
-		orderApi
+		const stop = realtimeService.subscribe(['orders'], () => orderApi
 			.listMyOrders({ pageSize: shown })
 			.then((page) => {
 				if (!active) return;
 				orders = page.orders;
+				error = '';
 				more = page.totalPages > 1;
+				reviewedIds = new Set();
+				removedIds = new Set();
+				reviewStatusesLoaded = false;
 				const eligible = page.orders
 					.filter(
 						(order) =>
@@ -35,20 +48,23 @@
 					)
 					.map((order) => order.id);
 				if (eligible.length === 0) {
-					reviewedIds = new Set();
+					reviewStatusesLoaded = true;
 					return;
 				}
-				reviewApi
-					.listReviewedOrderIds(eligible, AbortSignal.timeout(15000))
-					.then((ids) => {
-						if (active) reviewedIds = new Set(ids);
+				return reviewApi
+					.listReviewOrderStatuses(eligible, AbortSignal.timeout(15000))
+					.then((statuses) => {
+						if (!active) return;
+						reviewedIds = new Set(statuses.reviewedOrderIds);
+						removedIds = new Set(statuses.removedOrderIds);
+						reviewStatusesLoaded = true;
 					})
 					.catch(() => {
-						if (active) reviewedIds = new Set();
+						if (active) reviewStatusesLoaded = false;
 					});
 			})
-			.catch((cause) => active && (error = describeOrderError(cause)));
-		return () => (active = false);
+			.catch((cause) => active && (error = describeOrderError(cause))));
+		return () => { active = false; stop(); };
 	});
 
 	const date = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' });
@@ -67,8 +83,9 @@
 		{#if error}
 			<p class="notice error" role="alert">{error}</p>
 			<div><Button variant="outlined" onclick={() => revision++}>Try again</Button></div>
-		{:else if !orders}
-			<div class="loading-state"><LoadingIndicator aria-label="Loading request history" /></div>
+		{/if}
+		{#if !orders}
+			{#if !error}<div class="loading-state"><LoadingIndicator aria-label="Loading request history" /></div>{/if}
 		{:else if !orders.length}
 			<p class="muted">No requests yet. <a href="/orders/new">Make a request</a> or <a href="/orders">deliver one</a>.</p>
 		{:else}
@@ -79,13 +96,17 @@
 							<span class="title">{order.itemDescription}</span>
 							<span class="meta">{role(order)}, {statusLabel(order.status).toLowerCase()}{order.createdAt ? ', ' + date.format(timestampDate(order.createdAt)) : ''}</span>
 						</a>
-						{#if reviewable(order)}
-							<Button
-								variant="text"
-								size="s"
-								href={`/orders/${order.id}#review`}
-								aria-label={`${reviewedIds.has(order.id) ? 'View your review of' : 'Leave a review for'} ${order.itemDescription}`}
-							>{reviewedIds.has(order.id) ? 'View review' : 'Leave a review'}</Button>
+						{#if reviewable(order) && reviewStatusesLoaded}
+							{#if removedIds.has(order.id)}
+								<span class="meta">Review removed</span>
+							{:else}
+								<Button
+									variant="text"
+									size="s"
+									href={`/orders/${order.id}#review`}
+									aria-label={`${reviewedIds.has(order.id) ? 'View your review of' : 'Leave a review for'} ${order.itemDescription}`}
+								>{reviewedIds.has(order.id) ? 'View review' : 'Leave a review'}</Button>
+							{/if}
 						{/if}
 					</li>
 				{/each}

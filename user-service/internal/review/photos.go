@@ -17,9 +17,8 @@ import (
 const MaxReviewPhotos = 5
 
 const (
-	// Repository-wide image convention: five types, 10MB decimal cap, 10m grants.
+	// Repository-wide image convention: five types, 10MB decimal cap.
 	maxReviewPhotoBytes = 10000000
-	photoUploadLifetime = 10 * time.Minute
 	// Unattached staging rows are reaped after this grace period.
 	photoOrphanAfter = 24 * time.Hour
 
@@ -73,7 +72,11 @@ func (s *Service) CreateReviewPhotoUpload(
 		SizeBytes:   sizeBytes,
 	})
 	if err != nil {
-		return uuid.Nil, images.UploadGrant{}, uploadUnavailable(fmt.Errorf("sign photo upload grant: %w", err))
+		wrapped := fmt.Errorf("sign photo upload grant: %w", err)
+		if errors.Is(err, images.ErrStorageUnavailable) {
+			return uuid.Nil, images.UploadGrant{}, uploadTemporarilyUnavailable(wrapped)
+		}
+		return uuid.Nil, images.UploadGrant{}, uploadUnavailable(wrapped)
 	}
 	photo := ReviewPhotoInput{
 		ID:          id,
@@ -82,7 +85,7 @@ func (s *Service) CreateReviewPhotoUpload(
 		ContentType: contentType,
 		SizeBytes:   sizeBytes,
 	}
-	photo.UploadExpiresAt = time.Now().UTC().Add(photoUploadLifetime)
+	photo.UploadExpiresAt = grant.ExpiresAt
 	if err := s.repo.InsertReviewPhoto(ctx, photo); err != nil {
 		return uuid.Nil, images.UploadGrant{}, err
 	}

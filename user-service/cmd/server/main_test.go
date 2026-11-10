@@ -58,7 +58,8 @@ func TestKeyIDRejectsInvalidPublicKey(t *testing.T) {
 func TestLoadConfigRequiresKafkaBrokers(t *testing.T) {
 	setValidConfigEnv(t)
 	t.Setenv("KAFKA_BROKERS", "")
-	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "KAFKA_BROKERS is not set") {
+	if _, err := loadConfig(); err == nil ||
+		!strings.Contains(err.Error(), "KAFKA_BROKERS must contain at least one broker") {
 		t.Fatalf("loadConfig error = %v, want missing KAFKA_BROKERS", err)
 	}
 }
@@ -71,7 +72,7 @@ func TestLoadConfigAcceptsKafkaBrokerWithoutCheckingAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig with configured broker: %v", err)
 	}
-	if cfg.kafkaBrokers != brokers {
+	if len(cfg.kafkaBrokers) != 1 || cfg.kafkaBrokers[0] != brokers {
 		t.Fatalf("KAFKA_BROKERS = %q, want %q", cfg.kafkaBrokers, brokers)
 	}
 }
@@ -90,11 +91,7 @@ func setValidConfigEnv(t *testing.T) {
 		"JWT_PRIVATE_KEY_FILE":              "/tmp/user-service-key.pem",
 		"JWT_ACCESS_TOKEN_TTL":              "10m",
 		"JWT_REFRESH_TOKEN_TTL":             "720h",
-		"SMTP_ADDR":                         "smtp.example.test:25",
-		"SMTP_FROM":                         "FoC <no-reply@example.test>",
-		"SMTP_USERNAME":                     "",
-		"SMTP_PASSWORD":                     "",
-		"SMTP_TIMEOUT":                      "5s",
+		"COMMUNICATION_SERVICE_BASE_URL":    "http://communication-service:8081",
 		"BOOTSTRAP_SUPERADMIN_EMAIL":        "",
 		"BOOTSTRAP_SUPERADMIN_DISPLAY_NAME": "",
 	} {
@@ -162,5 +159,18 @@ func TestServerServesConnectAndNativeGRPC(t *testing.T) {
 				t.Fatalf("status = %q, want ok", response.Msg.Status)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRequiresTheCommunicationURL(t *testing.T) {
+	for value, want := range map[string]string{
+		"":                      "COMMUNICATION_SERVICE_BASE_URL is not set",
+		"communication-service": "COMMUNICATION_SERVICE_BASE_URL must be an http(s) URL",
+	} {
+		setValidConfigEnv(t)
+		t.Setenv("COMMUNICATION_SERVICE_BASE_URL", value)
+		if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("COMMUNICATION_SERVICE_BASE_URL=%q: err = %v, want %q", value, err, want)
+		}
 	}
 }

@@ -6,6 +6,7 @@ import { createProfileService } from './profile/index.ts';
 import { createAdminService } from './admin/index.ts';
 import { createAllowedDomainService } from './allowedDomain/index.ts';
 import { createLocationApi } from './location/index.ts';
+import { createWarningService } from './warning/index.ts';
 import { createLocationAdminApi } from './location-admin';
 import { createAdditionRequestApi } from './addition-request';
 import { createDisablementApi } from './disablement';
@@ -16,6 +17,8 @@ import { createReviewApi } from './review/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
+import { CreditService } from './credit/service.svelte';
+import { createRealtimeService } from './realtime';
 import { createTelegramLinkApi } from './telegram/index.ts';
 import { SnackbarService } from './snackbar/service.ts';
 
@@ -33,6 +36,7 @@ const protectedUserTransport = createCustomTransport({
 
 export const profileService = createProfileService(protectedUserTransport, authService);
 export const adminService = createAdminService(protectedUserTransport);
+export const warningService = createWarningService(protectedUserTransport);
 export const allowedDomainService = createAllowedDomainService(protectedUserTransport);
 
 const supplierServiceBaseUrl = env.PUBLIC_SUPPLIER_SERVICE_URL ?? 'http://localhost:8082';
@@ -81,3 +85,5 @@ const communicationTransport = createCustomTransport({
 });
 
 export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
+export const realtimeService = createRealtimeService(communicationTransport, () => authService.refresh());
+export const creditService = new CreditService(creditAccountApi, realtimeService);

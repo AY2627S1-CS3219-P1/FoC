@@ -46,12 +46,16 @@ provides email magic-link authentication and ES256 access and refresh tokens.
    `JWT_ACCESS_TOKEN_TTL` and `JWT_REFRESH_TOKEN_TTL` accept Go duration
    values. Their defaults are `10m` and `720h` (30 days).
 
-   Magic links are sent over SMTP. `SMTP_ADDR` (`host:port`) and `SMTP_FROM`
-   (an address such as `FoC <no-reply@foc.local>`) are required outside
-   local mode. With `APP_ENV=local` they default to Mailpit on
-   `localhost:1025`; Compose points the container at `mailpit:1025`.
-   `SMTP_USERNAME` and `SMTP_PASSWORD` are optional, STARTTLS is used when
-   the server offers it, and `SMTP_TIMEOUT` (default `5s`) bounds each send.
+   Communication Service sends magic links. `COMMUNICATION_SERVICE_BASE_URL`
+   is its internal listener and is required outside local mode. With
+   `APP_ENV=local` it defaults to `http://communication-service:8081`, the
+   Compose address, so a host run must set it. SMTP settings belong to
+   Communication Service.
+
+   Courier warning requests are consumed from Kafka. `KAFKA_BROKERS` accepts
+   a comma-separated broker list; it defaults to `localhost:9092` in local
+   mode, and must be configured in other environments. Compose sets it to
+   `kafka:9092` for the service container.
 
 2. Set up the database.
 
@@ -86,6 +90,11 @@ publishes the signing key set, and `user.v1.HealthService.Check` reports
 service health. These services use ConnectRPC; the former REST auth, health,
 and JWKS routes are no longer served.
 
+`user.warning.v1.WarningService.ListMyWarnings` returns the authenticated caller's
+warnings. Both warning list RPCs use shared offset pagination and include page
+metadata. `ListWarningsForUser` and `MarkWarningAsRemoved` are restricted to
+admins; marking a warning as removed records the admin, removal reason and appeal ID.
+
 Login, registration, and refresh return an access token in their typed
 response. Clients hold it in memory and send it in the `Authorization: Bearer`
 header. The refresh token is only sent as a `foc-refresh-token` cookie with
@@ -98,8 +107,9 @@ so the cookie can be stored and sent. Requests with an `Origin` must match the
 configured frontend origin; service-to-service requests without an `Origin`
 are permitted. The access and refresh lifetimes come from the two JWT TTL
 environment variables. Link requests return an empty typed response; the magic
-link is only emailed, through `pkg/email.SMTPSender`. If delivery fails,
-`RequestLink` returns `Unavailable` and logs the SMTP error. An existing
+link is only emailed, through Communication Service's internal
+`EmailService.SendMagicLink`. If Communication can't send it, `RequestLink`
+returns `Unavailable` and logs the error. An existing
 account receives a `/login?token=` link and a new address a
 `/register?token=` link; both expire after ten minutes and work once.
 
@@ -241,3 +251,20 @@ photo RPCs report unavailability and reviews submit without photos.
 
 Demo seeding uses the same user/event provisioning logic as registration.
 See [seed commands and reset behavior](../data/seeds/README.md).
+
+### Removed review status
+
+Removal hides a review's content and photos but continues to block a replacement
+review for the same order. `ListMyReviewsForOrders` returns live reviews in
+`reviewed_order_ids` and removed reviews separately in `removed_order_ids`.
+`GetMyReviewForOrder` returns `NotFound` / `REVIEW_NOT_FOUND` for an unreviewed
+order and `FailedPrecondition` / `REVIEW_REMOVED` for a removed review, without
+returning its content. Clients show a removed notice rather than a submission
+form or a link to a live review. All lookups are scoped to the caller.
+
+Photo staging records use the upload grant's actual expiry. Cleanup waits for
+both that expiry and the 24-hour orphan age, including with custom upload TTLs.
+Transient grant-signing failures return `Unavailable` /
+`UPLOAD_TEMPORARILY_UNAVAILABLE`; other signing failures retain
+`Internal` / `UPLOAD_UNAVAILABLE`. Responses containing signed photo URLs use
+`Cache-Control: no-store`.

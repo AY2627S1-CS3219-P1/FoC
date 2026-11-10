@@ -696,6 +696,102 @@ func (x *ListMyReviewsRequest) GetPagination() *v1.Pagination {
 	return nil
 }
 
+type ListMyReviewsReceivedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pagination    *v1.Pagination         `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMyReviewsReceivedRequest) Reset() {
+	*x = ListMyReviewsReceivedRequest{}
+	mi := &file_user_review_v1_review_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMyReviewsReceivedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMyReviewsReceivedRequest) ProtoMessage() {}
+
+func (x *ListMyReviewsReceivedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMyReviewsReceivedRequest.ProtoReflect.Descriptor instead.
+func (*ListMyReviewsReceivedRequest) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListMyReviewsReceivedRequest) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+type ListMyReviewsReceivedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reviews       []*Review              `protobuf:"bytes,1,rep,name=reviews,proto3" json:"reviews,omitempty"`
+	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMyReviewsReceivedResponse) Reset() {
+	*x = ListMyReviewsReceivedResponse{}
+	mi := &file_user_review_v1_review_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMyReviewsReceivedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMyReviewsReceivedResponse) ProtoMessage() {}
+
+func (x *ListMyReviewsReceivedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMyReviewsReceivedResponse.ProtoReflect.Descriptor instead.
+func (*ListMyReviewsReceivedResponse) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListMyReviewsReceivedResponse) GetReviews() []*Review {
+	if x != nil {
+		return x.Reviews
+	}
+	return nil
+}
+
+func (x *ListMyReviewsReceivedResponse) GetPagination() *v1.PageInfo {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
 type ListMyReviewsForOrdersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderIds      []string               `protobuf:"bytes,1,rep,name=order_ids,json=orderIds,proto3" json:"order_ids,omitempty"`
@@ -705,7 +801,7 @@ type ListMyReviewsForOrdersRequest struct {
 
 func (x *ListMyReviewsForOrdersRequest) Reset() {
 	*x = ListMyReviewsForOrdersRequest{}
-	mi := &file_user_review_v1_review_proto_msgTypes[11]
+	mi := &file_user_review_v1_review_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +813,7 @@ func (x *ListMyReviewsForOrdersRequest) String() string {
 func (*ListMyReviewsForOrdersRequest) ProtoMessage() {}
 
 func (x *ListMyReviewsForOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[11]
+	mi := &file_user_review_v1_review_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -730,7 +826,7 @@ func (x *ListMyReviewsForOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyReviewsForOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListMyReviewsForOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{11}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListMyReviewsForOrdersRequest) GetOrderIds() []string {
@@ -741,15 +837,18 @@ func (x *ListMyReviewsForOrdersRequest) GetOrderIds() []string {
 }
 
 type ListMyReviewsForOrdersResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ReviewedOrderIds []string               `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Live reviews that can be fetched with GetMyReviewForOrder.
+	ReviewedOrderIds []string `protobuf:"bytes,1,rep,name=reviewed_order_ids,json=reviewedOrderIds,proto3" json:"reviewed_order_ids,omitempty"`
+	// Removed reviews still block resubmission; their content is not returned.
+	RemovedOrderIds []string `protobuf:"bytes,2,rep,name=removed_order_ids,json=removedOrderIds,proto3" json:"removed_order_ids,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ListMyReviewsForOrdersResponse) Reset() {
 	*x = ListMyReviewsForOrdersResponse{}
-	mi := &file_user_review_v1_review_proto_msgTypes[12]
+	mi := &file_user_review_v1_review_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -761,7 +860,7 @@ func (x *ListMyReviewsForOrdersResponse) String() string {
 func (*ListMyReviewsForOrdersResponse) ProtoMessage() {}
 
 func (x *ListMyReviewsForOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[12]
+	mi := &file_user_review_v1_review_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -774,7 +873,7 @@ func (x *ListMyReviewsForOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyReviewsForOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListMyReviewsForOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{12}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListMyReviewsForOrdersResponse) GetReviewedOrderIds() []string {
@@ -784,6 +883,14 @@ func (x *ListMyReviewsForOrdersResponse) GetReviewedOrderIds() []string {
 	return nil
 }
 
+func (x *ListMyReviewsForOrdersResponse) GetRemovedOrderIds() []string {
+	if x != nil {
+		return x.RemovedOrderIds
+	}
+	return nil
+}
+
+// A removed review returns FailedPrecondition with reason REVIEW_REMOVED.
 type GetMyReviewForOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
@@ -793,7 +900,7 @@ type GetMyReviewForOrderRequest struct {
 
 func (x *GetMyReviewForOrderRequest) Reset() {
 	*x = GetMyReviewForOrderRequest{}
-	mi := &file_user_review_v1_review_proto_msgTypes[13]
+	mi := &file_user_review_v1_review_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -805,7 +912,7 @@ func (x *GetMyReviewForOrderRequest) String() string {
 func (*GetMyReviewForOrderRequest) ProtoMessage() {}
 
 func (x *GetMyReviewForOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[13]
+	mi := &file_user_review_v1_review_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -818,7 +925,7 @@ func (x *GetMyReviewForOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMyReviewForOrderRequest.ProtoReflect.Descriptor instead.
 func (*GetMyReviewForOrderRequest) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{13}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetMyReviewForOrderRequest) GetOrderId() string {
@@ -837,7 +944,7 @@ type GetMyReviewForOrderResponse struct {
 
 func (x *GetMyReviewForOrderResponse) Reset() {
 	*x = GetMyReviewForOrderResponse{}
-	mi := &file_user_review_v1_review_proto_msgTypes[14]
+	mi := &file_user_review_v1_review_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +956,7 @@ func (x *GetMyReviewForOrderResponse) String() string {
 func (*GetMyReviewForOrderResponse) ProtoMessage() {}
 
 func (x *GetMyReviewForOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[14]
+	mi := &file_user_review_v1_review_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +969,7 @@ func (x *GetMyReviewForOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMyReviewForOrderResponse.ProtoReflect.Descriptor instead.
 func (*GetMyReviewForOrderResponse) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{14}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetMyReviewForOrderResponse) GetReview() *Review {
@@ -882,7 +989,7 @@ type RemoveReviewRequest struct {
 
 func (x *RemoveReviewRequest) Reset() {
 	*x = RemoveReviewRequest{}
-	mi := &file_user_review_v1_review_proto_msgTypes[15]
+	mi := &file_user_review_v1_review_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +1001,7 @@ func (x *RemoveReviewRequest) String() string {
 func (*RemoveReviewRequest) ProtoMessage() {}
 
 func (x *RemoveReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[15]
+	mi := &file_user_review_v1_review_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +1014,7 @@ func (x *RemoveReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveReviewRequest.ProtoReflect.Descriptor instead.
 func (*RemoveReviewRequest) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{15}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RemoveReviewRequest) GetId() string {
@@ -932,7 +1039,7 @@ type RemoveReviewResponse struct {
 
 func (x *RemoveReviewResponse) Reset() {
 	*x = RemoveReviewResponse{}
-	mi := &file_user_review_v1_review_proto_msgTypes[16]
+	mi := &file_user_review_v1_review_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -944,7 +1051,7 @@ func (x *RemoveReviewResponse) String() string {
 func (*RemoveReviewResponse) ProtoMessage() {}
 
 func (x *RemoveReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[16]
+	mi := &file_user_review_v1_review_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -957,7 +1064,7 @@ func (x *RemoveReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveReviewResponse.ProtoReflect.Descriptor instead.
 func (*RemoveReviewResponse) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{16}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{18}
 }
 
 type ReviewRemoval struct {
@@ -976,7 +1083,7 @@ type ReviewRemoval struct {
 
 func (x *ReviewRemoval) Reset() {
 	*x = ReviewRemoval{}
-	mi := &file_user_review_v1_review_proto_msgTypes[17]
+	mi := &file_user_review_v1_review_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -988,7 +1095,7 @@ func (x *ReviewRemoval) String() string {
 func (*ReviewRemoval) ProtoMessage() {}
 
 func (x *ReviewRemoval) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[17]
+	mi := &file_user_review_v1_review_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1001,7 +1108,7 @@ func (x *ReviewRemoval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewRemoval.ProtoReflect.Descriptor instead.
 func (*ReviewRemoval) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{17}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ReviewRemoval) GetId() string {
@@ -1069,7 +1176,7 @@ type ListReviewRemovalsRequest struct {
 
 func (x *ListReviewRemovalsRequest) Reset() {
 	*x = ListReviewRemovalsRequest{}
-	mi := &file_user_review_v1_review_proto_msgTypes[18]
+	mi := &file_user_review_v1_review_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1081,7 +1188,7 @@ func (x *ListReviewRemovalsRequest) String() string {
 func (*ListReviewRemovalsRequest) ProtoMessage() {}
 
 func (x *ListReviewRemovalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[18]
+	mi := &file_user_review_v1_review_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1094,7 +1201,7 @@ func (x *ListReviewRemovalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReviewRemovalsRequest.ProtoReflect.Descriptor instead.
 func (*ListReviewRemovalsRequest) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{18}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListReviewRemovalsRequest) GetPagination() *v1.Pagination {
@@ -1114,7 +1221,7 @@ type ListReviewRemovalsResponse struct {
 
 func (x *ListReviewRemovalsResponse) Reset() {
 	*x = ListReviewRemovalsResponse{}
-	mi := &file_user_review_v1_review_proto_msgTypes[19]
+	mi := &file_user_review_v1_review_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1126,7 +1233,7 @@ func (x *ListReviewRemovalsResponse) String() string {
 func (*ListReviewRemovalsResponse) ProtoMessage() {}
 
 func (x *ListReviewRemovalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[19]
+	mi := &file_user_review_v1_review_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1139,7 +1246,7 @@ func (x *ListReviewRemovalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReviewRemovalsResponse.ProtoReflect.Descriptor instead.
 func (*ListReviewRemovalsResponse) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{19}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListReviewRemovalsResponse) GetRemovals() []*ReviewRemoval {
@@ -1167,7 +1274,7 @@ type GetReviewPhotoDownloadRequest struct {
 
 func (x *GetReviewPhotoDownloadRequest) Reset() {
 	*x = GetReviewPhotoDownloadRequest{}
-	mi := &file_user_review_v1_review_proto_msgTypes[20]
+	mi := &file_user_review_v1_review_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1179,7 +1286,7 @@ func (x *GetReviewPhotoDownloadRequest) String() string {
 func (*GetReviewPhotoDownloadRequest) ProtoMessage() {}
 
 func (x *GetReviewPhotoDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[20]
+	mi := &file_user_review_v1_review_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1192,7 +1299,7 @@ func (x *GetReviewPhotoDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewPhotoDownloadRequest.ProtoReflect.Descriptor instead.
 func (*GetReviewPhotoDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{20}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetReviewPhotoDownloadRequest) GetPhotoId() string {
@@ -1211,7 +1318,7 @@ type GetReviewPhotoDownloadResponse struct {
 
 func (x *GetReviewPhotoDownloadResponse) Reset() {
 	*x = GetReviewPhotoDownloadResponse{}
-	mi := &file_user_review_v1_review_proto_msgTypes[21]
+	mi := &file_user_review_v1_review_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1223,7 +1330,7 @@ func (x *GetReviewPhotoDownloadResponse) String() string {
 func (*GetReviewPhotoDownloadResponse) ProtoMessage() {}
 
 func (x *GetReviewPhotoDownloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_review_v1_review_proto_msgTypes[21]
+	mi := &file_user_review_v1_review_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1236,7 +1343,7 @@ func (x *GetReviewPhotoDownloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewPhotoDownloadResponse.ProtoReflect.Descriptor instead.
 func (*GetReviewPhotoDownloadResponse) Descriptor() ([]byte, []int) {
-	return file_user_review_v1_review_proto_rawDescGZIP(), []int{21}
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetReviewPhotoDownloadResponse) GetPhoto() *ReviewPhoto {
@@ -1320,11 +1427,21 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x14ListMyReviewsRequest\x129\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +
+	"pagination\"Y\n" +
+	"\x1cListMyReviewsReceivedRequest\x129\n" +
+	"\n" +
+	"pagination\x18\x01 \x01(\v2\x19.pagination.v1.PaginationR\n" +
+	"pagination\"\x8a\x01\n" +
+	"\x1dListMyReviewsReceivedResponse\x120\n" +
+	"\areviews\x18\x01 \x03(\v2\x16.user.review.v1.ReviewR\areviews\x127\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
 	"pagination\"M\n" +
 	"\x1dListMyReviewsForOrdersRequest\x12,\n" +
-	"\torder_ids\x18\x01 \x03(\tB\x0f\xbaH\f\x92\x01\t\x102\"\x05r\x03\xb0\x01\x01R\borderIds\"N\n" +
+	"\torder_ids\x18\x01 \x03(\tB\x0f\xbaH\f\x92\x01\t\x102\"\x05r\x03\xb0\x01\x01R\borderIds\"z\n" +
 	"\x1eListMyReviewsForOrdersResponse\x12,\n" +
-	"\x12reviewed_order_ids\x18\x01 \x03(\tR\x10reviewedOrderIds\"A\n" +
+	"\x12reviewed_order_ids\x18\x01 \x03(\tR\x10reviewedOrderIds\x12*\n" +
+	"\x11removed_order_ids\x18\x02 \x03(\tR\x0fremovedOrderIds\"A\n" +
 	"\x1aGetMyReviewForOrderRequest\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\"M\n" +
 	"\x1bGetMyReviewForOrderResponse\x12.\n" +
@@ -1358,13 +1475,14 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x1dGetReviewPhotoDownloadRequest\x12#\n" +
 	"\bphoto_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aphotoId\"S\n" +
 	"\x1eGetReviewPhotoDownloadResponse\x121\n" +
-	"\x05photo\x18\x01 \x01(\v2\x1b.user.review.v1.ReviewPhotoR\x05photo2\xed\a\n" +
+	"\x05photo\x18\x01 \x01(\v2\x1b.user.review.v1.ReviewPhotoR\x05photo2\xe5\b\n" +
 	"\rReviewService\x12[\n" +
 	"\fSubmitReview\x12#.user.review.v1.SubmitReviewRequest\x1a$.user.review.v1.SubmitReviewResponse\"\x00\x12|\n" +
 	"\x17CreateReviewPhotoUpload\x12..user.review.v1.CreateReviewPhotoUploadRequest\x1a/.user.review.v1.CreateReviewPhotoUploadResponse\"\x00\x12y\n" +
 	"\x16GetReviewPhotoDownload\x12-.user.review.v1.GetReviewPhotoDownloadRequest\x1a..user.review.v1.GetReviewPhotoDownloadResponse\"\x00\x12m\n" +
 	"\x12ListReviewsForUser\x12).user.review.v1.ListReviewsForUserRequest\x1a*.user.review.v1.ListReviewsForUserResponse\"\x00\x12^\n" +
-	"\rListMyReviews\x12$.user.review.v1.ListMyReviewsRequest\x1a%.user.review.v1.ListMyReviewsResponse\"\x00\x12y\n" +
+	"\rListMyReviews\x12$.user.review.v1.ListMyReviewsRequest\x1a%.user.review.v1.ListMyReviewsResponse\"\x00\x12v\n" +
+	"\x15ListMyReviewsReceived\x12,.user.review.v1.ListMyReviewsReceivedRequest\x1a-.user.review.v1.ListMyReviewsReceivedResponse\"\x00\x12y\n" +
 	"\x16ListMyReviewsForOrders\x12-.user.review.v1.ListMyReviewsForOrdersRequest\x1a..user.review.v1.ListMyReviewsForOrdersResponse\"\x00\x12p\n" +
 	"\x13GetMyReviewForOrder\x12*.user.review.v1.GetMyReviewForOrderRequest\x1a+.user.review.v1.GetMyReviewForOrderResponse\"\x00\x12[\n" +
 	"\fRemoveReview\x12#.user.review.v1.RemoveReviewRequest\x1a$.user.review.v1.RemoveReviewResponse\"\x00\x12m\n" +
@@ -1383,7 +1501,7 @@ func file_user_review_v1_review_proto_rawDescGZIP() []byte {
 	return file_user_review_v1_review_proto_rawDescData
 }
 
-var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_user_review_v1_review_proto_goTypes = []any{
 	(*Review)(nil),                          // 0: user.review.v1.Review
 	(*ReviewPhoto)(nil),                     // 1: user.review.v1.ReviewPhoto
@@ -1396,64 +1514,71 @@ var file_user_review_v1_review_proto_goTypes = []any{
 	(*ListMyReviewsResponse)(nil),           // 8: user.review.v1.ListMyReviewsResponse
 	(*ListReviewsForUserRequest)(nil),       // 9: user.review.v1.ListReviewsForUserRequest
 	(*ListMyReviewsRequest)(nil),            // 10: user.review.v1.ListMyReviewsRequest
-	(*ListMyReviewsForOrdersRequest)(nil),   // 11: user.review.v1.ListMyReviewsForOrdersRequest
-	(*ListMyReviewsForOrdersResponse)(nil),  // 12: user.review.v1.ListMyReviewsForOrdersResponse
-	(*GetMyReviewForOrderRequest)(nil),      // 13: user.review.v1.GetMyReviewForOrderRequest
-	(*GetMyReviewForOrderResponse)(nil),     // 14: user.review.v1.GetMyReviewForOrderResponse
-	(*RemoveReviewRequest)(nil),             // 15: user.review.v1.RemoveReviewRequest
-	(*RemoveReviewResponse)(nil),            // 16: user.review.v1.RemoveReviewResponse
-	(*ReviewRemoval)(nil),                   // 17: user.review.v1.ReviewRemoval
-	(*ListReviewRemovalsRequest)(nil),       // 18: user.review.v1.ListReviewRemovalsRequest
-	(*ListReviewRemovalsResponse)(nil),      // 19: user.review.v1.ListReviewRemovalsResponse
-	(*GetReviewPhotoDownloadRequest)(nil),   // 20: user.review.v1.GetReviewPhotoDownloadRequest
-	(*GetReviewPhotoDownloadResponse)(nil),  // 21: user.review.v1.GetReviewPhotoDownloadResponse
-	nil,                                     // 22: user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
-	(*timestamppb.Timestamp)(nil),           // 23: google.protobuf.Timestamp
-	(*v1.PageInfo)(nil),                     // 24: pagination.v1.PageInfo
-	(*v1.Pagination)(nil),                   // 25: pagination.v1.Pagination
+	(*ListMyReviewsReceivedRequest)(nil),    // 11: user.review.v1.ListMyReviewsReceivedRequest
+	(*ListMyReviewsReceivedResponse)(nil),   // 12: user.review.v1.ListMyReviewsReceivedResponse
+	(*ListMyReviewsForOrdersRequest)(nil),   // 13: user.review.v1.ListMyReviewsForOrdersRequest
+	(*ListMyReviewsForOrdersResponse)(nil),  // 14: user.review.v1.ListMyReviewsForOrdersResponse
+	(*GetMyReviewForOrderRequest)(nil),      // 15: user.review.v1.GetMyReviewForOrderRequest
+	(*GetMyReviewForOrderResponse)(nil),     // 16: user.review.v1.GetMyReviewForOrderResponse
+	(*RemoveReviewRequest)(nil),             // 17: user.review.v1.RemoveReviewRequest
+	(*RemoveReviewResponse)(nil),            // 18: user.review.v1.RemoveReviewResponse
+	(*ReviewRemoval)(nil),                   // 19: user.review.v1.ReviewRemoval
+	(*ListReviewRemovalsRequest)(nil),       // 20: user.review.v1.ListReviewRemovalsRequest
+	(*ListReviewRemovalsResponse)(nil),      // 21: user.review.v1.ListReviewRemovalsResponse
+	(*GetReviewPhotoDownloadRequest)(nil),   // 22: user.review.v1.GetReviewPhotoDownloadRequest
+	(*GetReviewPhotoDownloadResponse)(nil),  // 23: user.review.v1.GetReviewPhotoDownloadResponse
+	nil,                                     // 24: user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
+	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
+	(*v1.PageInfo)(nil),                     // 26: pagination.v1.PageInfo
+	(*v1.Pagination)(nil),                   // 27: pagination.v1.Pagination
 }
 var file_user_review_v1_review_proto_depIdxs = []int32{
-	23, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
+	25, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
 	1,  // 1: user.review.v1.Review.photos:type_name -> user.review.v1.ReviewPhoto
-	23, // 2: user.review.v1.ReviewPhoto.expires_at:type_name -> google.protobuf.Timestamp
+	25, // 2: user.review.v1.ReviewPhoto.expires_at:type_name -> google.protobuf.Timestamp
 	2,  // 3: user.review.v1.SubmitReviewRequest.submission:type_name -> user.review.v1.ReviewSubmission
-	22, // 4: user.review.v1.CreateReviewPhotoUploadResponse.upload_headers:type_name -> user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
-	23, // 5: user.review.v1.CreateReviewPhotoUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	24, // 4: user.review.v1.CreateReviewPhotoUploadResponse.upload_headers:type_name -> user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
+	25, // 5: user.review.v1.CreateReviewPhotoUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: user.review.v1.ListReviewsForUserResponse.reviews:type_name -> user.review.v1.Review
-	24, // 7: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	26, // 7: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
 	0,  // 8: user.review.v1.ListMyReviewsResponse.reviews:type_name -> user.review.v1.Review
-	24, // 9: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
-	25, // 10: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	25, // 11: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
-	0,  // 12: user.review.v1.GetMyReviewForOrderResponse.review:type_name -> user.review.v1.Review
-	23, // 13: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
-	25, // 14: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
-	17, // 15: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	24, // 16: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
-	1,  // 17: user.review.v1.GetReviewPhotoDownloadResponse.photo:type_name -> user.review.v1.ReviewPhoto
-	3,  // 18: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	5,  // 19: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
-	20, // 20: user.review.v1.ReviewService.GetReviewPhotoDownload:input_type -> user.review.v1.GetReviewPhotoDownloadRequest
-	9,  // 21: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	10, // 22: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	11, // 23: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
-	13, // 24: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
-	15, // 25: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	18, // 26: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	4,  // 27: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	6,  // 28: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
-	21, // 29: user.review.v1.ReviewService.GetReviewPhotoDownload:output_type -> user.review.v1.GetReviewPhotoDownloadResponse
-	7,  // 30: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	8,  // 31: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	12, // 32: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
-	14, // 33: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
-	16, // 34: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	19, // 35: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	27, // [27:36] is the sub-list for method output_type
-	18, // [18:27] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	26, // 9: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
+	27, // 10: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	27, // 11: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
+	27, // 12: user.review.v1.ListMyReviewsReceivedRequest.pagination:type_name -> pagination.v1.Pagination
+	0,  // 13: user.review.v1.ListMyReviewsReceivedResponse.reviews:type_name -> user.review.v1.Review
+	26, // 14: user.review.v1.ListMyReviewsReceivedResponse.pagination:type_name -> pagination.v1.PageInfo
+	0,  // 15: user.review.v1.GetMyReviewForOrderResponse.review:type_name -> user.review.v1.Review
+	25, // 16: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
+	27, // 17: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	19, // 18: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
+	26, // 19: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	1,  // 20: user.review.v1.GetReviewPhotoDownloadResponse.photo:type_name -> user.review.v1.ReviewPhoto
+	3,  // 21: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	5,  // 22: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
+	22, // 23: user.review.v1.ReviewService.GetReviewPhotoDownload:input_type -> user.review.v1.GetReviewPhotoDownloadRequest
+	9,  // 24: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	10, // 25: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	11, // 26: user.review.v1.ReviewService.ListMyReviewsReceived:input_type -> user.review.v1.ListMyReviewsReceivedRequest
+	13, // 27: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
+	15, // 28: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
+	17, // 29: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	20, // 30: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	4,  // 31: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	6,  // 32: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
+	23, // 33: user.review.v1.ReviewService.GetReviewPhotoDownload:output_type -> user.review.v1.GetReviewPhotoDownloadResponse
+	7,  // 34: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	8,  // 35: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	12, // 36: user.review.v1.ReviewService.ListMyReviewsReceived:output_type -> user.review.v1.ListMyReviewsReceivedResponse
+	14, // 37: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
+	16, // 38: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
+	18, // 39: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	21, // 40: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	31, // [31:41] is the sub-list for method output_type
+	21, // [21:31] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }
@@ -1467,7 +1592,7 @@ func file_user_review_v1_review_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_review_v1_review_proto_rawDesc), len(file_user_review_v1_review_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

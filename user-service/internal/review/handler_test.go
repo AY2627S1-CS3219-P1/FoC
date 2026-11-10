@@ -58,7 +58,7 @@ type handlerLogicStub struct {
 
 	reviewedFor      uuid.UUID
 	reviewedOrderIDs []uuid.UUID
-	reviewedResult   []uuid.UUID
+	reviewedResult   ReviewOrderStatuses
 	reviewedErr      error
 	myReview         Review
 	myReviewErr      error
@@ -106,11 +106,20 @@ func (s *handlerLogicStub) ListReviewsFromUser(
 	return ReviewPage{}, s.forUserErr
 }
 
+func (s *handlerLogicStub) ListMyReviewsReceived(
+	_ context.Context,
+	userID uuid.UUID,
+	page pagination.Pagination,
+) (ReviewPage, error) {
+	s.listedFor = userID
+	return s.forUserPage, s.forUserErr
+}
+
 func (s *handlerLogicStub) ListMyReviewsForOrders(
 	_ context.Context,
 	reviewerID uuid.UUID,
 	orderIDs []uuid.UUID,
-) ([]uuid.UUID, error) {
+) (ReviewOrderStatuses, error) {
 	s.reviewedFor = reviewerID
 	s.reviewedOrderIDs = orderIDs
 	return s.reviewedResult, s.reviewedErr
@@ -179,10 +188,38 @@ func TestCreateReviewPhotoUploadResponseIsNoStore(t *testing.T) {
 	}
 }
 
+func TestListMyReviewsReceivedRPC(t *testing.T) {
+	caller := uuid.New()
+	page := ReviewPage{PageInfo: pagination.NewPageInfo(1, 20, 1)}
+	stub := &handlerLogicStub{forUserPage: page}
+	client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+	resp, err := client.ListMyReviewsReceived(
+		context.Background(),
+		connect.NewRequest(&reviewv1.ListMyReviewsReceivedRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("list received: %v", err)
+	}
+	if got := resp.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+	if stub.listedFor != caller {
+		t.Fatalf("listed user = %v, want caller %v", stub.listedFor, caller)
+	}
+	if resp.Msg.Pagination == nil || resp.Msg.Pagination.TotalItems != 1 {
+		t.Fatalf("pagination = %+v", resp.Msg.Pagination)
+	}
+}
+
 func TestListMyReviewsForOrdersRPC(t *testing.T) {
 	caller := uuid.New()
 	t.Run("returns the reviewed subset and derives the reviewer from the caller", func(t *testing.T) {
-		stub := &handlerLogicStub{reviewedResult: []uuid.UUID{uuid.New()}}
+		stub := &handlerLogicStub{
+			reviewedResult: ReviewOrderStatuses{
+				ReviewedOrderIDs: []uuid.UUID{uuid.New()},
+				RemovedOrderIDs:  []uuid.UUID{uuid.New()},
+			},
+		}
 		client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
 		one, two := uuid.New(), uuid.New()
 		resp, err := client.ListMyReviewsForOrders(
@@ -200,8 +237,13 @@ func TestListMyReviewsForOrdersRPC(t *testing.T) {
 		if len(stub.reviewedOrderIDs) != 2 || stub.reviewedOrderIDs[0] != one || stub.reviewedOrderIDs[1] != two {
 			t.Fatalf("order ids not passed through: %v", stub.reviewedOrderIDs)
 		}
-		if len(resp.Msg.ReviewedOrderIds) != 1 || resp.Msg.ReviewedOrderIds[0] != stub.reviewedResult[0].String() {
+		if len(resp.Msg.ReviewedOrderIds) != 1 ||
+			resp.Msg.ReviewedOrderIds[0] != stub.reviewedResult.ReviewedOrderIDs[0].String() {
 			t.Fatalf("reviewed ids = %v", resp.Msg.ReviewedOrderIds)
+		}
+		if len(resp.Msg.RemovedOrderIds) != 1 ||
+			resp.Msg.RemovedOrderIds[0] != stub.reviewedResult.RemovedOrderIDs[0].String() {
+			t.Fatalf("removed ids = %v", resp.Msg.RemovedOrderIds)
 		}
 	})
 	t.Run("invalid order id is rejected", func(t *testing.T) {
@@ -262,6 +304,18 @@ func TestGetMyReviewForOrderRPC(t *testing.T) {
 			t.Fatalf("reason = %q, want %q", got, reasonReviewNotFound)
 		}
 	})
+}
+
+func TestGetMyReviewForOrderRemoved(t *testing.T) {
+	client := reviewClient(t, &handlerLogicStub{myReviewErr: errReviewRemoved}, auth.Caller{ID: uuid.NewString()})
+	response, err := client.GetMyReviewForOrder(
+		context.Background(),
+		connect.NewRequest(&reviewv1.GetMyReviewForOrderRequest{OrderId: uuid.NewString()}),
+	)
+	if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition ||
+		reasonOf(t, err) != reasonReviewRemoved {
+		t.Fatalf("removed review: response=%v error=%v", response, err)
+	}
 }
 
 func TestSubmitReviewRPC(t *testing.T) {

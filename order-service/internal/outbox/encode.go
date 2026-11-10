@@ -16,6 +16,18 @@ func encode(f Fact) (proto.Message, error) {
 	if f.Version != 1 {
 		return nil, errors.New("unsupported Order fact version")
 	}
+	if f.Kind == "order.changed" {
+		var change app.ChangedPayload
+		if err := json.Unmarshal(f.Payload, &change); err != nil {
+			return nil, err
+		}
+		if change.At.IsZero() || len(change.Recipients) == 0 {
+			return nil, errors.New("invalid order change")
+		}
+		return &events.OrderChanged{EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision,
+			RecipientUserIds: change.Recipients, OpenOrdersChanged: change.OpenOrders,
+			OccurredAt: timestamppb.New(change.At)}, nil
+	}
 	var p app.FactsPayload
 	if err := json.Unmarshal(f.Payload, &p); err != nil {
 		return nil, err
@@ -80,6 +92,15 @@ func encode(f Fact) (proto.Message, error) {
 		return &events.CourierWarningRequested{
 			EventId: f.ID, OrderId: f.OrderID, CourierId: *p.CourierID,
 			Reason: reason, OccurredAt: timestamppb.New(p.At),
+		}, nil
+	case app.OfferMade:
+		if p.Offer == nil || p.Offer.ID == "" || p.Offer.CourierID == "" || p.Offer.Credits <= 0 {
+			return nil, errors.New("invalid offer fact")
+		}
+		return &events.OrderOfferMade{
+			EventId: f.ID, OrderId: f.OrderID, Revision: f.Revision,
+			OfferId: p.Offer.ID, CourierId: p.Offer.CourierID, RequesterId: p.RequesterID,
+			Credits: p.Offer.Credits, PickupLocationName: f.PickupName, OccurredAt: timestamppb.New(p.At),
 		}, nil
 	default:
 		return nil, errors.New("unsupported Order fact kind")

@@ -34,10 +34,18 @@ type ProfileUsers interface {
 	UpdateActiveProfile(context.Context, *models.User) error
 }
 
+// ProfilePictureStorage is the object storage surface consumed by profile pictures.
+type ProfilePictureStorage interface {
+	CreateUpload(context.Context, images.UploadRequest) (images.UploadGrant, error)
+	Inspect(context.Context, string) (images.ObjectInfo, error)
+	CreateDownload(context.Context, string) (images.DownloadGrant, error)
+	Delete(context.Context, string) error
+}
+
 type ProfileService struct {
 	Users    ProfileUsers
 	Pictures ProfilePictureStore
-	Storage  images.ObjectStorage
+	Storage  ProfilePictureStorage
 	Now      func() time.Time
 }
 

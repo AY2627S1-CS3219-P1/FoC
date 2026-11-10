@@ -40,6 +40,7 @@ type Server struct {
 	disposition   DispositionOperations
 	proofs        ProofOperations
 	proofReceipts ProofReceiptOperations
+	status        OperationStatusOperations
 }
 
 func NewServer(

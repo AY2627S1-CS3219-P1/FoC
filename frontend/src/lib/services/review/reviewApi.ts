@@ -24,6 +24,19 @@ export class ReviewAlreadyExistsError extends ReviewRejectedError {
 	}
 }
 
+// Moderation removed the caller's review. Its content stays hidden and the
+// order cannot receive a replacement review from this caller.
+export class ReviewRemovedError extends ReviewRejectedError {
+	constructor(message: string) {
+		super(message, { reason: 'REVIEW_REMOVED' });
+	}
+}
+
+export type ReviewOrderStatuses = {
+	reviewedOrderIds: string[];
+	removedOrderIds: string[];
+};
+
 // A temporary server-side limit (e.g. upload quota). The photo stays selected
 // and a later retry can succeed; never treated as a permanent rejection.
 export class ReviewLimitedError extends Error {}
@@ -85,8 +98,12 @@ export interface ReviewApi extends ReviewPhotoUploadAPI {
 		page: { page: number; pageSize: number },
 		signal: AbortSignal
 	): Promise<ReviewPage>;
-	/** Which of the given orders the caller has already reviewed. */
-	listReviewedOrderIds(orderIds: string[], signal: AbortSignal): Promise<string[]>;
-	/** The caller's review for one order, or null when unreviewed. */
+	/** Live and removed reviews for the requested orders, scoped to the caller. */
+	listReviewOrderStatuses(orderIds: string[], signal: AbortSignal): Promise<ReviewOrderStatuses>;
+	/** A page of reviews the caller received. */
+	listReceived(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
+	/** A page of reviews the caller wrote. */
+	listMine(page: { page: number; pageSize: number }, signal: AbortSignal): Promise<ReviewPage>;
+	/** Live review or null when unreviewed; throws ReviewRemovedError after removal. */
 	getMyReviewForOrder(orderId: string, signal: AbortSignal): Promise<ReviewRecord | null>;
 }

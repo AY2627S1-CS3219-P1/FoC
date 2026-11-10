@@ -22,6 +22,7 @@ const (
 	reasonPhotoNotStaged               = "PHOTO_NOT_STAGED"
 	reasonPhotoNotReady                = "PHOTO_NOT_READY"
 	reasonReviewNotFound               = "REVIEW_NOT_FOUND"
+	reasonReviewRemoved                = "REVIEW_REMOVED"
 	reasonReviewAlreadyExists          = "REVIEW_ALREADY_EXISTS"
 	reasonUploadTemporarilyUnavailable = "UPLOAD_TEMPORARILY_UNAVAILABLE"
 	reasonUploadUnavailable            = "UPLOAD_UNAVAILABLE"
@@ -40,6 +41,7 @@ var (
 	errReviewerNotFound    = errors.New("reviewer does not exist")
 	errRevieweeNotFound    = errors.New("reviewee does not exist")
 	errReviewNotFound      = errors.New("review not found")
+	errReviewRemoved       = errors.New("your review was removed; you cannot review this order again")
 	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
 	errReviewInvalid       = errors.New("review data is invalid")
 
@@ -139,6 +141,7 @@ var errorMappings = []errorMapping{
 	{errReviewAlreadyExists, connect.CodeAlreadyExists, reasonReviewAlreadyExists},
 	{errReviewInvalid, connect.CodeInvalidArgument, reasonInvalidReview},
 	{errReviewNotFound, connect.CodeNotFound, reasonReviewNotFound},
+	{errReviewRemoved, connect.CodeFailedPrecondition, reasonReviewRemoved},
 }
 
 // Mapped reasons carry ErrorInfo and ErrorDetail; others use the shared conversion.

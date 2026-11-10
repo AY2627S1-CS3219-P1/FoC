@@ -25,6 +25,7 @@ type fakeStorage struct {
 	objects   map[string]images.ObjectInfo
 	downloads map[string]images.DownloadGrant
 
+	uploadTTL       time.Duration
 	createUploadErr error
 	inspectErr      error
 	downloadErr     error
@@ -37,12 +38,16 @@ func (f *fakeStorage) CreateUpload(_ context.Context, in images.UploadRequest) (
 	if f.createUploadErr != nil {
 		return images.UploadGrant{}, f.createUploadErr
 	}
+	ttl := f.uploadTTL
+	if ttl == 0 {
+		ttl = time.Minute
+	}
 	grant, ok := f.grants[in.Key]
 	if !ok {
 		grant = images.UploadGrant{
 			URL:       "https://storage.test/" + in.Key,
 			Method:    "PUT",
-			ExpiresAt: time.Now().Add(time.Minute),
+			ExpiresAt: time.Now().Add(ttl),
 		}
 	}
 	return grant, nil
@@ -107,19 +112,19 @@ func (f *fakeRepository) GetReviewPhoto(_ context.Context, ownerID, id uuid.UUID
 	return photo, nil
 }
 
-func (f *fakeRepository) ListReviewedOrderIds(
+func (f *fakeRepository) ListReviewOrderStatuses(
 	_ context.Context,
 	reviewerID uuid.UUID,
 	orderIDs []uuid.UUID,
-) ([]uuid.UUID, error) {
+) (ReviewOrderStatuses, error) {
 	want := make(map[uuid.UUID]bool, len(orderIDs))
 	for _, id := range orderIDs {
 		want[id] = true
 	}
-	var out []uuid.UUID
+	var out ReviewOrderStatuses
 	for _, review := range f.reviewsForOrder {
 		if review.ReviewerID == reviewerID && want[review.OrderID] {
-			out = append(out, review.OrderID)
+			out.ReviewedOrderIDs = append(out.ReviewedOrderIDs, review.OrderID)
 		}
 	}
 	return out, nil
@@ -221,6 +226,9 @@ func TestCreateReviewPhotoUploadStoresStagingRow(t *testing.T) {
 	}
 	if fake.insertedPhoto.ObjectKey != photoKeyPrefix+photoID.String() {
 		t.Fatalf("object key must derive from the photo id, got %q", fake.insertedPhoto.ObjectKey)
+	}
+	if !fake.insertedPhoto.UploadExpiresAt.Equal(grant.ExpiresAt) {
+		t.Fatalf("stored expiry = %v, want grant expiry %v", fake.insertedPhoto.UploadExpiresAt, grant.ExpiresAt)
 	}
 	if grant.URL == "" {
 		t.Fatal("grant URL must be returned")
@@ -641,6 +649,32 @@ func TestDownloadPhotoVisibility(t *testing.T) {
 				}
 			} else if tc.want != 0 || photo.ID != photoID || photo.URL == "" || photo.ContentType != "image/png" || photo.ExpiresAt.IsZero() {
 				t.Fatalf("unexpected grant: %+v, want error %v", photo, tc.want)
+			}
+		})
+	}
+}
+
+func TestCreateReviewPhotoUploadClassifiesSigningFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cause  error
+		code   connect.Code
+		reason string
+	}{
+		{"transient", fmt.Errorf("credentials: %w", images.ErrStorageUnavailable), connect.CodeUnavailable, reasonUploadTemporarilyUnavailable},
+		{"misconfigured", images.ErrStorageMisconfigured, connect.CodeInternal, reasonUploadUnavailable},
+		{"unknown", errors.New("provider detail"), connect.CodeInternal, reasonUploadUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepository{}
+			service := newTestServiceWithPhotos(repo, &fakeStorage{createUploadErr: tc.cause})
+			_, _, err := service.CreateReviewPhotoUpload(context.Background(), uuid.New(), "image/jpeg", 100)
+			rpcErr := toConnectError(context.Background(), err)
+			if connect.CodeOf(rpcErr) != tc.code || reasonOf(t, rpcErr) != tc.reason {
+				t.Fatalf("signing error = %v, want %v/%s", rpcErr, tc.code, tc.reason)
+			}
+			if repo.insertPhotoCalls != 0 {
+				t.Fatal("failed signing must not persist a staging row")
 			}
 		})
 	}

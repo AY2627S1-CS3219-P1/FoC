@@ -6,8 +6,10 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/validate"
+	authz "github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1/reviewv1connect"
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	userv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/v1/userv1connect"
+	warningv1connect "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/warning/v1/warningv1connect"
 	sharedmiddleware "github.com/AY2627S1-CS3219-P1/FoC/pkg/middleware"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
@@ -16,6 +18,7 @@ import (
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
 	userservicemiddleware "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/middleware"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -28,6 +31,8 @@ type ProtectedRoutes struct {
 	Profile        *profilehandler.Handler
 	Admin          *adminhandler.Handler
 	AllowedDomains *allowedadmin.AllowedDomainHandler
+	Warnings       *warningdomain.Handler
+	AdminWarnings  *warningdomain.AdminHandler
 	Review         *review.Handler
 	Authenticate   func(http.Handler) http.Handler
 	Users          ActorReader
@@ -122,6 +127,25 @@ func setup(
 			connect.WithReadMaxBytes(maxRPCMessageBytes))
 		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
 			Mount(allowedDomainsPath, allowedDomainsService)
+		warningsPath, warningsService := warningv1connect.NewWarningServiceHandler(
+			p.Warnings,
+			connect.WithInterceptors(validate.NewInterceptor(), normalizeRPCError()),
+			connect.WithReadMaxBytes(maxRPCMessageBytes),
+		)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(warningsPath, warningsService)
+
+		adminWarningsPath, adminWarningsService := warningv1connect.NewWarningAdminServiceHandler(
+			p.AdminWarnings,
+			connect.WithInterceptors(
+				authz.RequireAdmin(),
+				validate.NewInterceptor(),
+				normalizeRPCError(),
+			),
+			connect.WithReadMaxBytes(maxRPCMessageBytes),
+		)
+		r.With(userservicemiddleware.CheckOrigin(auth.AllowedOrigin), p.Authenticate).
+			Mount(adminWarningsPath, adminWarningsService)
 	}
 	return r
 }
