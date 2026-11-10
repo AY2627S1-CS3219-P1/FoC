@@ -73,8 +73,16 @@ CROSS JOIN LATERAL (
         WHEN n.unless_reassigned AND EXISTS (
             SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.courier_id = n.user_id
         ) THEN 'courier reassigned'
-        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND NOT EXISTS (
-            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision <= n.order_revision
+        -- The participants have their own consumer and may not have stored the
+        -- order yet. A missing order counts as superseded only once the email
+        -- is older than fresh_after; before that it can't have been overtaken.
+        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND (
+            EXISTS (
+                SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision > n.order_revision
+            )
+            OR (n.created_at < $2::timestamptz AND NOT EXISTS (
+                SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id
+            ))
         ) THEN 'order superseded'
         ELSE ''
     END::text AS skip_reason
@@ -86,6 +94,11 @@ LIMIT 1
 FOR UPDATE OF n SKIP LOCKED
 `
 
+type NextNotificationEmailParams struct {
+	Now        time.Time
+	FreshAfter time.Time
+}
+
 type NextNotificationEmailRow struct {
 	EventID    uuid.UUID
 	UserID     uuid.UUID
@@ -96,8 +109,8 @@ type NextNotificationEmailRow struct {
 
 // Unknown emails never block ready recipients. Keep the row locked through
 // the bounded SMTP attempt, so another worker cannot send the same row.
-func (q *Queries) NextNotificationEmail(ctx context.Context, now time.Time) (NextNotificationEmailRow, error) {
-	row := q.db.QueryRow(ctx, nextNotificationEmail, now)
+func (q *Queries) NextNotificationEmail(ctx context.Context, arg NextNotificationEmailParams) (NextNotificationEmailRow, error) {
+	row := q.db.QueryRow(ctx, nextNotificationEmail, arg.Now, arg.FreshAfter)
 	var i NextNotificationEmailRow
 	err := row.Scan(
 		&i.EventID,

@@ -44,7 +44,7 @@ The service consumes `order.status_changed` and `order.offer_made` (consumer gro
 
 - **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued, skipped or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
 
-Queued new offers expire 30 minutes after the event; queued offer-acceptance notices are skipped if the order has advanced beyond their revision. These checks run again before email delivery, including while an address is missing. Skipped rows remain recorded with their reason. Always-deliver emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
+Queued new offers expire 30 minutes after the event; queued offer-acceptance notices are skipped if the order has advanced beyond their revision, or if the participants still haven't stored the order 30 minutes after the event. These checks run again before email delivery, including while an address is missing. Skipped rows remain recorded with their reason. Always-deliver emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
 
 ```sql
 SELECT n.status, (u.user_id IS NULL) AS missing_email,

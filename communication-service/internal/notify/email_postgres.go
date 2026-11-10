@@ -60,7 +60,10 @@ func (q *PostgresEmailQueue) WithNext(
 	processed := false
 	err := pgx.BeginFunc(ctx, q.Pool, func(tx pgx.Tx) error {
 		queries := db.New(tx)
-		row, err := queries.NextNotificationEmail(ctx, at)
+		row, err := queries.NextNotificationEmail(ctx, db.NextNotificationEmailParams{
+			Now:        at,
+			FreshAfter: at.Add(-LateWindow),
+		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
