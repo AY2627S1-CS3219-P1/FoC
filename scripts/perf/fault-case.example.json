@@ -1,0 +1,10 @@
+{
+  "requirement": "crash-producer-ack",
+  "apply": [],
+  "injectionEvidence": [],
+  "core": [],
+  "restore": [],
+  "recovery": [],
+  "browser": [],
+  "browserRecovery": []
+}
