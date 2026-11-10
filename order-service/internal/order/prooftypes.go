@@ -141,7 +141,7 @@ var ErrProofImageTooLarge = tooLargeProofImage{}
 type tooLargeProofImage struct{}
 
 func (tooLargeProofImage) Error() string {
-	return "photo resolution exceeds the delivery proof limit; retake or resize it below 24 megapixels"
+	return "That photo is above the delivery proof limit. Retake it at 24 megapixels or lower."
 }
 
 func (tooLargeProofImage) Unwrap() error { return ErrPrecondition }

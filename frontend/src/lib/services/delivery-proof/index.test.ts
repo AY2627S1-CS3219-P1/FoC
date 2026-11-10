@@ -78,7 +78,7 @@ describe('delivery proof Connect adapter', () => {
 	// The server writes an oversized-photo message for the courier; without one
 	// the adapter uses its own canned text (issue #239).
 	it('surfaces the server oversized-photo message for invalid uploads', async () => {
-		const serverMessage = 'photo resolution exceeds the delivery proof limit; retake or resize it below 24 megapixels';
+		const serverMessage = 'That photo is above the delivery proof limit. Retake it at 24 megapixels or lower.';
 		const rejected = createDeliveryProofService(createRouterTransport(router => router.service(OrderService, {
 			verifyProofUpload() { throw new ConnectError(serverMessage, Code.InvalidArgument); }
 		})));
