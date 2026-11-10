@@ -11,9 +11,13 @@ import (
 	"connectrpc.com/validate"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
+	evidencev1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/evidence/v1"
 	reportv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/report/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/report/v1/reportv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,8 +32,14 @@ type handlerLogicStub struct {
 
 	filter Filter
 
-	respondedBy   uuid.UUID
-	responseBody  string
+	respondedBy      uuid.UUID
+	responseBody     string
+	responseEvidence []uuid.UUID
+
+	uploadedBy    uuid.UUID
+	uploadType    string
+	uploadSize    int64
+	evidenceID    uuid.UUID
 	transitioned  string
 	closedBy      uuid.UUID
 	closedOutcome Outcome
@@ -61,9 +71,30 @@ func (s *handlerLogicStub) SubmitResponse(
 	_ context.Context,
 	callerID, _ uuid.UUID,
 	body string,
+	evidenceIDs []uuid.UUID,
 ) (Report, Response, error) {
-	s.respondedBy, s.responseBody = callerID, body
+	s.respondedBy, s.responseBody, s.responseEvidence = callerID, body, evidenceIDs
 	return s.report, s.response, nil
+}
+
+func (s *handlerLogicStub) CreateEvidenceUpload(
+	_ context.Context,
+	ownerID uuid.UUID,
+	contentType string,
+	sizeBytes int64,
+) (uuid.UUID, images.UploadGrant, error) {
+	s.uploadedBy, s.uploadType, s.uploadSize = ownerID, contentType, sizeBytes
+	return s.evidenceID, images.UploadGrant{URL: "https://storage/upload"}, nil
+}
+
+func (s *handlerLogicStub) GetEvidenceDownload(
+	_ context.Context,
+	callerID uuid.UUID,
+	isAdmin bool,
+	evidenceID uuid.UUID,
+) (evidence.View, error) {
+	s.gotCaller, s.gotAdmin = callerID, isAdmin
+	return evidence.View{ID: evidenceID, URL: "https://storage/download"}, nil
 }
 
 func (s *handlerLogicStub) ListReports(_ context.Context, filter Filter, _ pagination.Pagination) (Page, error) {
@@ -307,5 +338,91 @@ func TestCloseReportRPC(t *testing.T) {
 		connect.NewRequest(&reportv1.CloseReportRequest{Id: uuid.NewString(), Reason: "x"}))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("unspecified outcome code = %v", connect.CodeOf(err))
+	}
+}
+
+func TestEvidenceRPCs(t *testing.T) {
+	callerID := uuid.New()
+	caller := auth.Caller{ID: callerID.String(), Role: string(tokenclaims.RoleSuspendedUser)}
+	evidenceID := uuid.New()
+	stub := &handlerLogicStub{evidenceID: evidenceID}
+	client := reportClient(t, stub, caller)
+	ctx := context.Background()
+
+	upload, err := client.CreateEvidenceUpload(ctx, connect.NewRequest(&reportv1.CreateEvidenceUploadRequest{
+		Upload: &evidencev1.EvidenceUpload{ContentType: "image/webp", SizeBytes: 2048},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stub.uploadedBy != callerID || stub.uploadType != "image/webp" || stub.uploadSize != 2048 ||
+		upload.Msg.GetGrant().GetEvidenceId() != evidenceID.String() {
+		t.Fatalf("upload = %+v, stub = %+v", upload.Msg, stub)
+	}
+
+	_, err = client.CreateEvidenceUpload(ctx, connect.NewRequest(&reportv1.CreateEvidenceUploadRequest{
+		Upload: &evidencev1.EvidenceUpload{ContentType: "image/gif", SizeBytes: 2048},
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("code = %v, want invalid argument", connect.CodeOf(err))
+	}
+
+	download, err := client.GetEvidenceDownload(ctx, connect.NewRequest(&reportv1.GetEvidenceDownloadRequest{
+		EvidenceId: evidenceID.String(),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if download.Msg.GetEvidence().GetId() != evidenceID.String() ||
+		download.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("download = %+v, headers = %v", download.Msg, download.Header())
+	}
+
+	_, err = client.SubmitResponse(ctx, connect.NewRequest(&reportv1.SubmitResponseRequest{
+		ReportId:    uuid.NewString(),
+		Body:        "proof",
+		EvidenceIds: []string{evidenceID.String()},
+	}))
+	if err != nil || len(stub.responseEvidence) != 1 || stub.responseEvidence[0] != evidenceID {
+		t.Fatalf("response evidence = %v, err = %v", stub.responseEvidence, err)
+	}
+}
+
+// The order participant check through Connect, with the real service (#301).
+func TestSubmitReportRPCChecksOrderParticipants(t *testing.T) {
+	requester, courier, stranger := uuid.New(), uuid.New(), uuid.New()
+	repo := newFakeRepository()
+	repo.users[requester], repo.users[courier], repo.users[stranger] = true, true, true
+	orderID := repo.order(requester, courier)
+
+	submit := func(service *Service, reporter, subject uuid.UUID) error {
+		client := reportClient(t, service, auth.Caller{ID: reporter.String(), Role: string(tokenclaims.RoleUser)})
+		_, err := client.SubmitReport(context.Background(), connect.NewRequest(&reportv1.SubmitReportRequest{
+			Target: &reportv1.SubmitReportRequest_Order{Order: &reportv1.OrderTarget{
+				OrderId:   orderID.String(),
+				SubjectId: subject.String(),
+			}},
+			Category:    reportv1.ReportCategory_REPORT_CATEGORY_NO_SHOW,
+			Description: "never arrived",
+		}))
+		return err
+	}
+
+	service := newTestService(repo, nil)
+	if err := submit(service, requester, courier); err != nil {
+		t.Fatalf("requester to courier: %v", err)
+	}
+	if err := submit(service, courier, requester); err != nil {
+		t.Fatalf("courier to requester: %v", err)
+	}
+	if err := submit(service, stranger, courier); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("non-participant: %v", err)
+	}
+
+	unavailable := NewService(repo, func(_ context.Context, operation func(Tx) error) error {
+		return operation(Tx{Evidence: newFakeEvidence()})
+	}, newFakeEvidence(), orders.UnavailableGateway{})
+	if err := submit(unavailable, requester, courier); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("Order unavailable: %v", err)
 	}
 }

@@ -14,6 +14,9 @@ var (
 	// has no row in users. The courier-warning consumer acknowledges such
 	// events instead of retrying them.
 	ErrUnknownCourier = errors.New("courier has no user account")
+	// ErrAppealNotFound reports a removal linked to an appeal that does not
+	// exist; account_warnings.appeal_id references user_appeals.
+	ErrAppealNotFound = errors.New("appeal not found")
 )
 
 type Repository interface {

@@ -12,6 +12,7 @@ import (
 	events "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
@@ -43,8 +44,14 @@ type fakeRepository struct {
 	recalcErr      error
 	recalcCount    int
 	audited        ReviewRemoval
-	softDeleted    uuid.UUID
-	recalculated   uuid.UUID
+
+	reviewToRestore   Review
+	restoreErr        error
+	unrestoredRemoval uuid.UUID
+	unrestoredErr     error
+	restored          ReviewRestoration
+	softDeleted       uuid.UUID
+	recalculated      uuid.UUID
 
 	// Existing reviews per (reviewer, order), exercised by the duplicate
 	// pre-check in SubmitReview.
@@ -79,7 +86,6 @@ type attachRecord struct {
 
 func (f *fakeRepository) CheckReviewParticipants(
 	_ context.Context,
-	_ *reviewdb.Queries,
 	reviewerID, revieweeID uuid.UUID,
 ) (ReviewParticipantExistence, error) {
 	if f.participantsErr != nil {
@@ -136,6 +142,32 @@ func (f *fakeRepository) RecordReviewRemoval(_ context.Context, _ *reviewdb.Quer
 	return f.removalErr
 }
 
+func (f *fakeRepository) RestoreReview(_ context.Context, _ *reviewdb.Queries, id uuid.UUID) (Review, error) {
+	if f.restoreErr != nil {
+		return Review{}, f.restoreErr
+	}
+	review := f.reviewToRestore
+	review.ID = id
+	return review, nil
+}
+
+func (f *fakeRepository) LatestUnrestoredRemoval(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	_ uuid.UUID,
+) (uuid.UUID, error) {
+	return f.unrestoredRemoval, f.unrestoredErr
+}
+
+func (f *fakeRepository) RecordReviewRestoration(
+	_ context.Context,
+	_ *reviewdb.Queries,
+	restoration ReviewRestoration,
+) error {
+	f.restored = restoration
+	return nil
+}
+
 func (f *fakeRepository) RecalculateStats(_ context.Context, _ *reviewdb.Queries, revieweeID uuid.UUID) error {
 	f.recalcCount++
 	f.recalculated = revieweeID
@@ -185,7 +217,28 @@ func newTestService(repo Repository) *Service {
 	withTx := func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 		return operation(reviewdb.New(nil))
 	}
-	return NewService(repo, withTx, nil)
+	eligible := &eligibleOrders{Repository: repo}
+	return NewService(eligible, withTx, nil, eligible)
+}
+
+// eligibleOrders treats every order as completed between the reviewer and
+// reviewee the service last checked, for tests that are not about order
+// eligibility.
+type eligibleOrders struct {
+	Repository
+	reviewer, reviewee uuid.UUID
+}
+
+func (e *eligibleOrders) CheckReviewParticipants(
+	ctx context.Context,
+	reviewerID, revieweeID uuid.UUID,
+) (ReviewParticipantExistence, error) {
+	e.reviewer, e.reviewee = reviewerID, revieweeID
+	return e.Repository.CheckReviewParticipants(ctx, reviewerID, revieweeID)
+}
+
+func (e *eligibleOrders) GetOrderParticipants(context.Context, uuid.UUID) (orders.Participants, error) {
+	return orders.Participants{RequesterID: e.reviewer, CourierID: e.reviewee, Completed: true}, nil
 }
 
 func assertExternal(t *testing.T, err error, wantStatus int) {
@@ -517,7 +570,7 @@ func TestRemoveReview(t *testing.T) {
 			svc := NewService(nil, func(_ context.Context, _ func(*reviewdb.Queries) error) error {
 				transactionStarted = true
 				return nil
-			}, nil)
+			}, nil, orders.UnavailableGateway{})
 			err := svc.RemoveReview(context.Background(), uuid.New(), tc.reason, uuid.New())
 			assertExternal(t, err, http.StatusBadRequest)
 			if transactionStarted {
@@ -584,6 +637,55 @@ func TestRemoveReview(t *testing.T) {
 	})
 }
 
+func TestRestoreReview(t *testing.T) {
+	t.Run("restores the review, audits the removal it answers, and recomputes stats", func(t *testing.T) {
+		reviewee, removalID, appealID, actorID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		fake := &fakeRepository{
+			reviewToRestore:   Review{RevieweeID: reviewee},
+			unrestoredRemoval: removalID,
+		}
+		svc := newTestService(fake)
+		id := uuid.New()
+
+		if err := svc.RestoreReview(context.Background(), id, " overturned ", appealID, actorID); err != nil {
+			t.Fatal(err)
+		}
+		want := ReviewRestoration{
+			ID:        fake.restored.ID,
+			RemovalID: removalID,
+			ReviewID:  id,
+			AppealID:  appealID,
+			Reason:    "overturned",
+			CreatedBy: actorID,
+		}
+		if fake.restored != want || fake.restored.ID == uuid.Nil {
+			t.Fatalf("restoration = %+v, want %+v", fake.restored, want)
+		}
+		if fake.recalcCount != 1 || fake.recalculated != reviewee {
+			t.Fatalf("stats not recomputed after restoration: %+v", fake)
+		}
+	})
+	t.Run("blank reason is rejected", func(t *testing.T) {
+		svc := newTestService(&fakeRepository{})
+		err := svc.RestoreReview(context.Background(), uuid.New(), " ", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("a live review is not found", func(t *testing.T) {
+		svc := newTestService(&fakeRepository{restoreErr: errReviewNotFound})
+		err := svc.RestoreReview(context.Background(), uuid.New(), "reason", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusNotFound)
+	})
+	t.Run("a review without an unrestored removal cannot be restored", func(t *testing.T) {
+		fake := &fakeRepository{unrestoredErr: errReviewNotFound}
+		svc := newTestService(fake)
+		err := svc.RestoreReview(context.Background(), uuid.New(), "reason", uuid.Nil, uuid.New())
+		assertExternal(t, err, http.StatusPreconditionFailed)
+		if fake.recalcCount != 0 {
+			t.Fatal("stats recomputed for a failed restoration")
+		}
+	})
+}
+
 func TestListReviewRemovals(t *testing.T) {
 	removals := []ReviewRemoval{{ID: uuid.New(), Reason: "abuse"}}
 	fake := &fakeRepository{listRemovals: removals, countRemovals: 3}
@@ -602,6 +704,77 @@ func TestListReviewRemovals(t *testing.T) {
 	if got.TotalItems() != 3 || got.Page() != 2 || got.PageSize() != 10 {
 		t.Fatalf("unexpected page info: page=%d size=%d total=%d", got.Page(), got.PageSize(), got.TotalItems())
 	}
+}
+
+// fixedOrder answers every lookup with one order's participants or error.
+type fixedOrder struct {
+	participants orders.Participants
+	err          error
+	lookups      int
+}
+
+func (f *fixedOrder) GetOrderParticipants(context.Context, uuid.UUID) (orders.Participants, error) {
+	f.lookups++
+	return f.participants, f.err
+}
+
+func TestSubmitReviewChecksOrderParticipants(t *testing.T) {
+	requester, courier, stranger, orderID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	completed := orders.Participants{RequesterID: requester, CourierID: courier, Completed: true}
+	for _, tc := range []struct {
+		name               string
+		reviewer, reviewee uuid.UUID
+		order              *fixedOrder
+		status             int // zero when the review is accepted
+	}{
+		{"requester to courier", requester, courier, &fixedOrder{participants: completed}, 0},
+		{"courier to requester", courier, requester, &fixedOrder{participants: completed}, 0},
+		{"stranger rates participant", stranger, courier, &fixedOrder{participants: completed}, http.StatusForbidden},
+		{"participant rates stranger", requester, stranger, &fixedOrder{participants: completed}, http.StatusForbidden},
+		{"incomplete order", requester, courier, &fixedOrder{
+			participants: orders.Participants{RequesterID: requester, CourierID: courier},
+		}, http.StatusBadRequest},
+		{"unassigned order", requester, courier, &fixedOrder{
+			participants: orders.Participants{RequesterID: requester, Completed: true},
+		}, http.StatusForbidden},
+		{"unknown order", requester, courier, &fixedOrder{err: orders.ErrNotFound}, http.StatusNotFound},
+		{"order unavailable", requester, courier, &fixedOrder{err: orders.ErrUnavailable}, http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepository{exists: map[uuid.UUID]bool{requester: true, courier: true, stranger: true}}
+			svc := NewService(repo, func(_ context.Context, operation func(*reviewdb.Queries) error) error {
+				return operation(reviewdb.New(nil))
+			}, nil, tc.order)
+
+			_, err := svc.SubmitReview(context.Background(), tc.reviewer, tc.reviewee, orderID,
+				ReviewSubmission{Rating: 5, Comment: "ok"}, nil)
+			if tc.status == 0 {
+				if err != nil || repo.insertedID == uuid.Nil {
+					t.Fatalf("valid review: %v", err)
+				}
+				return
+			}
+			assertExternal(t, err, tc.status)
+			if repo.insertedID != uuid.Nil || repo.recalcCount != 0 {
+				t.Fatal("a rejected review was written")
+			}
+		})
+	}
+
+	t.Run("a committed retry conflicts without an order lookup", func(t *testing.T) {
+		repo := &fakeRepository{
+			exists:          map[uuid.UUID]bool{requester: true, courier: true},
+			existingReviews: map[uuid.UUID][]uuid.UUID{requester: {orderID}},
+		}
+		order := &fixedOrder{err: orders.ErrUnavailable}
+		svc := NewService(repo, nil, nil, order)
+		_, err := svc.SubmitReview(context.Background(), requester, courier, orderID,
+			ReviewSubmission{Rating: 5, Comment: "retry"}, []uuid.UUID{uuid.New()})
+		assertExternal(t, err, http.StatusConflict)
+		if order.lookups != 0 {
+			t.Fatal("a committed retry looked up the order")
+		}
+	})
 }
 
 var _ proto.Message = (*events.ReviewSubmitted)(nil)

@@ -44,8 +44,8 @@ func (r *PostgresRepository) LiveReviewAuthor(ctx context.Context, reviewID uuid
 
 // Writes
 
-func (r *PostgresRepository) InsertReport(ctx context.Context, input ReportInput) error {
-	err := r.queries.InsertReport(ctx, reportdb.InsertReportParams{
+func (r *PostgresRepository) InsertReport(ctx context.Context, q *reportdb.Queries, input ReportInput) error {
+	err := q.InsertReport(ctx, reportdb.InsertReportParams{
 		ID:          input.ID,
 		ReporterID:  input.ReporterID,
 		SubjectID:   input.SubjectID,

@@ -162,6 +162,23 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) (Ins
 	return i, err
 }
 
+const latestUnrestoredRemoval = `-- name: LatestUnrestoredRemoval :one
+SELECT rr.id
+FROM review_removals rr
+WHERE rr.review_id = $1::UUID
+  AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT 1
+`
+
+// The removal a restoration answers: the latest one not yet restored.
+func (q *Queries) LatestUnrestoredRemoval(ctx context.Context, reviewID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, latestUnrestoredRemoval, reviewID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many
 SELECT order_id::TEXT, (deleted_at IS NOT NULL)::BOOLEAN AS removed
 FROM reviews
@@ -508,6 +525,69 @@ func (q *Queries) RecordReviewRemoval(ctx context.Context, arg RecordReviewRemov
 		arg.CreatedBy,
 	)
 	return err
+}
+
+const recordReviewRestoration = `-- name: RecordReviewRestoration :exec
+INSERT INTO review_restorations (id, removal_id, review_id, appeal_id, reason, created_at, created_by)
+VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5, now(), $6::UUID)
+`
+
+type RecordReviewRestorationParams struct {
+	ID        uuid.UUID
+	RemovalID uuid.UUID
+	ReviewID  uuid.UUID
+	AppealID  uuid.NullUUID
+	Reason    string
+	CreatedBy uuid.UUID
+}
+
+func (q *Queries) RecordReviewRestoration(ctx context.Context, arg RecordReviewRestorationParams) error {
+	_, err := q.db.ExecContext(ctx, recordReviewRestoration,
+		arg.ID,
+		arg.RemovalID,
+		arg.ReviewID,
+		arg.AppealID,
+		arg.Reason,
+		arg.CreatedBy,
+	)
+	return err
+}
+
+const restoreReview = `-- name: RestoreReview :one
+UPDATE reviews
+SET deleted_at = NULL
+WHERE id = $1::UUID AND deleted_at IS NOT NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status
+`
+
+type RestoreReviewRow struct {
+	ID               uuid.UUID
+	DeletedAt        sql.NullTime
+	ReviewerID       uuid.UUID
+	RevieweeID       uuid.UUID
+	OrderID          uuid.UUID
+	Rating           int32
+	Comment          string
+	CreatedAt        time.Time
+	ModerationStatus string
+}
+
+// Locks the row; a concurrent restoration sees no removed row and reports not found.
+func (q *Queries) RestoreReview(ctx context.Context, id uuid.UUID) (RestoreReviewRow, error) {
+	row := q.db.QueryRowContext(ctx, restoreReview, id)
+	var i RestoreReviewRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ModerationStatus,
+	)
+	return i, err
 }
 
 const reviewExists = `-- name: ReviewExists :one

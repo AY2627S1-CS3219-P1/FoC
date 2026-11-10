@@ -16,6 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
@@ -104,7 +105,8 @@ func main() {
 	}
 	warningLogic := newWarningService(sqlDB)
 	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
-	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+	orderGateway := newOrderGateway(cfg)
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg, orderGateway)
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	defer func() { stopWorkers(); workers.Wait() }()
@@ -127,7 +129,9 @@ func main() {
 			})
 		},
 	}
-	reportLogic := newReportService(db, sqlDB)
+	evidenceLogic := newEvidenceService(sqlDB, imageStorage)
+	reportLogic := newReportService(db, sqlDB, evidenceLogic, orderGateway)
+	appealLogic := newAppealService(db, sqlDB, evidenceLogic)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -136,6 +140,7 @@ func main() {
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
 		Report:         &report.Handler{Logic: reportLogic},
+		Appeal:         &appeal.Handler{Logic: appealLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
@@ -148,14 +153,18 @@ func main() {
 	servers := []*http.Server{public, internal}
 
 	if imageStorage != nil {
-		// Orphan review photos and profile pictures are reaped on a minute
-		// ticker; both domains' claim/delete steps are retryable and idempotent.
+		// Orphan review photos, evidence images and profile pictures are reaped
+		// on a minute ticker; each domain's claim/delete steps are retryable and
+		// idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := evidenceLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "evidence cleanup deferred", "err", err)
 				}
 				if err := profileLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "profile picture cleanup deferred", "err", err)

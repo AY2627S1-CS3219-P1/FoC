@@ -525,6 +525,223 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("user_appeals: idempotency, decision targets, outcomes and links", func(t *testing.T) {
+		requestID := uuid.New()
+		warningID := uuid.New()
+		if err := db.Exec(
+			`INSERT INTO account_warnings (id, user_id, request_id, reason) VALUES (?, ?, ?, 'late')`,
+			warningID, alice.ID, requestID,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		insertAppeal := func(key uuid.UUID) (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO user_appeals (id, appellant_id, reason, idempotency_key, request_hash)
+				 VALUES (?, ?, 'unfair', ?, repeat('a', 64))`,
+				id, alice.ID, key,
+			).Error
+			return id, err
+		}
+		key := uuid.New()
+		appealID, err := insertAppeal(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertAppeal(key); err == nil {
+			t.Fatal("expected a reused idempotency key to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeals SET awaited_user_id = ? WHERE id = ?", admin.ID, appealID,
+		).Error; err == nil {
+			t.Fatal("expected an awaited participant outside awaiting_response to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeals SET status = 'closed' WHERE id = ?", appealID,
+		).Error; err == nil {
+			t.Fatal("expected a close without closed_at to fail")
+		}
+
+		insertDecision := func(appeal uuid.UUID, kind string, warning, review *uuid.UUID) (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO user_appeal_decisions (id, appeal_id, kind, warning_id, review_id)
+				 VALUES (?, ?, ?, ?, ?)`,
+				id, appeal, kind, warning, review,
+			).Error
+			return id, err
+		}
+		if _, err := insertDecision(appealID, "review_removal", &warningID, nil); err == nil {
+			t.Fatal("expected a target that does not match the kind to fail")
+		}
+		if _, err := insertDecision(appealID, "credit_adjustment", nil, nil); err == nil {
+			t.Fatal("expected a credit adjustment decision to fail until Credit supports it")
+		}
+		decisionID, err := insertDecision(appealID, "warning", &warningID, nil)
+		if err != nil {
+			t.Fatalf("warning decision: %v", err)
+		}
+		otherAppeal, err := insertAppeal(uuid.New())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertDecision(otherAppeal, "warning", &warningID, nil); err == nil {
+			t.Fatal("expected a decision in two unclosed appeals to fail")
+		}
+
+		if err := db.Exec(
+			"UPDATE user_appeal_decisions SET outcome = 'upheld' WHERE id = ?", decisionID,
+		).Error; err == nil {
+			t.Fatal("expected an outcome without a reason to fail")
+		}
+		if err := db.Exec(
+			"UPDATE user_appeal_decisions SET outcome = 'upheld', outcome_reason = 'fair' WHERE id = ?", decisionID,
+		).Error; err == nil {
+			t.Fatal("expected an outcome on an active decision to fail")
+		}
+		if err := db.Exec(
+			`UPDATE user_appeal_decisions SET outcome = 'upheld', outcome_reason = 'fair', active = false
+			 WHERE id = ?`,
+			decisionID,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := insertDecision(otherAppeal, "warning", &warningID, nil); err != nil {
+			t.Fatalf("decision appealed again after the first appeal closed: %v", err)
+		}
+
+		if err := db.Exec(
+			"UPDATE account_warnings SET appeal_id = ? WHERE id = ?", uuid.New(), warningID,
+		).Error; err == nil {
+			t.Fatal("expected a warning linked to a missing appeal to fail")
+		}
+		if err := db.Exec(
+			"UPDATE account_warnings SET appeal_id = ? WHERE id = ?", appealID, warningID,
+		).Error; err != nil {
+			t.Fatalf("warning linked to an appeal: %v", err)
+		}
+		if err := db.Exec(
+			"INSERT INTO user_appeal_responses (appeal_id, responder_id, body) VALUES (?, ?, 'my side')",
+			appealID, admin.ID,
+		).Error; err != nil {
+			t.Fatalf("response: %v", err)
+		}
+	})
+
+	t.Run("review_restorations: one per removal, removal repeatable", func(t *testing.T) {
+		reviewID := uuid.New()
+		if err := db.Exec(
+			`INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, deleted_at)
+			 VALUES (?, ?, ?, ?, 2, 'bad', now())`,
+			reviewID, alice.ID, admin.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		removal := func() (uuid.UUID, error) {
+			id := uuid.New()
+			err := db.Exec(
+				`INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_by)
+				 SELECT ?, id, reviewer_id, reviewee_id, order_id, 'abuse', ? FROM reviews WHERE id = ?`,
+				id, admin.ID, reviewID,
+			).Error
+			return id, err
+		}
+		first, err := removal()
+		if err != nil {
+			t.Fatal(err)
+		}
+		restore := func(removalID uuid.UUID) error {
+			return db.Exec(
+				`INSERT INTO review_restorations (id, removal_id, review_id, reason, created_by)
+				 VALUES (?, ?, ?, 'overturned', ?)`,
+				uuid.New(), removalID, reviewID, admin.ID,
+			).Error
+		}
+		if err := restore(first); err != nil {
+			t.Fatal(err)
+		}
+		if err := restore(first); err == nil {
+			t.Fatal("expected a second restoration of one removal to fail")
+		}
+		if _, err := removal(); err != nil {
+			t.Fatalf("removing a restored review again: %v", err)
+		}
+
+		// review_removals restricts deleting the review, so later user
+		// cascades would fail on this fixture.
+		if err := db.Exec("DELETE FROM review_removals WHERE review_id = ?", reviewID).Error; err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("evidence_attachments: one parent once attached, unique positions", func(t *testing.T) {
+		reportID, appealID := uuid.New(), uuid.New()
+		if err := db.Exec(
+			`INSERT INTO user_reports (id, reporter_id, subject_id, order_id, category, description)
+			 VALUES (?, ?, ?, ?, 'other', 'details')`,
+			reportID, alice.ID, admin.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec(
+			`INSERT INTO user_appeals (id, appellant_id, reason, idempotency_key, request_hash)
+			 VALUES (?, ?, 'unfair', ?, repeat('b', 64))`,
+			appealID, alice.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		stage := func() uuid.UUID {
+			id := uuid.New()
+			if err := db.Exec(
+				`INSERT INTO evidence_attachments (id, owner_id, object_key, content_type, size_bytes, upload_expires_at)
+				 VALUES (?, ?, ?, 'image/png', 10, now())`,
+				id,
+				alice.ID,
+				"evidence/"+id.String(),
+			).Error; err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		attach := func(id uuid.UUID, report, appeal *uuid.UUID, ordinal *int) error {
+			return db.Exec(
+				`UPDATE evidence_attachments SET state = 'attached', report_id = ?, appeal_id = ?, ordinal = ?
+				 WHERE id = ?`,
+				report, appeal, ordinal, id,
+			).Error
+		}
+		zero, one := 0, 1
+
+		first := stage()
+		if err := attach(first, nil, nil, &zero); err == nil {
+			t.Fatal("expected an attachment without a parent to fail")
+		}
+		if err := attach(first, &reportID, &appealID, &zero); err == nil {
+			t.Fatal("expected an attachment with two parents to fail")
+		}
+		if err := attach(first, &reportID, nil, nil); err == nil {
+			t.Fatal("expected an attachment without a position to fail")
+		}
+		if err := attach(first, &reportID, nil, &zero); err != nil {
+			t.Fatalf("attach to report: %v", err)
+		}
+		second := stage()
+		if err := attach(second, &reportID, nil, &zero); err == nil {
+			t.Fatal("expected two attachments in one position to fail")
+		}
+		if err := attach(second, &reportID, nil, &one); err != nil {
+			t.Fatalf("attach second image: %v", err)
+		}
+		if err := attach(stage(), nil, &appealID, &zero); err != nil {
+			t.Fatalf("attach to appeal: %v", err)
+		}
+		if err := db.Exec(
+			"UPDATE evidence_attachments SET report_id = ? WHERE id = ?", reportID, stage(),
+		).Error; err == nil {
+			t.Fatal("expected a staged image with a parent to fail")
+		}
+	})
+
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)

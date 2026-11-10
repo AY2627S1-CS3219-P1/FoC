@@ -12,7 +12,6 @@ import (
 type Repository interface {
 	CheckReviewParticipants(
 		ctx context.Context,
-		q *reviewdb.Queries,
 		reviewerID, revieweeID uuid.UUID,
 	) (ReviewParticipantExistence, error)
 	InsertReview(ctx context.Context, q *reviewdb.Queries, input ReviewInput) (InsertedReview, error)
@@ -21,6 +20,12 @@ type Repository interface {
 	// audit. The row remains so the audit can reference it.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	// RestoreReview undeletes a removed review and returns it.
+	RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
+	// LatestUnrestoredRemoval returns the removal a restoration answers, or
+	// errReviewNotFound when every removal is already restored.
+	LatestUnrestoredRemoval(ctx context.Context, q *reviewdb.Queries, reviewID uuid.UUID) (uuid.UUID, error)
+	RecordReviewRestoration(ctx context.Context, q *reviewdb.Queries, restoration ReviewRestoration) error
 	// RecalculateStats locks the reviewee row, reads COUNT/SUM in a separate
 	// statement and updates the user's stats, all within q's transaction.
 	RecalculateStats(ctx context.Context, q *reviewdb.Queries, revieweeID uuid.UUID) error
