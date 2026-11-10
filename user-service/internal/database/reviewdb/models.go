@@ -11,17 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Review struct {
-	ID         uuid.UUID
-	DeletedAt  sql.NullTime
-	ReviewerID uuid.UUID
-	RevieweeID uuid.UUID
-	OrderID    uuid.UUID
-	Rating     int32
-	Comment    string
-	CreatedAt  time.Time
-}
-
 type ReviewPhoto struct {
 	ID              uuid.UUID
 	OwnerID         uuid.NullUUID

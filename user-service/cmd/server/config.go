@@ -28,6 +28,7 @@ type config struct {
 	refreshTokenTTL  time.Duration
 	communicationURL string
 	bootstrap        bootstrap.Config
+	orderServiceURL  string
 	s3Bucket         string
 	s3Endpoint       string
 	s3PublicEndpoint string
@@ -70,7 +71,10 @@ func loadConfig() (config, error) {
 		s3UploadTTL:   envDuration("USER_S3_UPLOAD_TTL", 0, &errs),
 		s3DownloadTTL: envDuration("USER_S3_DOWNLOAD_TTL", 0, &errs),
 		awsRegion:     strings.TrimSpace(envString("AWS_REGION", "")),
-		kafkaBrokers:  envList("KAFKA_BROKERS", ""),
+		// Order's internal listener. Without it, checks that need an order's
+		// participants fail closed.
+		orderServiceURL: envString("ORDER_SERVICE_BASE_URL", ""),
+		kafkaBrokers:    envList("KAFKA_BROKERS", ""),
 	}
 	if cfg.frontendURL == "" && cfg.appEnv == "local" {
 		cfg.frontendURL = "http://localhost:5173"
@@ -121,6 +125,10 @@ func loadConfig() (config, error) {
 			errs = append(errs, errors.New("INTERNAL_PORT must differ from PORT"))
 		}
 	}
+	if cfg.orderServiceURL != "" && !isBaseURL(cfg.orderServiceURL) {
+		errs = append(errs, fmt.Errorf(
+			"ORDER_SERVICE_BASE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL))
+	}
 	return cfg, errors.Join(errs...)
 }
 
@@ -129,6 +137,14 @@ func envString(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// isBaseURL accepts an absolute http(s) URL without credentials, query or
+// fragment.
+func isBaseURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") &&
+		u.User == nil && u.RawQuery == "" && u.Fragment == ""
 }
 
 func envList(key, fallback string) []string {

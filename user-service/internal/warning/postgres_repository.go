@@ -106,6 +106,10 @@ func (p *PostgresRepository) Remove(
 		ID: id, RemovedAt: sql.NullTime{Time: removedAt, Valid: true},
 		RemovedReason: nullableString(reason), AppealID: nullableUUID(appealID), UpdatedBy: nullableUUID(actorID),
 	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return Warning{}, fmt.Errorf("remove warning: %w", ErrAppealNotFound)
+	}
 	if err != nil {
 		return Warning{}, mapNotFound(err, "remove warning")
 	}

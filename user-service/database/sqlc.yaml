@@ -30,12 +30,49 @@ sql:
     engine: "postgresql"
     queries:
       - "query/reviews.sql"
+      - "query/review_moderation.sql"
       - "query/review_photos.sql"
     schema: "../migrations"
     gen:
       go:
         package: "reviewdb"
         out: "../internal/database/reviewdb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "report"
+    engine: "postgresql"
+    queries: "query/reports.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "reportdb"
+        out: "../internal/database/reportdb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "appeal"
+    engine: "postgresql"
+    queries: "query/appeals.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "appealdb"
+        out: "../internal/database/appealdb"
+        # Reuse the database/sql pool already opened by GORM.
+        sql_package: "database/sql"
+        omit_unused_structs: true
+        emit_empty_slices: true
+  - name: "evidence"
+    engine: "postgresql"
+    queries: "query/evidence.sql"
+    schema: "../migrations"
+    gen:
+      go:
+        package: "evidencedb"
+        out: "../internal/database/evidencedb"
         # Reuse the database/sql pool already opened by GORM.
         sql_package: "database/sql"
         omit_unused_structs: true

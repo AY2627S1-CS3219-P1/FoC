@@ -76,7 +76,7 @@ func suspendFixtureUser(ctx context.Context, tx *gorm.DB, suspension Suspension)
 		},
 	}
 	if _, err := roles.ChangeUserRole(
-		ctx, suspension.ActorID, suspension.UserID, models.RoleSuspended, suspension.Reason,
+		ctx, suspension.ActorID, suspension.UserID, models.RoleSuspended, suspension.Reason, nil,
 	); err != nil && !errors.Is(err, service.ErrRoleUnchanged) {
 		return err
 	}

@@ -48,3 +48,25 @@ func TestTransportConfigurationRejectsInvalidPorts(t *testing.T) {
 		t.Setenv(key, "")
 	}
 }
+
+func TestOrderServiceURLMustBeABaseURL(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for key, value := range map[string]string{
+		"APP_ENV": "local", "DATABASE_URL": "postgresql://localhost/test", "KAFKA_BROKERS": "kafka:9092",
+		"INTERNAL_PORT": "8081", "FRONTEND_BASE_URL": "", "JWT_PRIVATE_KEY_FILE": "", "SMTP_ADDR": "", "SMTP_FROM": "",
+	} {
+		t.Setenv(key, value)
+	}
+	for _, raw := range []string{"", "http://order-service:8081", "https://order.internal"} {
+		t.Setenv("ORDER_SERVICE_BASE_URL", raw)
+		if cfg, err := loadConfig(); err != nil || cfg.orderServiceURL != raw {
+			t.Fatalf("ORDER_SERVICE_BASE_URL %q: %+v, %v", raw, cfg.orderServiceURL, err)
+		}
+	}
+	for _, raw := range []string{"order-service:8081", "ftp://order", "http://u:p@order", "http://order?x=1"} {
+		t.Setenv("ORDER_SERVICE_BASE_URL", raw)
+		if _, err := loadConfig(); err == nil {
+			t.Fatalf("ORDER_SERVICE_BASE_URL %q accepted", raw)
+		}
+	}
+}

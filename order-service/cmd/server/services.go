@@ -12,6 +12,7 @@ import (
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/health"
 	orderrpc "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/order"
 	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/orderadmin"
+	internalrpc "github.com/AY2627S1-CS3219-P1/FoC/order-service/internal/rpc/orderinternal"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/credit/v1/creditv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/supplier/location/v1/locationv1connect"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,9 +38,10 @@ func newRPCServices(
 	}
 
 	return router.RPCServices{
-		Health: &healthrpc.Server{DB: pool},
-		Order:  participantServer,
-		Admin:  adminrpc.NewServer(service, images),
+		Health:   &healthrpc.Server{DB: pool},
+		Internal: internalrpc.NewServer(order.NewParticipants(repository)),
+		Order:    participantServer,
+		Admin:    adminrpc.NewServer(service, images),
 	}
 }
 

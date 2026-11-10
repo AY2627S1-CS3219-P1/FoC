@@ -15,7 +15,7 @@ import (
 
 type Logic interface {
 	GetUserByEmail(context.Context, uuid.UUID, string) (models.User, error)
-	ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string) (models.User, error)
+	ChangeUserRole(context.Context, uuid.UUID, uuid.UUID, models.RoleName, string, *uuid.UUID) (models.User, error)
 }
 
 type Handler struct {
@@ -56,7 +56,16 @@ func (h *Handler) ChangeUserRole(
 	if !ok {
 		return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid destination role"))
 	}
-	user, err := h.Logic.ChangeUserRole(ctx, actorID, targetID, to, req.Msg.Reason)
+	var reportID *uuid.UUID
+	if req.Msg.ReportId != nil {
+		id, err := uuid.Parse(req.Msg.GetReportId())
+		if err != nil || id == uuid.Nil {
+			return nil, api.ToConnectError(ctx, errs.NewBadRequestError("invalid report ID"))
+		}
+		reportID = &id
+	}
+
+	user, err := h.Logic.ChangeUserRole(ctx, actorID, targetID, to, req.Msg.Reason, reportID)
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
 	}

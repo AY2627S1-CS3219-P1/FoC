@@ -1,3 +1,10 @@
+-- A removed review still blocks re-review, matching the insert's unique rule.
+-- name: ReviewExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reviews
+    WHERE reviewer_id = @reviewer_id::UUID AND order_id = @order_id::UUID
+);
+
 -- name: ReviewParticipantsExist :one
 SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewer_id::UUID
@@ -6,27 +13,43 @@ SELECT EXISTS (
            SELECT 1 FROM users WHERE id = @reviewee_id::UUID
        ) AS reviewee_exists;
 
--- A removed review still blocks re-review, matching the insert's unique rule.
--- name: ReviewExists :one
-SELECT EXISTS (
-    SELECT 1 FROM reviews
-    WHERE reviewer_id = @reviewer_id::UUID AND order_id = @order_id::UUID
-);
-
--- name: InsertReview :exec
-INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at)
-VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now());
+-- name: InsertReview :one
+INSERT INTO reviews (id, reviewer_id, reviewee_id, order_id, rating, comment, created_at,
+                     moderation_status, content_revision, moderation_request_id)
+VALUES (@id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @rating, @comment, now(),
+        'pending_moderation', 1, @moderation_request_id::UUID)
+RETURNING id, created_at, moderation_status, content_revision, moderation_request_id;
 
 -- Locks the row; a concurrent removal sees no live row and reports not found.
 -- name: SoftDeleteReview :one
 UPDATE reviews
 SET deleted_at = now()
 WHERE id = @id::UUID AND deleted_at IS NULL
-RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at;
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status;
 
 -- name: RecordReviewRemoval :exec
 INSERT INTO review_removals (id, review_id, reviewer_id, reviewee_id, order_id, reason, created_at, created_by)
 VALUES (@id::UUID, @review_id::UUID, @reviewer_id::UUID, @reviewee_id::UUID, @order_id::UUID, @reason, now(), @created_by::UUID);
+
+-- Locks the row; a concurrent restoration sees no removed row and reports not found.
+-- name: RestoreReview :one
+UPDATE reviews
+SET deleted_at = NULL
+WHERE id = @id::UUID AND deleted_at IS NOT NULL
+RETURNING id, deleted_at, reviewer_id, reviewee_id, order_id, rating, comment, created_at, moderation_status;
+
+-- The removal a restoration answers: the latest one not yet restored.
+-- name: LatestUnrestoredRemoval :one
+SELECT rr.id
+FROM review_removals rr
+WHERE rr.review_id = @review_id::UUID
+  AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+ORDER BY rr.created_at DESC, rr.id DESC
+LIMIT 1;
+
+-- name: RecordReviewRestoration :exec
+INSERT INTO review_restorations (id, removal_id, review_id, appeal_id, reason, created_at, created_by)
+VALUES (@id::UUID, @removal_id::UUID, @review_id::UUID, sqlc.narg(appeal_id)::UUID, @reason, now(), @created_by::UUID);
 
 -- name: ListReviewsForUser :many
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
@@ -35,30 +58,51 @@ SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL
+WHERE r.reviewee_id = @user_id::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: ListReviewsFromUser :many
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
 JOIN users reviewer ON reviewer.id = r.reviewer_id
 JOIN users reviewee ON reviewee.id = r.reviewee_id
-WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL
+WHERE r.reviewer_id = @user_id::UUID AND r.deleted_at IS NULL AND r.moderation_status = 'approved'
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 
 -- name: CountReviewsForUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL;
+WHERE reviewee_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
 
 -- name: CountReviewsFromUser :one
 SELECT COUNT(*)
 FROM reviews
-WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL;
+WHERE reviewer_id = @user_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
+
+-- name: ListUnpublishedReviewsForUser :many
+SELECT r.id, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       r.moderation_status, r.moderation_request_id, r.content_revision, r.reason_codes, r.moderated_at, r.applied_run_generation,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.reviewer_id = @reviewer_id::UUID
+  AND r.deleted_at IS NULL
+  AND r.moderation_status IN ('pending_moderation', 'rejected', 'moderation_error')
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
+
+-- name: CountUnpublishedReviewsForUser :one
+SELECT COUNT(*)
+FROM reviews
+WHERE reviewer_id = @reviewer_id::UUID
+  AND deleted_at IS NULL
+  AND moderation_status IN ('pending_moderation', 'rejected', 'moderation_error');
 
 -- Include removed rows so callers can distinguish blocked orders from unreviewed ones.
 -- name: ListReviewOrderStatuses :many
@@ -67,7 +111,7 @@ FROM reviews
 WHERE reviewer_id = @reviewer_id::UUID AND order_id = ANY(@order_ids::UUID[]);
 
 -- name: GetReviewByReviewerAndOrder :one
-SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at, r.moderation_status,
        reviewer.display_name AS reviewer_name,
        reviewee.display_name AS reviewee_name
 FROM reviews r
@@ -95,7 +139,7 @@ SELECT id FROM users WHERE id = @reviewee_id::UUID FOR NO KEY UPDATE;
 -- name: RevieweeStatistics :one
 SELECT COUNT(*) AS review_count, COALESCE(SUM(rating), 0)::bigint AS sum_rating
 FROM reviews
-WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL;
+WHERE reviewee_id = @reviewee_id::UUID AND deleted_at IS NULL AND moderation_status = 'approved';
 
 -- Keep the input bigint so assigning to the integer column rejects overflow.
 -- name: UpdateRevieweeStats :exec
