@@ -16,6 +16,7 @@
 	import ReportSummary from '$lib/components/moderation/ReportSummary.svelte';
 	import ResponseThread from '$lib/components/moderation/ResponseThread.svelte';
 	import ConfirmDialog from '$lib/components/admin/ConfirmDialog.svelte';
+	import SubjectWarnings from './SubjectWarnings.svelte';
 
 	let detail = $state<ReportDetail | null>(null);
 	let loading = $state(true);
@@ -133,6 +134,9 @@
 	{:else if detail && report}
 		<Card variant="outlined">
 			<div class="panel-body"><ReportSummary {report} {refresh} {callerId} /></div>
+		</Card>
+		<Card variant="outlined">
+			<div class="panel-body"><SubjectWarnings userId={report.subjectId} name={report.subjectName} /></div>
 		</Card>
 		<Card variant="outlined">
 			<div class="panel-body"><ResponseThread responses={detail.responses} {refresh} {callerId} /></div>
