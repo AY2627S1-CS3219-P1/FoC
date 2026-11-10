@@ -21,8 +21,8 @@ prove that the school permits deployment.
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
 - D4: IRSA supplies short-lived AWS credentials to Order, Loki, the EBS CSI driver,
-  the load-balancer controller, and optionally Communication for SES. Each has a separate
-  workload role. Application AWS access keys are not needed.
+  the load-balancer controller, and optionally User and Communication for SES. Each
+  has a separate workload role. Application AWS access keys are not needed.
   RDS manages the administrator password in Secrets Manager. Terraform does not
   read that password or generate SMTP/JWT/application database credentials.
 - D5: State uses a separate versioned, encrypted S3 bucket with native S3 locking.
@@ -190,7 +190,7 @@ PATH="$PWD/.tools/bin:$PWD/.tools/aqua/bin:$PATH" \
 
 Go CLI fixtures mock all AWS calls; Terraform tests mock the upstream VPC/EKS modules. They exercise root
 resource safeguards, render the actual Kubernetes bases with a non-default
-hostname, preserve the private RPC boundary, mount RDS certificates in all five
+hostname, preserve the private RPC boundary, mount RDS certificates in all six
 services and migration Jobs, and preserve private database passwords on retry.
 They also invoke the actual Go operator against the generated AWS overlay.
 For the full pinned Helm/IRSA/claim rendering check, install the pinned Helm tool
@@ -361,7 +361,7 @@ to S3. Long RPCs, large responses, cookies, RPC errors, and page/asset responses
 still need live verification. Local TLS port-forward smoke commands assume the
 original in-cluster HTTPS profile and are not acceptance tests for this profile.
 
-## 4. Provision the five databases and remaining Secrets
+## 4. Provision the six databases and remaining Secrets
 
 Read the RDS-managed admin secret directly into a private file, never chat or
 terminal output. Set `DATABASE_SECRET_ARN` from deployment outputs:
@@ -390,15 +390,16 @@ administrator cleanup. It does not drop data or rotate existing roles. It is NOT
 part of the automatic deployment stages. On retry, first inspect the previous
 Job's status. Never delete a running Job. After success, remove the completed
 Job, its `rds-provision-admin` Secret and unused ServiceAccount, and remove the
-local admin JSON. Keep the five private service credential files for retries.
+local admin JSON. Keep the six private service credential files for retries.
 Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
-in the Terraform inputs. Review the plan before applying: this adds a dedicated
-Communication Service IAM role and inline policy permitting only `ses:SendEmail` and
-`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Trust
-is restricted to the `foc:communication-service` ServiceAccount and STS audience. It does
-not grant email permissions to User or change Order's S3 permissions.
+in the Terraform inputs. Review the plan before applying: User and Communication
+have separate IAM roles and inline policies permitting only `ses:SendEmail` and
+`ses:SendRawEmail`, scoped to that regional identity and `ses:FromAddress`. Each role
+trusts only its corresponding `foc:user-service` or `foc:communication-service`
+ServiceAccount and the STS audience. User's original role remains available while
+existing deployments still send email directly. Order's S3 permissions are unchanged.
 The adapter sends raw MIME through SESv2's `SendEmail` operation. AWS also
 requires `ses:SendRawEmail` for that content: a live workload request with only
 `ses:SendEmail` was rejected with `AccessDeniedException` for `ses:SendRawEmail`.
@@ -410,9 +411,23 @@ Service IRSA annotation, and removes Communication's SMTP Secret reference. No s
 AWS keys or SMTP login are needed. The operator checks the rendered reference
 before requiring `smtp`. Existing SMTP overlays and local Mailpit are unchanged.
 A null/default `ses_sender_email` retains SMTP and creates no email role.
-The deployment output exposes `communication_email_role_arn`; regenerate the
-output JSON before rendering. The role is named `<name>-communication-email`,
-so an existing `<name>-user-email` role is replaced when this plan is applied.
+The deployment output exposes `user_email_role_arn` and
+`communication_email_role_arn`; regenerate the output JSON before rendering.
+The roles are named `<name>-user-email` and `<name>-communication-email`.
+Communication is added independently without replacing User's existing role.
+The renderer uses Communication's ARN; the User ARN output does not itself change
+User's ServiceAccount annotation.
+
+Before applying in an existing environment, inspect the email role and policy
+state bindings. `aws_iam_role.email[0]` and `aws_iam_role_policy.email[0]` must
+refer to `<name>-user-email`; the corresponding `communication_email[0]`
+resources must refer to `<name>-communication-email`. An environment that applied
+the earlier Communication-only configuration may instead bind `email[0]` to
+Communication's role. Source changes do not migrate those bindings: have the
+infrastructure operator reconcile them under the backend lock, then review a
+fresh plan. Do not apply a plan that replaces an existing email role as part of
+this migration. A correctly bound environment with both roles already managed
+should show no changes to either role or its policy.
 
 SES sender verification, production access, workload authorization, and actual
 mailbox delivery are separate checks. A policy simulation is not proof of live
@@ -444,6 +459,9 @@ manager, following docs/runbooks/kubernetes.md:
   sandbox mode requires verified recipients. Check actual delivery, including
   spam/DMARC behavior when using an address on a domain you do not control.
   Do not silently fall back to Mailpit.
+- `moderation-llm`: `CMS_LLM_API_KEY`, supplied privately by the operator.
+  The [moderation runbook](../../docs/runbooks/content-moderation.md) covers its
+  database, model settings, release and workflow verification.
 - `jwt-signing`: `jwt-signing-private.pem`, generated privately and retained.
 - `telegram`: TELEGRAM_BOT_TOKEN, empty to disable. Never run two pollers with
   the same bot token.
@@ -480,7 +498,7 @@ information URL is not evidence that the application has been deployed.
 ## 5. Publish images and deploy
 
 ECR repositories have immutable tags. Use a unique commit/build tag every time;
-rebuilding an existing tag will fail. All eight images must target linux/amd64
+rebuilding an existing tag will fail. All nine images must target linux/amd64
 because the worker nodes are x86_64, even when building on Apple Silicon.
 Set `K8S_IMAGE_PREFIX` from deployment outputs. Export the four `K8S_LOKI_*`
 settings printed by the renderer: bucket and role come from

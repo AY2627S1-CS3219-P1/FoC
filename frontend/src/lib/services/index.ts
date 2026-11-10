@@ -22,6 +22,7 @@ import { createCreditAccountApi } from './credit/index.ts';
 import { CreditService } from './credit/service.svelte';
 import { createRealtimeService } from './realtime';
 import { createTelegramLinkApi } from './telegram/index.ts';
+import { createReviewModerationService } from './review-moderation';
 import { SnackbarService } from './snackbar/service.ts';
 
 export const snackbarService = new SnackbarService();
@@ -83,12 +84,12 @@ export const reviewApi = createReviewApi(protectedUserTransport);
 
 // Reports and appeals live in Moderation Service. Participants and
 // administrators share the transport; role checks happen per RPC on the server.
-const moderationTransport = createCustomTransport({
+const reportsModerationTransport = createCustomTransport({
 	baseUrl: env.PUBLIC_REPORTS_MODERATION_SERVICE_URL ?? 'http://localhost:8087',
 	interceptors: [authRedirectInterceptor, authService.interceptor]
 });
-export const reportApi = createReportApi(moderationTransport);
-export const appealApi = createAppealApi(moderationTransport);
+export const reportApi = createReportApi(reportsModerationTransport);
+export const appealApi = createAppealApi(reportsModerationTransport);
 
 const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
 const communicationTransport = createCustomTransport({
@@ -99,3 +100,15 @@ const communicationTransport = createCustomTransport({
 export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
 export const realtimeService = createRealtimeService(communicationTransport, () => authService.refresh());
 export const creditService = new CreditService(creditAccountApi, realtimeService);
+
+const moderationServiceBaseUrl = env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086';
+const moderationTransport = createCustomTransport({
+	baseUrl: moderationServiceBaseUrl,
+	interceptors: [authRedirectInterceptor, authService.interceptor]
+});
+export const reviewModerationService = createReviewModerationService(
+	protectedUserTransport,
+	moderationTransport
+);
+
+export { ReviewPageState } from './review-moderation';

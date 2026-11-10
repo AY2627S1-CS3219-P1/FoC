@@ -28,7 +28,7 @@ spec:
             - configMapRef:
                 name: foc-config
             - secretRef:
-                name: moderation-db
+                name: reports-moderation-db
           ports:
             - {name: http2-public, containerPort: 8080}
             - {name: http2-internal, containerPort: 8081}

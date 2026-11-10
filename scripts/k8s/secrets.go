@@ -14,6 +14,13 @@ func persistValue(directory, name, value string, allowEmpty bool) error {
 	path := filepath.Join(directory, name)
 	info, err := os.Stat(path)
 	if err == nil {
+		// An empty optional provider key is an unconfigured value, not a credential to preserve.
+		if name == "CMS_LLM_API_KEY" && allowEmpty && info.Size() == 0 && strings.TrimSpace(value) != "" {
+			if err := os.Chmod(path, 0600); err != nil {
+				return err
+			}
+			return writePrivate(path, value)
+		}
 		if info.Size() == 0 && !allowEmpty {
 			return fmt.Errorf("empty credential %s; restore it rather than rotating a database password", path)
 		}
@@ -69,7 +76,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	defer removeTemporary(lock)
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "moderation-password", "kafka-ui-password", "grafana-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "moderation-password", "reports-moderation-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -87,6 +94,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	for _, entry := range []struct{ name, value string }{
 		{"SMTP_USERNAME", ""}, {"SMTP_PASSWORD", ""}, {"TELEGRAM_BOT_TOKEN", os.Getenv("K8S_TELEGRAM_BOT_TOKEN")},
+		{"CMS_LLM_API_KEY", os.Getenv("K8S_LLM_API_KEY")},
 	} {
 		if err := persistValue(directory, entry.name, entry.value, true); err != nil {
 			return err
@@ -197,7 +205,7 @@ func (o *operator) generateLocalSecrets() error {
 		return errors.New("local TLS certificate and key do not match")
 	}
 
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation", "reports-moderation"} {
 		if err := persistValue(directory, service+"-db-user", service+"_app", false); err != nil {
 			return err
 		}
@@ -226,7 +234,7 @@ func (o *operator) generateLocalSecrets() error {
 	); err != nil {
 		return err
 	}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation", "reports-moderation"} {
 		if err := o.applySecret(
 			"foc",
 			service+"-db",
@@ -256,6 +264,9 @@ func (o *operator) generateLocalSecrets() error {
 		return err
 	}
 	if err := o.applySecret("foc", "telegram", fromFile("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN")); err != nil {
+		return err
+	}
+	if err := o.applySecret("foc", "moderation-llm", fromFile("CMS_LLM_API_KEY", "CMS_LLM_API_KEY")); err != nil {
 		return err
 	}
 	if err := o.applySecret(

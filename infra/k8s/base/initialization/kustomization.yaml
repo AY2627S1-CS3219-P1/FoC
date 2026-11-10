@@ -9,3 +9,4 @@ resources:
   - kafka-init.yaml
   - communication-migrate.yaml
   - moderation-migrate.yaml
+  - reports-moderation-migrate.yaml

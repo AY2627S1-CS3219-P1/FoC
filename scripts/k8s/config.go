@@ -18,6 +18,7 @@ var apps = []string{
 	"order-service",
 	"credit-service",
 	"communication-service",
+	"content-moderation-service",
 	"moderation-service",
 	"frontend",
 }
@@ -29,6 +30,7 @@ var jobs = []string{
 	"credit-migrate",
 	"communication-migrate",
 	"moderation-migrate",
+	"reports-moderation-migrate",
 	"kafka-init",
 }
 var stages = []string{"gateway", "dependencies", "provisioning", "observability", "initialization", "applications"}

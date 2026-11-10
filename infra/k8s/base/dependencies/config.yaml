@@ -13,6 +13,7 @@ data:
   INTERNAL_PORT: "8081"
   RUN_MIGRATIONS: "false"
   KAFKA_BROKERS: kafka:9092
+  CMS_LOGGING_INTERVAL: 5m
 
   # Browser-facing origins: shipped to the browser with the rendered shell
   # ($env/dynamic/public), so they must be reachable from outside the cluster.
@@ -25,6 +26,7 @@ data:
   PUBLIC_ORDER_SERVICE_URL: https://localhost:5173
   PUBLIC_COMMUNICATION_SERVICE_URL: https://localhost:5173
   PUBLIC_CREDIT_SERVICE_URL: https://localhost:5173
+  PUBLIC_MODERATION_SERVICE_URL: https://localhost:5173
   PUBLIC_REPORTS_MODERATION_SERVICE_URL: https://localhost:5173
 
   # Service-to-service addresses: in-cluster DNS names read by backend
@@ -37,6 +39,11 @@ data:
   COMMUNICATION_SERVICE_BASE_URL: http://communication-service-internal:8080
   SUPPLIER_SERVICE_BASE_URL: http://supplier-service-external:8080
   CREDIT_SERVICE_BASE_URL: http://credit-service-internal:8080
+
+  # Content moderation service LLM endpoint. The key arrives through the
+  # moderation-llm Secret (CMS_LLM_API_KEY), never through this ConfigMap.
+  CMS_LLM_MODEL_ID: gemma4:26b
+  CMS_LLM_BASE_URL: https://soclaas-api.comp.nus.edu.sg/v1
 
   # Secret locations and one-time bootstrap inputs. An empty
   # BOOTSTRAP_SUPERADMIN_EMAIL skips superadmin creation; deployments set it

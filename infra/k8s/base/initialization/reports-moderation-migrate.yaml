@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reports-moderation-migrate
+  labels:
+    foc.dev/stage: initialization
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: reports-moderation-migrate
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: reports-moderation-migrate
+      restartPolicy: Never
+      containers:
+        - name: reports-moderation-migrate
+          image: foc/migrations:local
+          imagePullPolicy: IfNotPresent
+          args: ["-dir", "/migrations/reports-moderation", "up"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: reports-moderation-db
+                  key: DATABASE_URL

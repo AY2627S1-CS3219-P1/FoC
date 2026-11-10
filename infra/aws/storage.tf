@@ -1,7 +1,7 @@
 locals {
   images = toset([
     "user-service", "supplier-service", "order-service", "credit-service",
-    "communication-service", "moderation-service", "frontend", "migrations", "kafka-init",
+    "communication-service", "content-moderation-service", "moderation-service", "frontend", "migrations", "kafka-init",
   ])
 }
 

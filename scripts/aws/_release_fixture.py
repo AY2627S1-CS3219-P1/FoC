@@ -191,7 +191,7 @@ if command == "make":
             finish(error="interruption fixture unexpectedly resumed")
         namespace = os.environ["K8S_IMAGE_PREFIX"].split("/", 1)[1]
         tag = os.environ["K8S_IMAGE_TAG"]
-        for name in ("user-service", "supplier-service", "order-service", "credit-service", "communication-service", "moderation-service", "frontend", "kafka-init", "migrations"):
+        for name in ("user-service", "supplier-service", "order-service", "credit-service", "communication-service", "content-moderation-service", "moderation-service", "frontend", "kafka-init", "migrations"):
             state.setdefault("images", {})[namespace + "/" + name + ":" + tag] = "sha256:" + hashlib.sha256(name.encode()).hexdigest()
         state.setdefault("stages", []).extend(["dependencies", "observability", "migrations"])
         if state.get("fail_migration"):

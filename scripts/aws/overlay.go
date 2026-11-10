@@ -155,7 +155,7 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 				"ORDER_S3_ENDPOINT":          "",
 				"ORDER_S3_PUBLIC_ENDPOINT":   "https://s3." + stringValue(config, "region") + ".amazonaws.com",
 			}
-			for _, key := range []string{"FRONTEND_BASE_URL", "ORIGIN", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL"} {
+			for _, key := range []string{"FRONTEND_BASE_URL", "ORIGIN", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
 				values[key] = "https://" + hostname
 			}
 			if sender != "" {
@@ -240,6 +240,9 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 		case "applications", "initialization":
 			for _, service := range services {
 				kind, name := "Deployment", service+"-service"
+				if service == "moderation" {
+					name = "content-moderation-service"
+				}
 				if stage == "initialization" {
 					kind, name = "Job", service+"-migrate"
 				}
