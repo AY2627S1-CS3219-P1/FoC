@@ -14,6 +14,8 @@ import { SupplierAdminAccess } from './location-admin/service.svelte';
 import { createOrderApi } from './order/index.ts';
 import { createDeliveryProofService } from './delivery-proof/index.ts';
 import { createReviewApi } from './review/index.ts';
+import { createReportApi } from './report/index.ts';
+import { createAppealApi } from './appeal/index.ts';
 import { createParticipantActionsApi } from './order-cancellation/index.ts';
 import { createOrderOffersApi } from './order-offers/index.ts';
 import { createCreditAccountApi } from './credit/index.ts';
@@ -75,6 +77,11 @@ export const deliveryProofApi = createDeliveryProofService(orderTransport);
 // ReviewService lives in User Service; the transport already refreshes and
 // redirects on unauthenticated calls.
 export const reviewApi = createReviewApi(protectedUserTransport);
+
+// Reports and appeals live in User Service. Participants and administrators
+// share the transport; role checks happen per RPC on the server.
+export const reportApi = createReportApi(protectedUserTransport);
+export const appealApi = createAppealApi(protectedUserTransport);
 
 const communicationServiceBaseUrl = env.PUBLIC_COMMUNICATION_SERVICE_URL ?? 'http://localhost:8084';
 const communicationTransport = createCustomTransport({
