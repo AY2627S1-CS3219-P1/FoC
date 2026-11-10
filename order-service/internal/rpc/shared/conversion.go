@@ -67,21 +67,22 @@ func OfferStatus(status pb.OfferStatus) (app.OfferStatus, error) {
 }
 
 // Response conversion exposes domain orders and offers as protobuf views.
-func Order(o app.Order) *pb.Order {
-	var status pb.OrderStatus
+func OrderStatus(status app.Status) pb.OrderStatus {
 	for value, domain := range statuses {
-		if domain == o.Status {
-			status = value
-			break
+		if domain == status {
+			return value
 		}
 	}
+	return pb.OrderStatus_ORDER_STATUS_UNSPECIFIED
+}
 
+func Order(o app.Order) *pb.Order {
 	return &pb.Order{
 		Id:                  o.ID,
 		CancellationPending: o.PendingCancellationID != nil,
 		RequesterId:         o.RequesterID,
 		CourierId:           o.CourierID,
-		Status:              status,
+		Status:              OrderStatus(o.Status),
 		Pickup:              location(o.Pickup),
 		Delivery: &pb.DeliveryDetails{
 			Location:     location(o.Delivery),
