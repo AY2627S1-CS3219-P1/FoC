@@ -25,6 +25,27 @@ spec:
         - name: moderation-service
           image: foc/moderation-service:local
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          startupProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            failureThreshold: 40
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["/app/healthcheck", "live", "8080,8081"]
+            periodSeconds: 10
           envFrom:
             - configMapRef:
                 name: foc-config

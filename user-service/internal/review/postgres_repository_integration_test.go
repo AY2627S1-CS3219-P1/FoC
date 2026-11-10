@@ -1280,7 +1280,7 @@ func TestReviewRestorationIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	service, _ := buildReviewService(t, sqlDB)
+	service, completions := buildReviewService(t, sqlDB)
 
 	reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
 	for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
@@ -1296,6 +1296,7 @@ func TestReviewRestorationIntegration(t *testing.T) {
 		Scan(&reviewID); err != nil {
 		t.Fatal(err)
 	}
+	approveReview(t, ctx, completions, sqlDB, reviewID)
 
 	if err := service.RestoreReview(ctx, reviewID, "not removed", uuid.Nil, admin); err == nil {
 		t.Fatal("expected restoring a live review to fail")
