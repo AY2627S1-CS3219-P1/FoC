@@ -64,7 +64,7 @@ func TestQueuedOfferExpiresWhileWaitingForAnEmail(t *testing.T) {
 }
 
 func TestQueuedAcceptanceRechecksOrderRevision(t *testing.T) {
-	for _, state := range []string{"current", "superseded", "removed", "not yet stored"} {
+	for _, state := range []string{"current", "superseded", "removed"} {
 		t.Run(state, func(t *testing.T) {
 			pool := openEmailPostgres(t)
 			ctx := context.Background()
@@ -90,20 +90,14 @@ func TestQueuedAcceptanceRechecksOrderRevision(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if state == "removed" || state == "not yet stored" {
+			if state == "removed" {
 				if _, err := pool.Exec(ctx, `DELETE FROM order_participants`); err != nil {
 					t.Fatal(err)
 				}
 			}
 			mailer := &fakeMailer{}
 			worker := &EmailWorker{Queue: queue, Sender: mailer, Log: handler.Log, Now: handler.Now}
-			// A missing order is a deleted one only once the email is past the
-			// late window; while fresh, the participants may not have stored it.
-			if state == "removed" {
-				worker.Now = func() time.Time { return now.Add(LateWindow + time.Minute) }
-			}
-			wantSent := state == "current" || state == "not yet stored"
-			if !wantSent {
+			if state != "current" {
 				if processed, err := worker.DeliverNext(ctx); err != nil || !processed || len(mailer.sent) != 0 {
 					t.Fatalf(
 						"obsolete acceptance must be skipped without waiting for email: processed=%v emails=%+v err=%v",
@@ -116,7 +110,11 @@ func TestQueuedAcceptanceRechecksOrderRevision(t *testing.T) {
 			}
 			projectEmail(t, pool, courierID, "ben@foc.local")
 			processed, err := worker.DeliverNext(ctx)
-			if err != nil || processed != wantSent || (len(mailer.sent) == 1) != wantSent {
+			wantSent := 0
+			if state == "current" {
+				wantSent = 1
+			}
+			if err != nil || processed != (state == "current") || len(mailer.sent) != wantSent {
 				t.Fatalf("state=%s processed=%v emails=%+v err=%v", state, processed, mailer.sent, err)
 			}
 		})

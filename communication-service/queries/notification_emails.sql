@@ -20,16 +20,8 @@ CROSS JOIN LATERAL (
         WHEN n.unless_reassigned AND EXISTS (
             SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.courier_id = n.user_id
         ) THEN 'courier reassigned'
-        -- The participants have their own consumer and may not have stored the
-        -- order yet. A missing order counts as superseded only once the email
-        -- is older than fresh_after; before that it can't have been overtaken.
-        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND (
-            EXISTS (
-                SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision > n.order_revision
-            )
-            OR (n.created_at < sqlc.arg(fresh_after)::timestamptz AND NOT EXISTS (
-                SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id
-            ))
+        WHEN n.order_id IS NOT NULL AND NOT n.unless_reassigned AND NOT EXISTS (
+            SELECT 1 FROM order_participants p WHERE p.order_id = n.order_id AND p.revision <= n.order_revision
         ) THEN 'order superseded'
         ELSE ''
     END::text AS skip_reason

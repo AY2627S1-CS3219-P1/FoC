@@ -322,15 +322,14 @@ func TestHandleSendsAcceptanceOnlyWhileCurrent(t *testing.T) {
 	}
 }
 
-// The participants can trail notifications, so a fresh change for an order
-// they haven't stored yet is sent; an old one is treated as a deleted order.
-func TestHandleSendsAcceptanceForUnknownOrderOnlyWhileFresh(t *testing.T) {
+// An unknown order must not receive an acceptance notice, regardless of age.
+func TestHandleSkipsAcceptanceForUnknownOrder(t *testing.T) {
 	cases := []struct {
 		name     string
 		age      time.Duration
 		wantSent bool
 	}{
-		{"fresh", time.Minute, true},
+		{"fresh", time.Minute, false},
 		{"old", LateWindow + time.Minute, false},
 	}
 	for _, tc := range cases {

@@ -38,13 +38,13 @@ Codes are single-use, expire after 10 minutes, and are stored only as SHA-256 ha
 
 ## Order notifications
 
-The service consumes `order.status_changed` and `order.offer_made` (consumer group `communication-service`) and messages the participants who didn't cause the change. A second group, `communication-participants`, keeps the chat participants current from `order.status_changed` on its own, so it keeps going while notifications wait for Telegram. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
+The service consumes `order.status_changed` and `order.offer_made` (consumer group `communication-service`) and messages the participants who didn't cause the change. A second group, `communication-participants`, keeps the chat participants current from `order.status_changed` on its own, so it keeps going while notifications wait for Telegram. Notifications also apply each status change before making delivery decisions; older and repeated revisions leave the copy unchanged. Admin and system changes reach both participants. Notifications run when `KAFKA_BROKERS` is set and either the bot started or email is configured.
 
 - **Email fallback.** A recipient Telegram can't reach (no linked chat, a chat that turns out to be blocked, or Telegram disabled) gets outcome and action notifications by email: every always-deliver notification, offer accepted (to the courier), and new offers (to the requester). Progress updates aren't emailed, since the app shows them. The consumer commits fallback to `notification_emails` before acknowledging Kafka. A separate worker sends when the user's email projection is available, including after a restart. Missing addresses remain pending without blocking other recipients; historical users outside Kafka retention still need an email backfill. Temporary delivery failures retry after one minute without pausing Kafka. Permanent SMTP rejections (5xx) and SES message rejections remain recorded as `rejected` with their error and attempt time.
 
 - **At least once.** After each send, `order_notifications_sent` records the event and recipient. For email, recording delivery and deleting the queued row commit together. A redelivered event skips recipients whose message is sent, queued, skipped or permanently rejected, even if their Telegram link changes. Multiple email workers claim separate rows with `FOR UPDATE SKIP LOCKED`. A crash between sending and recording can repeat one message. See [the email delivery decision](../docs/adr/durable-notification-email.md).
 
-Queued new offers expire 30 minutes after the event; queued offer-acceptance notices are skipped if the order has advanced beyond their revision, or if the participants still haven't stored the order 30 minutes after the event. These checks run again before email delivery, including while an address is missing. Skipped rows remain recorded with their reason. Always-deliver emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
+Queued new offers expire 30 minutes after the event; queued offer-acceptance notices are skipped if the order has advanced beyond their revision or its participants copy has been deleted. These checks run again before email delivery, including while an address is missing. Skipped rows remain recorded with their reason. Always-deliver emails have no automatic expiry. Inspect the backlog and permanently rejected deliveries with:
 
 ```sql
 SELECT n.status, (u.user_id IS NULL) AS missing_email,
@@ -59,7 +59,7 @@ GROUP BY n.status, (u.user_id IS NULL);
   | Class | Notifications |
   | -- | -- |
   | Drop if late: sent only within 30 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), picked up, a courier's new offer (to the requester) |
-  | Still current: sent however late, but only while no later status change has been applied to the order. If the participants haven't stored the order yet, it's sent only within the 30-minute window | Offer accepted (to the courier), courier unassigned (to the requester) |
+  | Still current: sent however late, but only while the order is stored and no later status change has been applied | Offer accepted (to the courier), courier unassigned (to the requester) |
   | Unless reassigned: sent however late, except while the same courier is currently assigned; checked again before queued email delivery | Unassigned (to the removed courier) |
   | Always: sent however late | Delivered, and every outcome: completed, cancelled, expired, failed, rejected |
 

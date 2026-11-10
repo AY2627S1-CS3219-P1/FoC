@@ -398,7 +398,16 @@ func startNotifications(
 	userEmails := (&users.Projection{Store: emails, Log: log}).Handle
 	projection := &chat.Projection{Store: chats, Log: log, Now: time.Now}
 	workers.Go(func() { runParticipants(ctx, cfg.kafkaBrokers, participantsGroup, log, projection.Apply) })
-	handle := handler.Handle
+
+	// Apply here too so a notification never mistakes an older assignment for
+	// a reassignment. Revision guards preserve changes applied by the other group.
+	handle := func(ctx context.Context, meta kafka.Metadata, e *eventsv1.OrderStatusChanged) error {
+		if err := projection.Apply(ctx, e); err != nil {
+			return err
+		}
+
+		return handler.Handle(ctx, meta, e)
+	}
 	workers.Go(func() {
 		for {
 			since, err := deliveries.Start(ctx, time.Now())
