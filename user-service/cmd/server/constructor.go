@@ -22,11 +22,13 @@ import (
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/store"
+	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
 
 // newReviewService builds the review domain; photo storage is optional.
@@ -72,6 +74,10 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 		return tx.Commit()
 	}, reviewStorage, orders)
 	return service, photos
+}
+
+func newWarningService(db warningdb.DBTX) *warningdomain.Service {
+	return warningdomain.NewService(warningdomain.NewPostgresRepository(warningdb.New(db)))
 }
 
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {
