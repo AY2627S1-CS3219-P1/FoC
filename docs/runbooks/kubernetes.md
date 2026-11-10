@@ -456,6 +456,12 @@ Loki is provisioned as the default data source. In Grafana Explore, try:
 sum by (service) (count_over_time({namespace="foc"}[5m]))
 ```
 
+A provisioned read-only **FoC Logs** dashboard (`/d/foc-logs`, folder FoC) plots
+log volume by service and gateway 5xx responses, and streams application and
+gateway access logs. Grafana loads it from `infra/k8s/base/observability/dashboards`;
+edits made in the Grafana UI do not persist, so change the JSON and redeploy
+instead.
+
 Alloy reads only pods and pod logs in `foc` and `istio-ingress`. Application,
 dependency, frontend and native Envoy lines keep their existing formats.
 Labels are namespace, service, pod, container and node; user IDs, tokens and

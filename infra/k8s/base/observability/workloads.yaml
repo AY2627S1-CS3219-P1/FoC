@@ -90,6 +90,8 @@ spec:
           name: data
         - mountPath: /etc/grafana/provisioning/datasources
           name: config
+        - mountPath: /etc/grafana/provisioning/dashboards
+          name: dashboards
       securityContext:
         fsGroup: 472
       serviceAccountName: grafana
@@ -100,6 +102,9 @@ spec:
       - configMap:
           name: grafana-config
         name: config
+      - configMap:
+          name: grafana-dashboards
+        name: dashboards
 ---
 apiVersion: v1
 automountServiceAccountToken: true

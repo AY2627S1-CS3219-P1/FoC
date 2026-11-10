@@ -9,3 +9,7 @@ configMapGenerator:
     files: [config.alloy]
   - name: grafana-config
     files: [datasources.yaml]
+  - name: grafana-dashboards
+    files:
+      - dashboards/provider.yaml
+      - dashboards/foc-logs.json
