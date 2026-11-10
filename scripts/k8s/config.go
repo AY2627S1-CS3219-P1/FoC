@@ -123,7 +123,8 @@ func (o *operator) checkContext() error {
 	if strings.TrimSpace(contexts) != o.kubeContext {
 		return fmt.Errorf("context %s does not exist; run make k8s-up for the local cluster", o.kubeContext)
 	}
-	_, err = o.query("cluster-info")
+	// cluster-info lists kube-system Services, which namespace-scoped release identities cannot read.
+	_, err = o.query("version", "-o", "json")
 	return err
 }
 
