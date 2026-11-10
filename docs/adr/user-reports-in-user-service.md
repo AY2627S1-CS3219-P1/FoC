@@ -43,6 +43,46 @@ domain in User Service (`user-service/internal/report`), exposed as
   (`user-service/internal/reportoutcome`).
 - Administrators cannot act on a report they filed or one about themselves.
 
+### Appeals (RP7–RP12)
+
+Appeals are a sibling domain (`user-service/internal/appeal`), exposed as
+`user.appeal.v1.AppealService`. They reuse the report lifecycle and the outcome
+applier.
+
+- **Decisions.** An appeal challenges one or more final decisions, one row per
+  decision in `user_appeal_decisions`. A decision's target names its kind:
+  - a closed report's outcome, appealed by the reported participant, or by the
+    reporter for a no-action outcome on an order;
+  - an active warning that no report issued, such as a courier warning;
+  - a review an administrator removed outside a report, appealed by its author;
+  - a live review that the reviewee's closed report kept with no action.
+
+  A warning or review removal that a report produced is appealed as that
+  report's outcome, so one decision cannot be undone twice. Credit adjustments
+  are reserved in the contract and rejected until #302.
+- **Idempotency (RP7.7).** The client sends an idempotency key. A retry with
+  the same key and payload returns the original appeal, and the same key with a
+  different payload is `AlreadyExists`. A decision is in at most one unclosed
+  appeal.
+- **Lifecycle (RP10).** Same as reports. `RequestResponse` names a counterpart,
+  the other participant the decision affects, and only that participant may
+  reply while the appeal awaits a response (RP9).
+- **Visibility (RP11.3).** The appellant and every counterpart can read the
+  appeal and its outcomes. Suspended users may appeal and respond (U6.8.1).
+- **Closing (RP11, RP12).** The administrator resolves every decision as
+  upheld or overturned, with a reason. Overturned decisions are undone in the
+  closing transaction:
+  - a warning is marked removed and linked to the appeal;
+  - a suspension is lifted through `ChangeUserRole`, back to the role the user
+    had before the report's suspension, with the report's `report_id`;
+  - a removed review is restored through `review.Service.RestoreReview`, which
+    records a `review_restorations` row and recomputes ratings;
+  - a retained review is removed through `RemoveReview`;
+  - an overturned no-action outcome records the disposition only.
+
+  `review_removals` no longer has a unique `review_id`; each restoration answers
+  one removal, so a restored review can be removed again.
+
 Reasons for keeping reports in User Service:
 
 - Every consequence in RP5.2–RP5.4 lands on data User Service owns: warnings,
@@ -59,15 +99,15 @@ Reasons for keeping reports in User Service:
   User → Order client configuration this needs.
 - **Credit adjustment (RP5.5)** — #302. Credit has no administrative adjustment
   entry type.
-- **Response-request notification (RP9.1)** — #303.
+- **Response-request notification (RP9.1)** — #303, for reports and appeals.
 - **Image evidence (RP1.6, RP2.2).** User Service has no object storage. A
   separate attachments table can be added without changing the report tables.
-- **Appeals (RP7–RP12).** Appeals should reuse this lifecycle and the outcome
-  applier, rather than start a Report Service.
+- **Review-moderation decisions (RP7.4).** Content moderation (#264) does not
+  produce appealable decisions yet.
 
 ## Consequences
 
-- The reports migration is `00012`. Draft #287 already uses `00010` and
+- The reports migration is `00012`, and appeals add `00013` and `00014`. Draft #287 already uses `00010` and
   `00011`, and goose here refuses missing versions, so whichever change merges
   second must renumber.
 - `user_reports.review_id` uses the default `NO ACTION` foreign key, like
