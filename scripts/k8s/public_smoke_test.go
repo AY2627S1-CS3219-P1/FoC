@@ -20,7 +20,7 @@ printf '\n' >> "$SMOKE_CALLS"
 case "$*" in *--insecure*|*--cacert*|*localhost*) exit 90;; esac
 for url do :; done
 case "$url" in
-  */GetPublicKeys|*/Reserve) printf '{}\n404';;
+  */GetPublicKeys|*/Reserve|*/GetUsers) printf '{}\n404';;
   */Check) printf '{"status":"SERVING"}\n200';;
   https://release.example.test/) printf '<html>FoC</html>\n200';;
   *) exit 91;;
@@ -33,8 +33,8 @@ esac`)
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
-	if len(lines) != 8 {
-		t.Fatalf("expected frontend, five health and two private-route requests, got %d", len(lines))
+	if len(lines) != 10 {
+		t.Fatalf("expected frontend, six health and three private-route requests, got %d", len(lines))
 	}
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "--disable --silent --show-error") {

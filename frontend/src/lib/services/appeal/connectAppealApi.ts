@@ -8,8 +8,8 @@ import {
 	type Appeal as ProtoAppeal,
 	type AppealResponse as ProtoAppealResponse,
 	type Decision as ProtoDecision
-} from '$lib/gen/user/appeal/v1/appeal_pb';
-import type { EvidenceUploadGrant } from '$lib/gen/user/evidence/v1/evidence_pb';
+} from '$lib/gen/moderation/appeal/v1/appeal_pb';
+import type { EvidenceUploadGrant } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import {
 	enumCodec,
 	optionalDate,

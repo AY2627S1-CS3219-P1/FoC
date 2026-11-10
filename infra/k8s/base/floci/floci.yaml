@@ -112,7 +112,7 @@ spec:
         - operation:
             ports: ["4566"]
             methods: [GET, HEAD, PUT, OPTIONS]
-            paths: ["/order-images/*", "/user-images/*"]
+            paths: ["/order-images/*", "/user-images/*", "/moderation-images/*"]
 ---
 # A trailing slash is still the bucket root, not an object key. DENY wins over
 # the prefix ALLOW even when a caller possesses a valid S3 signing credential.
@@ -132,4 +132,4 @@ spec:
       to:
         - operation:
             ports: ["4566"]
-            paths: ["/order-images", "/order-images/", "/user-images", "/user-images/"]
+            paths: ["/order-images", "/order-images/", "/user-images", "/user-images/", "/moderation-images", "/moderation-images/"]

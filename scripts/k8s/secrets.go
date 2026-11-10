@@ -69,7 +69,7 @@ func (o *operator) generateLocalSecrets() error {
 	}
 	defer removeTemporary(lock)
 
-	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "kafka-ui-password", "grafana-password"} {
+	for _, name := range []string{"postgres-password", "user-password", "supplier-password", "order-password", "credit-password", "communication-password", "moderation-password", "kafka-ui-password", "grafana-password"} {
 		password, err := o.run("openssl", []string{"rand", "-hex", "32"}, commandOptions{capture: true})
 		if err != nil {
 			return err
@@ -197,7 +197,7 @@ func (o *operator) generateLocalSecrets() error {
 		return errors.New("local TLS certificate and key do not match")
 	}
 
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
 		if err := persistValue(directory, service+"-db-user", service+"_app", false); err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func (o *operator) generateLocalSecrets() error {
 	); err != nil {
 		return err
 	}
-	for _, service := range []string{"user", "supplier", "order", "credit", "communication"} {
+	for _, service := range []string{"user", "supplier", "order", "credit", "communication", "moderation"} {
 		if err := o.applySecret(
 			"foc",
 			service+"-db",

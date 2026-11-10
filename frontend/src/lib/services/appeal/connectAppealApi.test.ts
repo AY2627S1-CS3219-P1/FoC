@@ -10,7 +10,7 @@ import {
 	DecisionOutcome,
 	DecisionSchema,
 	type Appeal
-} from '$lib/gen/user/appeal/v1/appeal_pb';
+} from '$lib/gen/moderation/appeal/v1/appeal_pb';
 import { ConnectAppealApi } from './connectAppealApi.ts';
 import { counterparts, isAppealParticipant } from './appealApi.ts';
 

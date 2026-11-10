@@ -106,14 +106,29 @@ func (p *PostgresRepository) Remove(
 		ID: id, RemovedAt: sql.NullTime{Time: removedAt, Valid: true},
 		RemovedReason: nullableString(reason), AppealID: nullableUUID(appealID), UpdatedBy: nullableUUID(actorID),
 	})
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-		return Warning{}, fmt.Errorf("remove warning: %w", ErrAppealNotFound)
-	}
 	if err != nil {
 		return Warning{}, mapNotFound(err, "remove warning")
 	}
 	return warningFromRow(row), nil
+}
+
+// Facts reads what Moderation Service checks before accepting an appeal of
+// a warning.
+func (p *PostgresRepository) Facts(ctx context.Context, id uuid.UUID) (Facts, error) {
+	row, err := p.queries.GetAccountWarningFacts(ctx, id)
+	if err != nil {
+		return Facts{}, mapNotFound(err, "warning facts")
+	}
+	return Facts{UserID: row.UserID, RequestID: row.RequestID, ReportID: row.ReportID.UUID, Active: row.Active}, nil
+}
+
+// ActiveForReport finds the active warning a report issued, or ErrNotFound.
+func (p *PostgresRepository) ActiveForReport(ctx context.Context, reportID uuid.UUID) (uuid.UUID, error) {
+	id, err := p.queries.ActiveWarningForReport(ctx, uuid.NullUUID{UUID: reportID, Valid: true})
+	if err != nil {
+		return uuid.Nil, mapNotFound(err, "warning for report")
+	}
+	return id, nil
 }
 
 func warningFromRow(row warningdb.AccountWarning) Warning {

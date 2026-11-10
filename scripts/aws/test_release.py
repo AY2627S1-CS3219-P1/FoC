@@ -159,7 +159,7 @@ class ReleaseCLITest(unittest.TestCase):
         release = self.private / "aws/releases/demo/attempt1/release-receipt.json"
         record = json.loads(release.read_text())
         self.assertEqual(record["configuration"]["version_id"], receipt["version_id"])
-        self.assertEqual(len(record["images"]), 8)
+        self.assertEqual(len(record["images"]), 9)
         self.assertEqual(record["public_smoke"], "passed")
         self.assertTrue(all(not versions for key, versions in state["objects"].items() if "/locks/" in key))
         kubectl = shutil.which("kubectl")
@@ -181,7 +181,7 @@ class ReleaseCLITest(unittest.TestCase):
         self.assertIn(["make", "k8s-deploy", "service="], calls)
         self.assertIn(["kubectl", "--context", "foc-release", "--request-timeout=15s", "-n",
                        "foc-observability", "get", "secret", "grafana-admin", "-o", "name"], calls)
-        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> eight digest receipts -> smoke gate")
+        print("PASS: fixture upload recovery/version pin -> actual renderer -> full operator delegation -> nine digest receipts -> smoke gate")
 
     def test_logging_configuration_rejects_legacy_missing_shared_or_foreign_inputs(self):
         document = configuration(self.outputs, "demo", SOURCE, "a" * 64, checksum(CA), ACCOUNT, REGION)

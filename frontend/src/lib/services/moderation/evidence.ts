@@ -1,6 +1,6 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
-import type { EvidenceUploadGrant } from '$lib/gen/user/evidence/v1/evidence_pb';
+import type { EvidenceUploadGrant } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import { parseRpcError } from '$lib/services/rpc/errors';
 import {
 	ReviewLimitedError,

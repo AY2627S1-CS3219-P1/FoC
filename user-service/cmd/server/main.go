@@ -15,14 +15,15 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/kafka"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/internaluser"
 	profilehandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/profile"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/moderationoutcome"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/outbox"
-	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/router"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/service"
@@ -120,9 +121,7 @@ func main() {
 	}
 	orderGateway := newOrderGateway(cfg)
 	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg, orderGateway)
-	evidenceLogic := newEvidenceService(sqlDB, reviewPhotos)
-	reportLogic := newReportService(db, sqlDB, evidenceLogic, orderGateway)
-	appealLogic := newAppealService(db, sqlDB, evidenceLogic)
+	outcomeLogic := &moderationoutcome.Service{DB: db}
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -130,8 +129,6 @@ func main() {
 		Review:         &review.Handler{Logic: reviewLogic},
 		Warnings:       &warningdomain.Handler{Logic: warningLogic},
 		AdminWarnings:  &warningdomain.AdminHandler{Logic: warningLogic},
-		Report:         &report.Handler{Logic: reportLogic},
-		Appeal:         &appeal.Handler{Logic: appealLogic},
 		Authenticate:   httpauth.AuthenticateLocal(codec.VerifyAccess),
 		Users:          persistence.Users,
 	}
@@ -140,21 +137,23 @@ func main() {
 	// routes on INTERNAL_PORT. Services without private routes yet still bind
 	// the internal listener so local and deployed behaviour stay identical.
 	public := newServer(":"+cfg.port, cors.Handler(router.Public(&health.Handler{DB: sqlDB}, auth, protected)))
-	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
+	internalReads := &internaluser.Handler{
+		Users:    persistence.Users,
+		Reviews:  reviewLogic,
+		Warnings: warningdomain.NewPostgresRepository(warningdb.New(sqlDB)),
+	}
+	internal := newServer(":"+cfg.internalPort, router.Internal(auth, internalReads))
 	servers := []*http.Server{public, internal}
 
 	if reviewPhotos != nil {
-		// Orphan review photos and evidence images are reaped on a minute
-		// ticker; each domain's claim/delete steps are retryable and idempotent.
+		// Orphan review photos are reaped on a minute ticker; the claim and
+		// delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
-				}
-				if err := evidenceLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
-					slog.WarnContext(ctx, "evidence cleanup deferred", "err", err)
 				}
 				select {
 				case <-ctx.Done():
@@ -165,13 +164,18 @@ func main() {
 		}()
 	}
 
-	// The courier-warning consumer runs alongside the HTTP listeners and
-	// rebuilds its subscription after a transient failure, so one bad delivery
-	// cannot stall warnings. rootCancel() stops it during shutdown.
+	// The courier-warning and moderation-outcome consumers run alongside the
+	// HTTP listeners and rebuild their subscription after a transient failure,
+	// so one bad delivery cannot stall them. rootCancel() stops it during
+	// shutdown.
+	handlers := consumers{
+		warnings: &warningdomain.CourierWarningConsumer{Logic: warningLogic},
+		outcomes: &moderationoutcome.Consumer{Outcomes: outcomeLogic},
+	}
 	consumeDone := make(chan struct{})
 	go func() {
 		defer close(consumeDone)
-		consume(ctx, cfg.kafkaBrokers, warningLogic)
+		consume(ctx, cfg.kafkaBrokers, handlers)
 	}()
 
 	if err := serve(ctx, servers...); err != nil {
@@ -223,14 +227,20 @@ func serve(ctx context.Context, servers ...*http.Server) error {
 	return errors.Join(failures...)
 }
 
-// consume runs the courier-warning subscription until ctx ends. A failed
-// subscriber cannot restart, so each failure builds a new one after a growing
-// delay; the uncommitted delivery is then redelivered.
-func consume(ctx context.Context, brokers []string, logic *warningdomain.Service) {
+// consumers are the Kafka handlers User Service registers.
+type consumers struct {
+	warnings *warningdomain.CourierWarningConsumer
+	outcomes *moderationoutcome.Consumer
+}
+
+// consume runs the Kafka subscription until ctx ends. A failed subscriber
+// cannot restart, so each failure builds a new one after a growing delay; the
+// uncommitted delivery is then redelivered.
+func consume(ctx context.Context, brokers []string, handlers consumers) {
 	backoff := minWarningConsumeBackoff
 	for ctx.Err() == nil {
 		started := time.Now()
-		err := subscribe(ctx, brokers, logic)
+		err := subscribe(ctx, brokers, handlers)
 		if ctx.Err() != nil {
 			return
 		}
@@ -252,15 +262,15 @@ func consume(ctx context.Context, brokers []string, logic *warningdomain.Service
 	}
 }
 
-func subscribe(ctx context.Context, brokers []string, logic *warningdomain.Service) error {
+func subscribe(ctx context.Context, brokers []string, handlers consumers) error {
 	subscriber, err := kafka.NewSubscriber(kafka.SubscriberConfig{Brokers: brokers, GroupID: warningConsumerGroup})
 	if err != nil {
 		return err
 	}
-	if err := warningdomain.RegisterCourierWarningConsumer(
-		subscriber,
-		&warningdomain.CourierWarningConsumer{Logic: logic},
-	); err != nil {
+	if err := warningdomain.RegisterCourierWarningConsumer(subscriber, handlers.warnings); err != nil {
+		return err
+	}
+	if err := moderationoutcome.RegisterConsumer(subscriber, handlers.outcomes); err != nil {
 		return err
 	}
 	return subscriber.Run(ctx)

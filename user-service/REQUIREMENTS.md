@@ -104,7 +104,7 @@ Note: aggregate rating / review count are computed by Order Service (R3.6, R3.7)
 
 Enforcement is shared: Order Service must block create/accept/review (R2, R1.6.12), Supplier Service must block supplier-addition requests.
 
-User reports (RP1–RP5) are implemented here rather than in a separate Report Service (`docs/adr/user-reports-in-user-service.md`). `ReportService` lets a user report another user about one review or one order. The reported participant can respond. Administrators move a report through Open, Under Review, Awaiting Response and Closed. Closing a report records a reasoned outcome: no action, a warning, a suspension or a review removal. The consequence is applied in the same transaction and references the report (NFR-10.3). `AppealService` lets the affected user appeal closed report outcomes, warnings, review removals and reviews a report kept (RP7–RP12). An administrator can ask the other participant to respond and closes the appeal by upholding or overturning each decision; overturned decisions are undone in the same transaction. Reports, appeals and their responses accept up to five images as evidence, uploaded straight to object storage and visible to whoever can read the report or appeal (RP1.6, RP2.2, RP8.2, RP9.4). Order reports and reviews are checked against the order's requester and courier through Order's internal listener, and fail closed when Order is unavailable (RP1.1, RP1.2). Credit adjustments (#302) and response notifications (#303) are not implemented yet.
+Reports and appeals (RP1–RP12) live in Moderation Service (`docs/adr/moderation-service.md`). User Service applies their consequences: it consumes `moderation.outcome_requested` and records warnings, suspensions and their reinstatement, and review removals and restorations once per event, each linked to its report or appeal (NFR-10.3). It serves `UserInternalService` on its internal listener so Moderation Service can name participants and check review and warning facts. `ReviewService.ListMyReviewRemovals` lists a reviewer's reviews removed outside a report, which they may appeal. Reviews are checked against the order's requester and courier through Order's internal listener, and fail closed when Order is unavailable.
 
 ## U7 — Account Warnings
 
@@ -118,7 +118,7 @@ User reports (RP1–RP5) are implemented here rather than in a separate Report S
 | U7.5 | Retain a warning when its appeal outcome is Upheld. | Low | Week 10 |
 | U7.6 | Mark a warning as removed when its appeal outcome is Overturned. | Low | Week 10 |
 
-Producers: Order Service requests warnings (R1.4.1, R1.4.2); user reports issue warnings (RP5.2). Appeals in User Service retain or remove warnings (RP12.1, RP12.2).
+Producers: Order Service requests warnings (R1.4.1, R1.4.2); Moderation Service report outcomes issue warnings (RP5.2), and its appeals retain or remove them (RP12.1, RP12.2).
 
 ## Relevant NFRs
 

@@ -30,8 +30,8 @@ func (s *Admin) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
 
 // ChangeRole moves the user from c.FromRole to c.ToRole and records c in one
 // transaction, or returns ErrRoleConflict if the current role differs.
-// c.CreatedBy is the actor and is also stored as the user's updated_by. A
-// c.ReportID that names no report returns ErrReportNotFound.
+// c.CreatedBy is the actor and is also stored as the user's updated_by.
+// c.ReportID is an opaque Moderation Service ID and is not checked here.
 func (s *Admin) ChangeRole(ctx context.Context, c *models.RoleChange) error {
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&models.User{}).
@@ -45,11 +45,6 @@ func (s *Admin) ChangeRole(ctx context.Context, c *models.RoleChange) error {
 		}
 		return tx.Create(c).Error
 	})
-	// The user and actor rows were just read and updated, so a foreign-key
-	// failure on the audit row can only come from report_id.
-	if c.ReportID != nil && errors.Is(err, gorm.ErrForeignKeyViolated) {
-		return ErrReportNotFound
-	}
 	return err
 }
 

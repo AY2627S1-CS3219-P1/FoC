@@ -14,6 +14,7 @@ type Repository interface {
 	// SoftDeleteReview removes a live review and returns it for the audit row.
 	SoftDeleteReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	RecordReviewRemoval(ctx context.Context, q *reviewdb.Queries, removal ReviewRemoval) error
+	ReviewFacts(ctx context.Context, id uuid.UUID) (Facts, error)
 	// RestoreReview undeletes a removed review and returns it.
 	RestoreReview(ctx context.Context, q *reviewdb.Queries, id uuid.UUID) (Review, error)
 	// LatestUnrestoredRemoval returns the removal a restoration answers, or

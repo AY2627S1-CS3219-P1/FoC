@@ -984,8 +984,9 @@ func TestReviewRestorationIntegration(t *testing.T) {
 }
 
 // TestListMyReviewRemovalsIntegration lists only the caller's reviews that are
-// still removed outside a report: restored reviews and report removals are
-// appealed elsewhere or not at all.
+// still removed outside a report, and checks the review facts Moderation
+// Service reads: restored reviews and report removals are appealed elsewhere
+// or not at all.
 func TestListMyReviewRemovalsIntegration(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -1042,19 +1043,18 @@ func TestListMyReviewRemovalsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Removed by a report outcome, closed at the removal's time: not listed.
-	byReport := submit("by report")
-	if err := service.RemoveReview(ctx, byReport, "report outcome", admin); err != nil {
+	// Removed by a report's outcome: appealed through the report, not listed.
+	byReport, reportID := submit("by report"), uuid.New()
+	if err := service.RemoveReviewForReport(ctx, byReport, "report outcome", reportID, admin); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sqlDB.ExecContext(ctx, `
-		INSERT INTO user_reports (reporter_id, subject_id, review_id, category, description, status,
-		                          outcome, outcome_reason, closed_at, closed_by)
-		SELECT $1, $2, $3, 'harassment', 'rude', 'closed', 'review_removal', 'upheld', rr.created_at, $4
-		FROM review_removals rr WHERE rr.review_id = $3`,
-		reviewee, reviewer, byReport, admin,
-	); err != nil {
-		t.Fatal(err)
+	facts, err := service.ReviewFacts(ctx, byReport)
+	if err != nil || !facts.Removed || facts.RemovalReportID != reportID {
+		t.Fatalf("facts of a review a report removed = %+v err=%v", facts, err)
+	}
+	facts, err = service.ReviewFacts(ctx, restored)
+	if err != nil || facts.Removed || facts.RemovalReportID != uuid.Nil {
+		t.Fatalf("facts of a restored review = %+v err=%v", facts, err)
 	}
 
 	// A live review: not listed.

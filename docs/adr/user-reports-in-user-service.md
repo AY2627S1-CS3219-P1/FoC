@@ -1,7 +1,7 @@
 # ADR: User reports live in User Service
 
 Date: 9 Nov 2026
-Status: accepted
+Status: superseded by [Reports and appeals live in Moderation Service](moderation-service.md)
 
 The backlog assigns reports and appeals to a separate Report Service (RP1–RP12).
 User Service already reserved `role_changes.report_id` and

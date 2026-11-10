@@ -42,8 +42,8 @@
 - Run `make lint` to validate lint configuration, check formatting and run the
   default golangci-lint correctness linters across the `scripts` tooling module,
   `pkg`, `user-service`,
-  `supplier-service`, `order-service`, `communication-service` and
-  `credit-service`. CI installs the tool
+  `supplier-service`, `order-service`, `communication-service`,
+  `credit-service` and `moderation-service`. CI installs the tool
   with the official action, then runs the same target for each module. The
   Makefile pins
   the tool version through `.golangci-lint-version`, also used by the official
@@ -218,6 +218,9 @@ Supplier, Order and Credit Services use sqlc:
   hand-edit generated files. Order generates one aggregate package,
   `internal/database/orderdb`, from `order-service/database/sqlc.yaml`. Credit
   generates `internal/database/creditdb` from `credit-service/database/sqlc.yaml`.
+  Moderation generates `reportdb`, `appealdb`, `evidencedb` and `outboxdb` under
+  `internal/database` from `moderation-service/database/sqlc.yaml`, using
+  `database/sql`.
 - `internal/database/utils.go`: `pgtype` converters (`ToPGDate`, ...).
 
 Order and Communication also use sqlc. Order keeps `sqlc.yaml` in `database/`

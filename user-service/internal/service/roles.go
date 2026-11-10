@@ -123,9 +123,6 @@ func (s *RoleService) ChangeUserRole(
 			if errors.Is(err, store.ErrRoleConflict) {
 				return ErrConcurrentRoleEdit
 			}
-			if errors.Is(err, store.ErrReportNotFound) {
-				return ErrReportNotFound
-			}
 			return err
 		}
 		changed = *target

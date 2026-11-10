@@ -343,12 +343,4 @@ func TestRoleChangeReportLink(t *testing.T) {
 			t.Fatalf("error = %v", err)
 		}
 	})
-
-	t.Run("unknown report maps to not found", func(t *testing.T) {
-		s, _, actorID, targetID := newService(models.RoleUser, store.ErrReportNotFound)
-		_, err := s.ChangeUserRole(context.Background(), actorID, targetID, models.RoleSuspended, "abuse", &reportID)
-		if !errors.Is(err, ErrReportNotFound) {
-			t.Fatalf("error = %v", err)
-		}
-	})
 }

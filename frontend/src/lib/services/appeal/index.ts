@@ -1,5 +1,5 @@
 import { createClient, type Transport } from '@connectrpc/connect';
-import { AppealService } from '$lib/gen/user/appeal/v1/appeal_pb';
+import { AppealService } from '$lib/gen/moderation/appeal/v1/appeal_pb';
 import { ConnectAppealApi } from './connectAppealApi.ts';
 
 export type * from './appealApi.ts';

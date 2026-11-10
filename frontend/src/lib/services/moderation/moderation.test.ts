@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
-import { EvidenceUploadGrantSchema } from '$lib/gen/user/evidence/v1/evidence_pb';
+import { EvidenceUploadGrantSchema } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import { ReviewLimitedError, ReviewRejectedError } from '$lib/services/review/reviewApi';
 import { asPhotoUploadApi } from './evidence.ts';
 import { describeModerationError } from './errors.ts';

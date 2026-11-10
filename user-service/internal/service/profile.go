@@ -22,7 +22,6 @@ var (
 	ErrInvalidRoleChange  = errs.NewBadRequestError("invalid role change")
 	ErrRoleUnchanged      = errs.NewFailedPreconditionError("role is unchanged")
 	ErrConcurrentRoleEdit = errs.NewAbortedError("role changed concurrently")
-	ErrReportNotFound     = errs.NewNotFoundError("report not found")
 )
 
 // MaxDisplayNameLength matches the users.display_name database constraint.

@@ -6,8 +6,8 @@ import {
 	ReportStatus as ProtoStatus,
 	type Report as ProtoReport,
 	type ReportResponse as ProtoReportResponse
-} from '$lib/gen/user/report/v1/report_pb';
-import type { EvidenceUploadGrant } from '$lib/gen/user/evidence/v1/evidence_pb';
+} from '$lib/gen/moderation/report/v1/report_pb';
+import type { EvidenceUploadGrant } from '$lib/gen/moderation/evidence/v1/evidence_pb';
 import {
 	enumCodec,
 	optionalDate,

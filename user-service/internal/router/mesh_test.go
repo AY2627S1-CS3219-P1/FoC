@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/internaluser"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,6 +37,7 @@ func TestRouteGroupsKeepKeysPrivateAndPreserveTestSetup(t *testing.T) {
 		protected,
 	), router.Internal(
 		authentication,
+		&internaluser.Handler{},
 	), router.Setup(
 		testHealth(),
 		authentication,
@@ -55,6 +57,13 @@ func TestRouteGroupsKeepKeysPrivateAndPreserveTestSetup(t *testing.T) {
 				}
 			} else if err != nil || len(response.Msg.Keys) != 1 {
 				t.Fatalf("internal keys unavailable: %v", err)
+			}
+			if name == "public" {
+				reads := userv1connect.NewUserInternalServiceClient(server.Client(), server.URL)
+				_, err := reads.GetUsers(ctx, connect.NewRequest(&userv1.GetUsersRequest{}))
+				if connect.CodeOf(err) != connect.CodeUnimplemented {
+					t.Fatalf("internal reads exposed publicly: %v", err)
+				}
 			}
 			health := userv1connect.NewHealthServiceClient(server.Client(), server.URL)
 			if _, err := health.Check(ctx, connect.NewRequest(&userv1.CheckRequest{})); name == "public" && err != nil {

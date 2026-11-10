@@ -125,9 +125,6 @@ func (s *Service) MarkWarningAsRemoved(
 	if errors.Is(err, ErrNotFound) {
 		return errs.WrapNotFoundError(ErrNotFound, "warning not found")
 	}
-	if errors.Is(err, ErrAppealNotFound) {
-		return errs.WrapNotFoundError(ErrAppealNotFound, "appeal not found")
-	}
 	if err != nil {
 		return fmt.Errorf("mark warning as removed: %w", err)
 	}

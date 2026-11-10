@@ -42,3 +42,17 @@ WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
 RETURNING id, user_id, request_id, report_id, reason, status, source_event_id,
           removed_at, removed_reason, appeal_id, created_at, updated_at,
           deleted_at, created_by, updated_by;
+
+-- Facts Moderation Service needs to accept an appeal of a warning.
+-- name: GetAccountWarningFacts :one
+SELECT user_id, request_id, report_id, (status = 'active')::BOOLEAN AS active
+FROM account_warnings
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- The active warning a report issued, which an overturned report outcome removes.
+-- name: ActiveWarningForReport :one
+SELECT id
+FROM account_warnings
+WHERE report_id = $1 AND status = 'active' AND deleted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1;
