@@ -3,7 +3,7 @@
 	import { authService, reviewApi } from '$lib/services';
 	import { resolve } from '$app/paths';
 	import { Icon } from 'm3-svelte';
-	import brokenImageIcon from '@ktibow/iconset-material-symbols/broken-image-outline-rounded';
+	import brokenImageIcon from '@ktibow/iconset-material-symbols/broken-image-rounded';
 	import type { ReviewPhotoRecord } from '$lib/services/review/reviewApi';
 
 	// Thumbnails of the photos attached to one review. The URLs are short-lived
@@ -24,7 +24,7 @@
 						alt={`Review photo ${index + 1}`}
 					>
 						{#snippet fallback()}
-							<Icon icon={brokenImageIcon} size={24} aria-hidden="true" />
+							<Icon icon={brokenImageIcon} size={32} aria-hidden="true" />
 						{/snippet}
 					</SignedImage>
 				</a>
