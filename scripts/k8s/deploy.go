@@ -302,7 +302,16 @@ func (o *operator) pruneReportsModeration() error {
 		"httproute/moderation-service",
 		"job/moderation-migrate",
 	} {
-		if err := o.k("-n", "foc", "delete", resource, "--ignore-not-found"); err != nil {
+		// --ignore-not-found still needs delete permission, which the release
+		// identity lacks for these kinds, so delete only what actually exists.
+		found, err := o.query("-n", "foc", "get", resource, "--ignore-not-found", "-o", "name")
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(found) == "" {
+			continue
+		}
+		if err := o.k("-n", "foc", "delete", resource); err != nil {
 			return err
 		}
 	}
