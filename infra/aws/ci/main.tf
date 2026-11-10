@@ -81,7 +81,7 @@ resource "aws_iam_role" "release" {
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
       Condition = { StringEquals = {
         "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        "token.actions.githubusercontent.com:sub" = "repo:AY2627S1-CS3219-P1/FoC:environment:aws-demo"
+        "token.actions.githubusercontent.com:sub" = "repo:AY2627S1-CS3219-P1@322586384/FoC@1378409897:environment:aws-demo"
       } }
     }]
   })
