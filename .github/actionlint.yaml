@@ -1,4 +1,3 @@
 self-hosted-runner:
   labels:
     - foc-deploy
-    - foc-local
