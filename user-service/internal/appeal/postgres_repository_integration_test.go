@@ -17,6 +17,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -75,6 +76,7 @@ func setupIntegration(t *testing.T) integration {
 				return operation(reviewQueries)
 			},
 			nil,
+			orders.UnavailableGateway{},
 		),
 	}
 	it.admin = it.user("Admin", "admin")

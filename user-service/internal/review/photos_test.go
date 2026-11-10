@@ -177,18 +177,18 @@ func (f *fakeRepository) DeleteOrphanReviewPhoto(_ context.Context, id uuid.UUID
 
 // withPhotos returns the test service with storage wired in.
 func (f *fakeRepository) withPhotos(storage PhotoStorage) *Service {
-	return &Service{repo: f, withTransaction: func(_ context.Context, operation func(*reviewdb.Queries) error) error {
-		return operation(reviewdb.New(nil))
-	}, photos: storage}
+	return newTestServiceWithPhotos(f, storage)
 }
 
 func newTestServiceWithPhotos(repo Repository, storage PhotoStorage) *Service {
+	eligible := &eligibleOrders{Repository: repo}
 	return &Service{
-		repo: repo,
+		repo: eligible,
 		withTransaction: func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 			return operation(reviewdb.New(nil))
 		},
 		photos: storage,
+		orders: eligible,
 	}
 }
 

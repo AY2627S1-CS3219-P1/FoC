@@ -51,7 +51,7 @@ func newOrderGateway(cfg config) orders.Gateway {
 }
 
 // newReviewService builds the review domain; photo storage is optional.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
+func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	var photos *images.S3
 	if cfg.s3Bucket != "" {
@@ -84,7 +84,7 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 			return err
 		}
 		return tx.Commit()
-	}, reviewStorage)
+	}, reviewStorage, orderGateway)
 	return service, photos
 }
 

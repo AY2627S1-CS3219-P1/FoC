@@ -14,6 +14,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -37,7 +38,8 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx, nil)
+	eligible := &eligibleOrders{Repository: repo}
+	return NewService(eligible, withTx, nil, eligible)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -845,7 +847,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			case <-txCtx.Done():
 				return txCtx.Err()
 			}
-		}, nil)
+		}, nil, orders.UnavailableGateway{})
 		go func() {
 			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
 		}()
