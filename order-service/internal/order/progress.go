@@ -27,7 +27,8 @@ func (p *Progress) ConfirmPickup(ctx context.Context, c Caller, id string) (Orde
 }
 
 // ConfirmReceipt moves the requester's order from Delivered to Completed. A
-// repeat by the requester returns the completed order without writing.
+// repeat of their own confirmation returns the completed order without writing.
+// An automatically completed order is no longer eligible for confirmation.
 func (p *Progress) ConfirmReceipt(ctx context.Context, c Caller, id string) (Order, error) {
 	return p.advance(ctx, c, id, ConfirmReceipt, func(o *Order, now time.Time) { o.CompletedAt = &now })
 }

@@ -66,6 +66,7 @@ func TestTransitions(t *testing.T) {
 		{Delivering, Cancel, courier, Failed},
 		{Delivering, Timeout, system, Failed},
 		{Delivered, ConfirmReceipt, requester, Completed},
+		{Delivered, AutoComplete, system, Completed},
 	}
 	statuses := []Status{
 		PendingReservation,
@@ -92,6 +93,7 @@ func TestTransitions(t *testing.T) {
 		Deliver,
 		Timeout,
 		ConfirmReceipt,
+		AutoComplete,
 		"invalid",
 	}
 	actors := []Actor{requester, courier, stranger, admin, system, {User, ""}, {ActorKind("bad"), "other"}}

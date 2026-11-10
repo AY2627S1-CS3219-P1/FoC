@@ -22,4 +22,25 @@ describe('ConnectAdminApi', () => {
 			userId: 'user-id', toRole: UserRole.SUSPENDED_USER, reason: 'policy violation'
 		});
 	});
+
+	it('reads one user profile by ID and the user counts', async () => {
+		const profile = {
+			id: 'user-id', email: 'casey@example.com', displayName: 'Casey', description: 'Hi',
+			phoneNumber: '+6591234567', role: UserRole.USER
+		};
+		const client = {
+			getUser: vi.fn(async () => ({ profile })),
+			getUserStats: vi.fn(async () => ({ activeCount: 12n, suspendedCount: 3n }))
+		} as unknown as Client<typeof UserAdminServiceDefinition>;
+		const api = new ConnectAdminApi(client);
+
+		expect(await api.getUser(' user-id ')).toEqual(profile);
+		expect(client.getUser).toHaveBeenCalledWith({ userId: 'user-id' });
+		expect(await api.getUserStats()).toEqual({ activeCount: 12n, suspendedCount: 3n });
+	});
+
+	it('rejects a user response without a profile', async () => {
+		const client = { getUser: vi.fn(async () => ({})) } as unknown as Client<typeof UserAdminServiceDefinition>;
+		await expect(new ConnectAdminApi(client).getUser('user-id')).rejects.toThrow();
+	});
 });

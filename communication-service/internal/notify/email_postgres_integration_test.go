@@ -126,7 +126,7 @@ func TestQueuedEmailSurvivesRestartAndLaterUserProjection(t *testing.T) {
 		t.Fatalf("later user event must unblock email: processed=%v err=%v", processed, err)
 	}
 	if len(mailer.sent) != 1 || mailer.sent[0].To[0] != "alice@foc.local" ||
-		!strings.HasPrefix(mailer.sent[0].TextBody, "Your order from Fine Food is complete.") {
+		!strings.HasPrefix(mailer.sent[0].TextBody, "Your order from Fine Food was completed automatically") {
 		t.Fatalf("emails = %+v", mailer.sent)
 	}
 	var pending, sent int

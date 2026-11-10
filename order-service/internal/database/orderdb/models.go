@@ -21,30 +21,31 @@ type Offer struct {
 }
 
 type Order struct {
-	ID                    uuid.UUID
-	RequesterID           uuid.UUID
-	CourierID             *uuid.UUID
-	Status                string
-	Pickup                []byte
-	Delivery              []byte
-	DeliveryInstructions  *string
-	ItemDescription       string
-	RewardCredits         int64
-	ReservedCredits       int64
-	DeliveryDurationNs    int64
-	ExpiresAt             time.Time
-	AssignedAt            *time.Time
-	PickedUpAt            *time.Time
-	DeliveredAt           *time.Time
-	CompletedAt           *time.Time
-	ClosedAt              *time.Time
-	CloseReason           *string
-	ItemLocation          *string
-	UnattendedDelivery    bool
-	Revision              int64
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	PendingCancellationID *uuid.UUID
+	ID                     uuid.UUID
+	RequesterID            uuid.UUID
+	CourierID              *uuid.UUID
+	Status                 string
+	Pickup                 []byte
+	Delivery               []byte
+	DeliveryInstructions   *string
+	ItemDescription        string
+	RewardCredits          int64
+	ReservedCredits        int64
+	DeliveryDurationNs     int64
+	ExpiresAt              time.Time
+	AssignedAt             *time.Time
+	PickedUpAt             *time.Time
+	DeliveredAt            *time.Time
+	CompletedAt            *time.Time
+	ClosedAt               *time.Time
+	CloseReason            *string
+	ItemLocation           *string
+	UnattendedDelivery     bool
+	Revision               int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	PendingCancellationID  *uuid.UUID
+	AutomaticallyCompleted bool
 }
 
 type OrderAssignmentAttempt struct {

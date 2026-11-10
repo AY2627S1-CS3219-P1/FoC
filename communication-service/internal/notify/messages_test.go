@@ -109,7 +109,13 @@ func TestMessages(t *testing.T) {
 			s(eventsv1.OrderStatus_ORDER_STATUS_DELIVERED),
 			s(eventsv1.OrderStatus_ORDER_STATUS_COMPLETED),
 			courier,
-			"The requester confirmed receipt of the order you're delivering from Fine Food. Thanks for delivering!",
+			"The order you're delivering from Fine Food was completed automatically because the requester didn't confirm receipt in time. Thanks for delivering!",
+		},
+		{
+			s(eventsv1.OrderStatus_ORDER_STATUS_DELIVERED),
+			s(eventsv1.OrderStatus_ORDER_STATUS_COMPLETED),
+			requester,
+			"Your order from Fine Food was completed automatically because receipt wasn't confirmed in time. If something went wrong, you can report it in the FoC app.",
 		},
 		{
 			s(eventsv1.OrderStatus_ORDER_STATUS_DELIVERING),
@@ -149,6 +155,22 @@ func TestMessages(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("%s -> %s (%d) = %q, want %q", tc.previous, tc.status, tc.role, got, tc.want)
 		}
+	}
+}
+
+// A requester's confirmation tells the courier who completed it.
+func TestCompletionByRequesterMessage(t *testing.T) {
+	e := event(
+		eventsv1.OrderStatus_ORDER_STATUS_DELIVERED,
+		eventsv1.OrderStatus_ORDER_STATUS_COMPLETED,
+		user(requesterID),
+	)
+	want := "The requester confirmed receipt of the order you're delivering from Fine Food. Thanks for delivering!"
+	if got := message(e, courier); got != want {
+		t.Fatalf("courier message = %q, want %q", got, want)
+	}
+	if got := message(e, requester); got != "Your order from Fine Food is complete." {
+		t.Fatalf("requester message = %q", got)
 	}
 }
 

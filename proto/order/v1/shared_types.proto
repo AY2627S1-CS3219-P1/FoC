@@ -67,6 +67,8 @@ message Order {
   string delivery_building_name = 23;
   // Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
   bool cancellation_pending = 24;
+  // The receipt timer completed this order without requester confirmation.
+  bool automatically_completed = 25;
 }
 
 // A Supplier Location copied when the order is created, so later Location
