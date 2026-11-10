@@ -3,6 +3,7 @@ syntax = "proto3";
 package order.v1;
 
 import "buf/validate/validate.proto";
+import "google/type/date.proto";
 import "order/v1/shared_types.proto";
 
 // Administrator-only Order operations. Admins read single orders through
@@ -15,6 +16,8 @@ service OrderAdminService {
   rpc UnassignCourier(UnassignCourierRequest) returns (UnassignCourierResponse) {}
 
   rpc GetOrderStats(GetOrderStatsRequest) returns (GetOrderStatsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
+
+  rpc GetDailyOrderCounts(GetDailyOrderCountsRequest) returns (GetDailyOrderCountsResponse) { option idempotency_level = NO_SIDE_EFFECTS; }
 }
 
 // One user's orders as requester, courier or either, newest first.
@@ -65,6 +68,25 @@ message OrderStatusCount {
 // order, including statuses with no orders.
 message GetOrderStatsResponse {
   repeated OrderStatusCount status_counts = 1;
+}
+
+// An inclusive range of Asia/Singapore calendar days. The end must not precede
+// the start, and the range covers at most 366 days.
+message GetDailyOrderCountsRequest {
+  google.type.Date start_date = 1 [(buf.validate.field).required = true];
+  google.type.Date end_date = 2 [(buf.validate.field).required = true];
+}
+
+// Orders created on one Asia/Singapore calendar day.
+message DailyOrderCount {
+  google.type.Date date = 1;
+  int64 count = 2;
+}
+
+// One entry for every day in the requested range, oldest first, including days
+// with no orders.
+message GetDailyOrderCountsResponse {
+  repeated DailyOrderCount days = 1;
 }
 
 message ListUserOrdersResponse {

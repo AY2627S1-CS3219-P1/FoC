@@ -8,6 +8,7 @@ package orderv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	date "google.golang.org/genproto/googleapis/type/date"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -344,6 +345,159 @@ func (x *GetOrderStatsResponse) GetStatusCounts() []*OrderStatusCount {
 	return nil
 }
 
+// An inclusive range of Asia/Singapore calendar days. The end must not precede
+// the start, and the range covers at most 366 days.
+type GetDailyOrderCountsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartDate     *date.Date             `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	EndDate       *date.Date             `protobuf:"bytes,2,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDailyOrderCountsRequest) Reset() {
+	*x = GetDailyOrderCountsRequest{}
+	mi := &file_order_v1_admin_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDailyOrderCountsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDailyOrderCountsRequest) ProtoMessage() {}
+
+func (x *GetDailyOrderCountsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_admin_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDailyOrderCountsRequest.ProtoReflect.Descriptor instead.
+func (*GetDailyOrderCountsRequest) Descriptor() ([]byte, []int) {
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetDailyOrderCountsRequest) GetStartDate() *date.Date {
+	if x != nil {
+		return x.StartDate
+	}
+	return nil
+}
+
+func (x *GetDailyOrderCountsRequest) GetEndDate() *date.Date {
+	if x != nil {
+		return x.EndDate
+	}
+	return nil
+}
+
+// Orders created on one Asia/Singapore calendar day.
+type DailyOrderCount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          *date.Date             `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	Count         int64                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DailyOrderCount) Reset() {
+	*x = DailyOrderCount{}
+	mi := &file_order_v1_admin_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DailyOrderCount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DailyOrderCount) ProtoMessage() {}
+
+func (x *DailyOrderCount) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_admin_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DailyOrderCount.ProtoReflect.Descriptor instead.
+func (*DailyOrderCount) Descriptor() ([]byte, []int) {
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DailyOrderCount) GetDate() *date.Date {
+	if x != nil {
+		return x.Date
+	}
+	return nil
+}
+
+func (x *DailyOrderCount) GetCount() int64 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+// One entry for every day in the requested range, oldest first, including days
+// with no orders.
+type GetDailyOrderCountsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Days          []*DailyOrderCount     `protobuf:"bytes,1,rep,name=days,proto3" json:"days,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDailyOrderCountsResponse) Reset() {
+	*x = GetDailyOrderCountsResponse{}
+	mi := &file_order_v1_admin_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDailyOrderCountsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDailyOrderCountsResponse) ProtoMessage() {}
+
+func (x *GetDailyOrderCountsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_order_v1_admin_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDailyOrderCountsResponse.ProtoReflect.Descriptor instead.
+func (*GetDailyOrderCountsResponse) Descriptor() ([]byte, []int) {
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetDailyOrderCountsResponse) GetDays() []*DailyOrderCount {
+	if x != nil {
+		return x.Days
+	}
+	return nil
+}
+
 type ListUserOrdersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Orders        []*Order               `protobuf:"bytes,1,rep,name=orders,proto3" json:"orders,omitempty"`
@@ -354,7 +508,7 @@ type ListUserOrdersResponse struct {
 
 func (x *ListUserOrdersResponse) Reset() {
 	*x = ListUserOrdersResponse{}
-	mi := &file_order_v1_admin_proto_msgTypes[6]
+	mi := &file_order_v1_admin_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -366,7 +520,7 @@ func (x *ListUserOrdersResponse) String() string {
 func (*ListUserOrdersResponse) ProtoMessage() {}
 
 func (x *ListUserOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_admin_proto_msgTypes[6]
+	mi := &file_order_v1_admin_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -379,7 +533,7 @@ func (x *ListUserOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListUserOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_admin_proto_rawDescGZIP(), []int{6}
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListUserOrdersResponse) GetOrders() []*Order {
@@ -405,7 +559,7 @@ type AdminCancelOrderResponse struct {
 
 func (x *AdminCancelOrderResponse) Reset() {
 	*x = AdminCancelOrderResponse{}
-	mi := &file_order_v1_admin_proto_msgTypes[7]
+	mi := &file_order_v1_admin_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +571,7 @@ func (x *AdminCancelOrderResponse) String() string {
 func (*AdminCancelOrderResponse) ProtoMessage() {}
 
 func (x *AdminCancelOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_admin_proto_msgTypes[7]
+	mi := &file_order_v1_admin_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +584,7 @@ func (x *AdminCancelOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminCancelOrderResponse.ProtoReflect.Descriptor instead.
 func (*AdminCancelOrderResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_admin_proto_rawDescGZIP(), []int{7}
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AdminCancelOrderResponse) GetOrder() *Order {
@@ -449,7 +603,7 @@ type UnassignCourierResponse struct {
 
 func (x *UnassignCourierResponse) Reset() {
 	*x = UnassignCourierResponse{}
-	mi := &file_order_v1_admin_proto_msgTypes[8]
+	mi := &file_order_v1_admin_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +615,7 @@ func (x *UnassignCourierResponse) String() string {
 func (*UnassignCourierResponse) ProtoMessage() {}
 
 func (x *UnassignCourierResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_order_v1_admin_proto_msgTypes[8]
+	mi := &file_order_v1_admin_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +628,7 @@ func (x *UnassignCourierResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnassignCourierResponse.ProtoReflect.Descriptor instead.
 func (*UnassignCourierResponse) Descriptor() ([]byte, []int) {
-	return file_order_v1_admin_proto_rawDescGZIP(), []int{8}
+	return file_order_v1_admin_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UnassignCourierResponse) GetOrder() *Order {
@@ -488,7 +642,7 @@ var File_order_v1_admin_proto protoreflect.FileDescriptor
 
 const file_order_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x14order/v1/admin.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1border/v1/shared_types.proto\"\xf1\x01\n" +
+	"\x14order/v1/admin.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x16google/type/date.proto\x1a\x1border/v1/shared_types.proto\"\xf1\x01\n" +
 	"\x15ListUserOrdersRequest\x12!\n" +
 	"\auser_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x06userId\x127\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x19.order.v1.ParticipantRoleB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04role\x127\n" +
@@ -508,19 +662,29 @@ const file_order_v1_admin_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\x0e2\x15.order.v1.OrderStatusR\x06status\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x03R\x05count\"X\n" +
 	"\x15GetOrderStatsResponse\x12?\n" +
-	"\rstatus_counts\x18\x01 \x03(\v2\x1a.order.v1.OrderStatusCountR\fstatusCounts\"r\n" +
+	"\rstatus_counts\x18\x01 \x03(\v2\x1a.order.v1.OrderStatusCountR\fstatusCounts\"\x8c\x01\n" +
+	"\x1aGetDailyOrderCountsRequest\x128\n" +
+	"\n" +
+	"start_date\x18\x01 \x01(\v2\x11.google.type.DateB\x06\xbaH\x03\xc8\x01\x01R\tstartDate\x124\n" +
+	"\bend_date\x18\x02 \x01(\v2\x11.google.type.DateB\x06\xbaH\x03\xc8\x01\x01R\aendDate\"N\n" +
+	"\x0fDailyOrderCount\x12%\n" +
+	"\x04date\x18\x01 \x01(\v2\x11.google.type.DateR\x04date\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x03R\x05count\"L\n" +
+	"\x1bGetDailyOrderCountsResponse\x12-\n" +
+	"\x04days\x18\x01 \x03(\v2\x19.order.v1.DailyOrderCountR\x04days\"r\n" +
 	"\x16ListUserOrdersResponse\x12'\n" +
 	"\x06orders\x18\x01 \x03(\v2\x0f.order.v1.OrderR\x06orders\x12/\n" +
 	"\tpage_info\x18\x02 \x01(\v2\x12.order.v1.PageInfoR\bpageInfo\"A\n" +
 	"\x18AdminCancelOrderResponse\x12%\n" +
 	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order\"@\n" +
 	"\x17UnassignCourierResponse\x12%\n" +
-	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\xfe\x02\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.order.v1.OrderR\x05order2\xe7\x03\n" +
 	"\x11OrderAdminService\x12X\n" +
 	"\x0eListUserOrders\x12\x1f.order.v1.ListUserOrdersRequest\x1a .order.v1.ListUserOrdersResponse\"\x03\x90\x02\x01\x12^\n" +
 	"\x10AdminCancelOrder\x12!.order.v1.AdminCancelOrderRequest\x1a\".order.v1.AdminCancelOrderResponse\"\x03\x90\x02\x02\x12X\n" +
 	"\x0fUnassignCourier\x12 .order.v1.UnassignCourierRequest\x1a!.order.v1.UnassignCourierResponse\"\x00\x12U\n" +
-	"\rGetOrderStats\x12\x1e.order.v1.GetOrderStatsRequest\x1a\x1f.order.v1.GetOrderStatsResponse\"\x03\x90\x02\x01B\x97\x01\n" +
+	"\rGetOrderStats\x12\x1e.order.v1.GetOrderStatsRequest\x1a\x1f.order.v1.GetOrderStatsResponse\"\x03\x90\x02\x01\x12g\n" +
+	"\x13GetDailyOrderCounts\x12$.order.v1.GetDailyOrderCountsRequest\x1a%.order.v1.GetDailyOrderCountsResponse\"\x03\x90\x02\x01B\x97\x01\n" +
 	"\fcom.order.v1B\n" +
 	"AdminProtoP\x01Z:github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
 
@@ -536,44 +700,54 @@ func file_order_v1_admin_proto_rawDescGZIP() []byte {
 	return file_order_v1_admin_proto_rawDescData
 }
 
-var file_order_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_order_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_order_v1_admin_proto_goTypes = []any{
-	(*ListUserOrdersRequest)(nil),    // 0: order.v1.ListUserOrdersRequest
-	(*AdminCancelOrderRequest)(nil),  // 1: order.v1.AdminCancelOrderRequest
-	(*UnassignCourierRequest)(nil),   // 2: order.v1.UnassignCourierRequest
-	(*GetOrderStatsRequest)(nil),     // 3: order.v1.GetOrderStatsRequest
-	(*OrderStatusCount)(nil),         // 4: order.v1.OrderStatusCount
-	(*GetOrderStatsResponse)(nil),    // 5: order.v1.GetOrderStatsResponse
-	(*ListUserOrdersResponse)(nil),   // 6: order.v1.ListUserOrdersResponse
-	(*AdminCancelOrderResponse)(nil), // 7: order.v1.AdminCancelOrderResponse
-	(*UnassignCourierResponse)(nil),  // 8: order.v1.UnassignCourierResponse
-	(ParticipantRole)(0),             // 9: order.v1.ParticipantRole
-	(OrderStatus)(0),                 // 10: order.v1.OrderStatus
-	(*Order)(nil),                    // 11: order.v1.Order
-	(*PageInfo)(nil),                 // 12: order.v1.PageInfo
+	(*ListUserOrdersRequest)(nil),       // 0: order.v1.ListUserOrdersRequest
+	(*AdminCancelOrderRequest)(nil),     // 1: order.v1.AdminCancelOrderRequest
+	(*UnassignCourierRequest)(nil),      // 2: order.v1.UnassignCourierRequest
+	(*GetOrderStatsRequest)(nil),        // 3: order.v1.GetOrderStatsRequest
+	(*OrderStatusCount)(nil),            // 4: order.v1.OrderStatusCount
+	(*GetOrderStatsResponse)(nil),       // 5: order.v1.GetOrderStatsResponse
+	(*GetDailyOrderCountsRequest)(nil),  // 6: order.v1.GetDailyOrderCountsRequest
+	(*DailyOrderCount)(nil),             // 7: order.v1.DailyOrderCount
+	(*GetDailyOrderCountsResponse)(nil), // 8: order.v1.GetDailyOrderCountsResponse
+	(*ListUserOrdersResponse)(nil),      // 9: order.v1.ListUserOrdersResponse
+	(*AdminCancelOrderResponse)(nil),    // 10: order.v1.AdminCancelOrderResponse
+	(*UnassignCourierResponse)(nil),     // 11: order.v1.UnassignCourierResponse
+	(ParticipantRole)(0),                // 12: order.v1.ParticipantRole
+	(OrderStatus)(0),                    // 13: order.v1.OrderStatus
+	(*date.Date)(nil),                   // 14: google.type.Date
+	(*Order)(nil),                       // 15: order.v1.Order
+	(*PageInfo)(nil),                    // 16: order.v1.PageInfo
 }
 var file_order_v1_admin_proto_depIdxs = []int32{
-	9,  // 0: order.v1.ListUserOrdersRequest.role:type_name -> order.v1.ParticipantRole
-	10, // 1: order.v1.ListUserOrdersRequest.status:type_name -> order.v1.OrderStatus
-	10, // 2: order.v1.OrderStatusCount.status:type_name -> order.v1.OrderStatus
+	12, // 0: order.v1.ListUserOrdersRequest.role:type_name -> order.v1.ParticipantRole
+	13, // 1: order.v1.ListUserOrdersRequest.status:type_name -> order.v1.OrderStatus
+	13, // 2: order.v1.OrderStatusCount.status:type_name -> order.v1.OrderStatus
 	4,  // 3: order.v1.GetOrderStatsResponse.status_counts:type_name -> order.v1.OrderStatusCount
-	11, // 4: order.v1.ListUserOrdersResponse.orders:type_name -> order.v1.Order
-	12, // 5: order.v1.ListUserOrdersResponse.page_info:type_name -> order.v1.PageInfo
-	11, // 6: order.v1.AdminCancelOrderResponse.order:type_name -> order.v1.Order
-	11, // 7: order.v1.UnassignCourierResponse.order:type_name -> order.v1.Order
-	0,  // 8: order.v1.OrderAdminService.ListUserOrders:input_type -> order.v1.ListUserOrdersRequest
-	1,  // 9: order.v1.OrderAdminService.AdminCancelOrder:input_type -> order.v1.AdminCancelOrderRequest
-	2,  // 10: order.v1.OrderAdminService.UnassignCourier:input_type -> order.v1.UnassignCourierRequest
-	3,  // 11: order.v1.OrderAdminService.GetOrderStats:input_type -> order.v1.GetOrderStatsRequest
-	6,  // 12: order.v1.OrderAdminService.ListUserOrders:output_type -> order.v1.ListUserOrdersResponse
-	7,  // 13: order.v1.OrderAdminService.AdminCancelOrder:output_type -> order.v1.AdminCancelOrderResponse
-	8,  // 14: order.v1.OrderAdminService.UnassignCourier:output_type -> order.v1.UnassignCourierResponse
-	5,  // 15: order.v1.OrderAdminService.GetOrderStats:output_type -> order.v1.GetOrderStatsResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	14, // 4: order.v1.GetDailyOrderCountsRequest.start_date:type_name -> google.type.Date
+	14, // 5: order.v1.GetDailyOrderCountsRequest.end_date:type_name -> google.type.Date
+	14, // 6: order.v1.DailyOrderCount.date:type_name -> google.type.Date
+	7,  // 7: order.v1.GetDailyOrderCountsResponse.days:type_name -> order.v1.DailyOrderCount
+	15, // 8: order.v1.ListUserOrdersResponse.orders:type_name -> order.v1.Order
+	16, // 9: order.v1.ListUserOrdersResponse.page_info:type_name -> order.v1.PageInfo
+	15, // 10: order.v1.AdminCancelOrderResponse.order:type_name -> order.v1.Order
+	15, // 11: order.v1.UnassignCourierResponse.order:type_name -> order.v1.Order
+	0,  // 12: order.v1.OrderAdminService.ListUserOrders:input_type -> order.v1.ListUserOrdersRequest
+	1,  // 13: order.v1.OrderAdminService.AdminCancelOrder:input_type -> order.v1.AdminCancelOrderRequest
+	2,  // 14: order.v1.OrderAdminService.UnassignCourier:input_type -> order.v1.UnassignCourierRequest
+	3,  // 15: order.v1.OrderAdminService.GetOrderStats:input_type -> order.v1.GetOrderStatsRequest
+	6,  // 16: order.v1.OrderAdminService.GetDailyOrderCounts:input_type -> order.v1.GetDailyOrderCountsRequest
+	9,  // 17: order.v1.OrderAdminService.ListUserOrders:output_type -> order.v1.ListUserOrdersResponse
+	10, // 18: order.v1.OrderAdminService.AdminCancelOrder:output_type -> order.v1.AdminCancelOrderResponse
+	11, // 19: order.v1.OrderAdminService.UnassignCourier:output_type -> order.v1.UnassignCourierResponse
+	5,  // 20: order.v1.OrderAdminService.GetOrderStats:output_type -> order.v1.GetOrderStatsResponse
+	8,  // 21: order.v1.OrderAdminService.GetDailyOrderCounts:output_type -> order.v1.GetDailyOrderCountsResponse
+	17, // [17:22] is the sub-list for method output_type
+	12, // [12:17] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_order_v1_admin_proto_init() }
@@ -588,7 +762,7 @@ func file_order_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_order_v1_admin_proto_rawDesc), len(file_order_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
