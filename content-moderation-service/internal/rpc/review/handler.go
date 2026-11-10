@@ -35,7 +35,10 @@ func (h *OwnerHandler) GetReviewModerationJobsForReviewer(
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errs.NewBadRequestError("invalid reviewer_id"))
 	}
-	if !caller.Admin && caller.ID != reviewerID.String() {
+	// Parse both identities so formatting differences in the token cannot
+	// deny an owner access to their own jobs.
+	callerID, callerErr := uuid.Parse(caller.ID)
+	if !caller.Admin && (callerErr != nil || callerID != reviewerID) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errs.NewForbiddenError("permission denied"))
 	}
 

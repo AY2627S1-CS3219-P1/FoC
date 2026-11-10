@@ -21,6 +21,10 @@ type readFake struct {
 	offersCaller Caller
 	offersID     string
 	offersStatus OfferStatus
+	counts       map[Status]int64
+	counted      bool
+	dayCounts    map[Date]int64
+	dayRange     [2]time.Time
 }
 
 func (f *readFake) Get(_ context.Context, id string) (Order, error) {
@@ -38,6 +42,16 @@ func (f *readFake) List(_ context.Context, q ReadQuery) (OrderPage, error) {
 func (f *readFake) Offers(_ context.Context, caller Caller, id string, status OfferStatus) ([]Offer, error) {
 	f.offersCaller, f.offersID, f.offersStatus = caller, id, status
 	return f.offers, f.offersErr
+}
+
+func (f *readFake) CountByStatus(context.Context) (map[Status]int64, error) {
+	f.counted = true
+	return f.counts, nil
+}
+
+func (f *readFake) CountByDay(_ context.Context, from, to time.Time) (map[Date]int64, error) {
+	f.dayRange = [2]time.Time{from, to}
+	return f.dayCounts, nil
 }
 
 func strptr(v string) *string { return &v }
@@ -247,5 +261,82 @@ func TestOfferQueryIsForwardedToReader(t *testing.T) {
 		ErrInvalid,
 	) {
 		t.Fatalf("invalid offer status error = %v", err)
+	}
+}
+
+func TestCountOrdersByStatusRequiresAdmin(t *testing.T) {
+	f := &readFake{counts: map[Status]int64{AwaitingCourier: 3}}
+	s := NewService(f)
+
+	if _, err := s.CountOrdersByStatus(context.Background(), Caller{ID: "u"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-admin error = %v", err)
+	}
+	if f.counted {
+		t.Fatal("reader called for non-admin")
+	}
+
+	got, err := s.CountOrdersByStatus(context.Background(), Caller{ID: "a", Admin: true})
+	if err != nil || !reflect.DeepEqual(got, f.counts) {
+		t.Fatalf("admin counts = (%v, %v)", got, err)
+	}
+}
+
+func TestCountOrdersByDay(t *testing.T) {
+	admin := Caller{ID: "a", Admin: true}
+	ctx := context.Background()
+	start, end := Date{2026, time.February, 27}, Date{2026, time.March, 2}
+
+	f := &readFake{dayCounts: map[Date]int64{{2026, time.February, 28}: 4, {2026, time.March, 2}: 1}}
+	s := NewService(f)
+	if _, err := s.CountOrdersByDay(ctx, Caller{ID: "u"}, start, end); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-admin error = %v", err)
+	}
+
+	invalid := []struct {
+		name       string
+		start, end Date
+	}{
+		{"end before start", end, start},
+		{"not a calendar day", Date{2026, time.February, 30}, end},
+		{"zero date", Date{}, end},
+		{"over 366 days", Date{2025, time.January, 1}, Date{2026, time.January, 2}},
+	}
+	for _, c := range invalid {
+		if _, err := s.CountOrdersByDay(ctx, admin, c.start, c.end); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s error = %v", c.name, err)
+		}
+	}
+	if !f.dayRange[0].IsZero() {
+		t.Fatal("reader called for an invalid request")
+	}
+
+	got, err := s.CountOrdersByDay(ctx, admin, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []DailyCount{
+		{Date{2026, time.February, 27}, 0},
+		{Date{2026, time.February, 28}, 4},
+		{Date{2026, time.March, 1}, 0},
+		{Date{2026, time.March, 2}, 1},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("days = %v, want %v", got, want)
+	}
+
+	// The range is half-open over Singapore midnights.
+	from := time.Date(2026, time.February, 26, 16, 0, 0, 0, time.UTC)
+	to := time.Date(2026, time.March, 2, 16, 0, 0, 0, time.UTC)
+	if !f.dayRange[0].Equal(from) || !f.dayRange[1].Equal(to) {
+		t.Fatalf("reader range = %v", f.dayRange)
+	}
+
+	if days, err := s.CountOrdersByDay(
+		ctx,
+		admin,
+		Date{2025, time.January, 1},
+		Date{2026, time.January, 1},
+	); err != nil || len(days) != MaxDailyRange {
+		t.Fatalf("366-day range = %d days, %v", len(days), err)
 	}
 }

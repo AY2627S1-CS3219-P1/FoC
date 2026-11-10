@@ -16,6 +16,7 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/router"
 	accountrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/account"
+	adminrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/admin"
 	healthrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/health"
 	reservationrpc "github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/rpc/reservation"
 	"github.com/AY2627S1-CS3219-P1/FoC/credit-service/internal/testsupport/postgres"
@@ -28,6 +29,7 @@ import (
 	userseventsv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,6 +39,7 @@ import (
 type credit struct {
 	reservations creditv1connect.CreditReservationServiceClient
 	accounts     creditv1connect.CreditAccountServiceClient
+	admin        creditv1connect.CreditAdminServiceClient
 	outcomes     *events.Outcomes
 	users        *events.Users
 }
@@ -51,10 +54,11 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	services := router.RPCServices{
 		Health:      &healthrpc.Checker{DB: pool},
 		Account:     &accountrpc.Server{Accounts: accounts},
+		Admin:       &adminrpc.Server{Totals: accountStore, Volumes: account.NewVolumes(accountStore)},
 		Reservation: &reservationrpc.Server{Reservations: reservations},
 	}
 	authenticate := httpauth.AuthenticateLocal(func(token string) (auth.Caller, error) {
-		return auth.Caller{ID: token}, nil
+		return auth.Caller{ID: token, Admin: true}, nil
 	})
 
 	public := httptest.NewServer(router.Public(services, authenticate))
@@ -65,6 +69,7 @@ func startCredit(t *testing.T, pool *pgxpool.Pool) credit {
 	return credit{
 		reservations: creditv1connect.NewCreditReservationServiceClient(http.DefaultClient, internal.URL),
 		accounts:     creditv1connect.NewCreditAccountServiceClient(http.DefaultClient, public.URL),
+		admin:        creditv1connect.NewCreditAdminServiceClient(http.DefaultClient, public.URL),
 		outcomes:     &events.Outcomes{Settler: reservations, Backoff: 10 * time.Millisecond},
 		users:        &events.Users{Opener: accounts},
 	}
@@ -243,4 +248,102 @@ func equalKinds(a, b []creditv1.LedgerEntryKind) bool {
 		}
 	}
 	return true
+}
+
+func TestCreditTotalsOverPostgres(t *testing.T) {
+	pool := postgres.Setup(t)
+	c := startCredit(t, pool)
+	ctx := context.Background()
+	reserve := func(order, requester string, amount int64) {
+		t.Helper()
+		_, err := c.reservations.Reserve(ctx, connect.NewRequest(
+			&creditv1.ReserveRequest{RequestId: order, RequesterId: requester, Amount: amount},
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Completed: half of a 30-credit offer is paid and half returned.
+	completed, requester, courier := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	reserve(completed, requester, 30)
+	_, err := c.reservations.AdjustReservation(ctx, connect.NewRequest(&creditv1.AdjustReservationRequest{
+		RequestId:   completed,
+		OfferId:     uuid.NewString(),
+		CourierId:   courier,
+		OfferAmount: 30,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	err = c.outcomes.Handle(ctx, kafka.Metadata{Topic: events.OrderOutcomeTopic}, &ordereventsv1.OrderOutcome{
+		EventId:          uuid.NewString(),
+		OrderId:          completed,
+		Outcome:          ordereventsv1.OrderOutcomeType_ORDER_OUTCOME_TYPE_COMPLETED,
+		RequesterId:      requester,
+		CourierId:        proto.String(courier),
+		ReservedCredits:  30,
+		DeliveryDuration: durationpb.New(time.Hour),
+		PickedUpAt:       timestamppb.New(picked),
+		DeliveredAt:      timestamppb.New(picked.Add(90 * time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Released: all 10 credits are returned.
+	released := uuid.NewString()
+	reserve(released, requester, 10)
+	_, err = c.reservations.ReleaseReservation(ctx, connect.NewRequest(&creditv1.ReleaseReservationRequest{
+		RequestId: released,
+		Reason:    creditv1.ReleaseReason_RELEASE_REASON_CANCELLED_BEFORE_PICKUP,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Held: 7 credits stay reserved.
+	reserve(uuid.NewString(), uuid.NewString(), 7)
+
+	res, err := c.admin.GetCreditTotals(ctx, withBearer(&creditv1.GetCreditTotalsRequest{}, uuid.NewString()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := res.Msg; m.GetReserved() != 7 || m.GetReturned() != 25 || m.GetTransferred() != 15 {
+		t.Fatalf("totals: %v", m)
+	}
+
+	// Payouts are recorded at settlement, which is now. Requester-side PAYOUT
+	// entries record the same payment and are not counted again.
+	today := time.Now().In(time.FixedZone("Asia/Singapore", 8*60*60))
+	yesterday := today.AddDate(0, 0, -1)
+	daily, err := c.admin.GetDailyTransactionVolume(
+		ctx,
+		withBearer(&creditv1.GetDailyTransactionVolumeRequest{
+			StartDate: &date.Date{
+				Year:  int32(yesterday.Year()),
+				Month: int32(yesterday.Month()),
+				Day:   int32(yesterday.Day()),
+			},
+			EndDate: &date.Date{Year: int32(today.Year()), Month: int32(today.Month()), Day: int32(today.Day())},
+		}, uuid.NewString()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One day holds the payment and the other is filled with zeros, whichever
+	// side of midnight the settlement fell on.
+	days := daily.Msg.GetDays()
+	var credits, payments, emptyDays int64
+	for _, d := range days {
+		credits += d.GetCreditsTransferred()
+		payments += d.GetPaymentCount()
+		if d.GetPaymentCount() == 0 {
+			emptyDays++
+		}
+	}
+	if len(days) != 2 || credits != 15 || payments != 1 || emptyDays != 1 {
+		t.Fatalf("daily volume: %v", days)
+	}
 }
