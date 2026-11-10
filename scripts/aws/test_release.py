@@ -383,7 +383,7 @@ class ReleaseRBACContractTest(unittest.TestCase):
         role = next(obj for obj in objects if obj["kind"] == "Role" and obj["metadata"]["namespace"] == "foc")
         secrets = next(rule for rule in role["rules"] if "secrets" in rule["resources"])
         self.assertEqual(secrets["verbs"], ["get"])
-        self.assertTrue({"moderation-db", "moderation-llm"}.issubset(secrets["resourceNames"]))
+        self.assertTrue({"moderation-db", "reports-moderation-db", "moderation-llm"}.issubset(secrets["resourceNames"]))
         self.assertNotIn("rds-provision-admin", secrets["resourceNames"])
 
     def test_logging_access_is_namespace_scoped_and_preserves_admin_rbac(self):

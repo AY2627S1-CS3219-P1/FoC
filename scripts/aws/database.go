@@ -12,7 +12,27 @@ import (
 	"strings"
 )
 
-var services = []string{"user", "supplier", "order", "credit", "communication", "moderation"}
+var services = []string{"user", "supplier", "order", "credit", "communication", "moderation", "reports-moderation"}
+
+// serviceSQLName is the service's PostgreSQL identifier stem; Secret and
+// workload names keep the hyphenated service name.
+func serviceSQLName(service string) string {
+	return strings.ReplaceAll(service, "-", "_")
+}
+
+// serviceWorkloads names the Deployment and migration Job that use a service's
+// database. "moderation" is the content moderation service; "reports-moderation"
+// is the reports and appeals moderation service.
+func serviceWorkloads(service string) (deployment, job string) {
+	switch service {
+	case "moderation":
+		return "content-moderation-service", "moderation-migrate"
+	case "reports-moderation":
+		return "moderation-service", "reports-moderation-migrate"
+	default:
+		return service + "-service", service + "-migrate"
+	}
+}
 
 func (a *application) prepareDatabase(config, admin map[string]any, directory string) error {
 	directory, err := privatePath(a.root, directory)
@@ -54,8 +74,8 @@ func (a *application) prepareDatabase(config, admin map[string]any, directory st
 				return errors.New("cannot generate database credentials")
 			}
 			password := base64.RawURLEncoding.EncodeToString(raw)
-			username := "foc_" + service
-			database := service + "_db"
+			username := "foc_" + serviceSQLName(service)
+			database := serviceSQLName(service) + "_db"
 			query := url.Values{"sslmode": {"verify-full"}, "sslrootcert": {"/var/run/foc/rds/global-bundle.pem"}}
 			connection := url.URL{
 				Scheme:   "postgresql",

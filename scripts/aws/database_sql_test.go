@@ -80,13 +80,13 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		}
 	}
 	output, err := sql(
-		"SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database WHERE datname IN ('user_db','supplier_db','order_db','credit_db','communication_db','moderation_db');",
+		"SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database WHERE datname IN ('user_db','supplier_db','order_db','credit_db','communication_db','moderation_db','reports_moderation_db');",
 		"fixture_owner",
 	)
 	if err != nil {
 		t.Fatal(output)
 	}
-	for _, expected := range []string{"user_db:foc_user", "supplier_db:foc_supplier", "order_db:foc_order", "credit_db:foc_credit", "communication_db:foc_communication", "moderation_db:foc_moderation"} {
+	for _, expected := range []string{"user_db:foc_user", "supplier_db:foc_supplier", "order_db:foc_order", "credit_db:foc_credit", "communication_db:foc_communication", "moderation_db:foc_moderation", "reports_moderation_db:foc_reports_moderation"} {
 		if !strings.Contains(output, expected) {
 			t.Fatal("service database has wrong owner")
 		}
@@ -112,6 +112,6 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		t.Fatal(output)
 	}
 	t.Log(
-		"PASS: real PostgreSQL non-superuser created six owned databases, retried, rejected wrong ownership, and removed temporary privileges",
+		"PASS: real PostgreSQL non-superuser created every owned service database, retried, rejected wrong ownership, and removed temporary privileges",
 	)
 }

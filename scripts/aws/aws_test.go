@@ -214,8 +214,8 @@ func TestDatabaseCredentialRetryAndProvisioningContract(t *testing.T) {
 			}
 		}
 	}
-	if count != 6 {
-		t.Fatalf("got %d database credentials, want six", count)
+	if count != len(services) {
+		t.Fatalf("got %d database credentials, want %d", count, len(services))
 	}
 	info, err := os.Stat(filepath.Join(directory, "secrets.json"))
 	if err != nil || info.Mode().Perm() != 0600 {
@@ -284,11 +284,8 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 			t.Fatalf("got %d application image names, want nine", len(images))
 		}
 		for _, service := range services {
-			deployment := service + "-service"
-			if service == "moderation" {
-				deployment = "content-moderation-service"
-			}
-			for _, pair := range [][2]string{{"Deployment", deployment}, {"Job", service + "-migrate"}} {
+			deployment, job := serviceWorkloads(service)
+			for _, pair := range [][2]string{{"Deployment", deployment}, {"Job", job}} {
 				containers := array(podSpec(namedManifest(t, objects, pair[0], pair[1]))["containers"])
 				if len(containers) != 1 ||
 					!strings.Contains(compactJSON(object(containers[0])["volumeMounts"]), "/var/run/foc/rds") {
@@ -383,7 +380,7 @@ func assertRenderedAWSContracts(t *testing.T, objects []map[string]any, config m
 		t.Fatal("Order workload role changed")
 	}
 	values := object(namedManifest(t, objects, "ConfigMap", "foc-config")["data"])
-	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
+	for _, key := range append([]string{"PUBLIC_REPORTS_MODERATION_SERVICE_URL"}, browserOriginKeys...) {
 		if values[key] != "https://"+stringValue(config, "public_hostname") {
 			t.Fatalf("wrong public origin: %s", key)
 		}
