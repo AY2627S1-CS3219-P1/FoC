@@ -19,6 +19,14 @@ RPC that aggregates its own PostgreSQL tables on request:
   lifetime of all reservations (A1.6–A1.8). It is mounted on the authenticated
   public listener, never the internal listener.
 
+Daily series follow the same pattern. `OrderAdminService.GetDailyOrderCounts`
+counts orders created per day, and `CreditAdminService.GetDailyTransactionVolume`
+sums credits paid to couriers and counts those payments per day. Both take an
+inclusive date range of at most 366 days, bucket days from midnight to midnight
+in Asia/Singapore, and return every day in the range, including empty ones. Each
+service indexes the timestamp it scans, so a range query reads only the rows in
+that range.
+
 Reports, appeals and administrative credit adjustments (A1.2, A1.3, A1.10,
 A1.11, A1.13) have no owning implementation yet. Their dashboard panels are
 deferred until the Report Service and the adjustment ledger kind exist; each
@@ -44,6 +52,8 @@ Neither store helps the single-record views: they must come from the owning
 service so privacy rules such as fail-closed admin delivery details
 (`docs/plans/delivery-proof.md` D6) stay in one place.
 
-Revisit this if the dashboard needs historical trends, or if the aggregates
-measurably load the transactional databases. Prefer a PostgreSQL read replica
+The daily series did not change this choice: a bounded, indexed range grouped
+by day is still a small query for PostgreSQL at this scale. Revisit it if
+trend queries need ranges or dimensions that indexes cannot keep cheap, or if
+the aggregates measurably load the transactional databases. Prefer a PostgreSQL read replica
 or materialized view before introducing a new datastore.
