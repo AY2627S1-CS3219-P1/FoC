@@ -74,7 +74,9 @@ jobs:
           else
             # Keep the deploy green when the repository secret is not configured;
             # the operator preserves non-empty files and fails on empty ones.
-            openssl rand -hex 32 > .local/k8s/secrets/grafana-password
+            # Command substitution strips the trailing newline that would
+            # otherwise flow into the Secret and break the seeded login.
+            printf '%s' "$(openssl rand -hex 32)" > .local/k8s/secrets/grafana-password
           fi
           chmod 600 .local/k8s/secrets/grafana-user .local/k8s/secrets/grafana-password
         env:
