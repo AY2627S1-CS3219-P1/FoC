@@ -1,5 +1,9 @@
 import { ReviewLimitedError, ReviewRejectedError, type ReviewPhotoGrant, type ReviewPhotoUploadAPI } from '$lib/services/review/reviewApi';
 import { MAX_IMAGE_BYTES, isAcceptedImageType } from '$lib/features/image-upload/limits';
+import { couldBeHeic, transcodeHeicFile } from '$lib/features/image-upload/heic';
+
+/** Converts a picked file into the bytes the review photos storage receives. */
+export type PhotoTranscoder = (file: File) => Promise<File>;
 
 export type ReviewPhotoOutcome = 'Not Submitted' | 'Pending' | 'Succeeded' | 'Rejected' | 'Failed';
 export type ReviewPhotoRow = {
@@ -60,7 +64,8 @@ export class ReviewPhotosController {
 		private api: ReviewPhotoUploadAPI,
 		private changed: (snapshot: ReviewPhotosSnapshot) => void,
 		private put: PutPhoto = putPhoto,
-		private autoUpload = true
+		private autoUpload = true,
+		private transcode: PhotoTranscoder = transcodeHeicFile
 	) {}
 
 	snapshot(): ReviewPhotosSnapshot {
@@ -175,6 +180,15 @@ export class ReviewPhotosController {
 				this.publish();
 				try {
 					row.uploadRequested = true;
+					// iPhone photos arrive as HEIC/HEIF, which non-Apple browsers
+					// cannot display, so they upload as JPEG instead. A file the
+					// decoder cannot read keeps its original bytes and uploads as
+					// before. Swapping the row file lets the preview show what
+					// reviewers will see.
+					if (couldBeHeic(row.file.type)) {
+						row.file = await this.transcode(row.file);
+						this.publish();
+					}
 					const grant = await this.bounded((signal) => this.api.createPhotoUpload({
 						contentType: row.file.type,
 						sizeBytes: row.file.size
