@@ -30,6 +30,7 @@ sql:
     engine: "postgresql"
     queries:
       - "query/reviews.sql"
+      - "query/review_moderation.sql"
       - "query/review_photos.sql"
     schema: "../migrations"
     gen:

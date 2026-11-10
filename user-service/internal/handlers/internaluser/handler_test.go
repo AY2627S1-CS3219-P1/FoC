@@ -21,14 +21,18 @@ import (
 
 type usersStub struct{ users []models.User }
 
-func (s usersStub) ListByIDs(context.Context, []uuid.UUID) ([]models.User, error) { return s.users, nil }
+func (s usersStub) ListByIDs(context.Context, []uuid.UUID) ([]models.User, error) {
+	return s.users, nil
+}
 
 type reviewsStub struct {
 	facts review.Facts
 	err   error
 }
 
-func (s reviewsStub) ReviewFacts(context.Context, uuid.UUID) (review.Facts, error) { return s.facts, s.err }
+func (s reviewsStub) ReviewFacts(context.Context, uuid.UUID) (review.Facts, error) {
+	return s.facts, s.err
+}
 
 type warningsStub struct {
 	facts warning.Facts

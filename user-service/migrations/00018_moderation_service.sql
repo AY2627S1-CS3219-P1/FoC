@@ -35,7 +35,7 @@ DROP TABLE IF EXISTS moderation_outcome_events;
 DROP INDEX IF EXISTS idx_review_removals_report;
 ALTER TABLE review_removals DROP COLUMN IF EXISTS report_id;
 
--- Recreate the moderation tables as 00012, 00013 and 00015 left them, empty.
+-- Recreate the moderation tables as 00014, 00015 and 00017 left them, empty.
 
 CREATE TABLE user_reports (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/bootstrap"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
 	adminhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/health"
@@ -103,14 +105,29 @@ func main() {
 		fatal("initialize authentication", err)
 	}
 	warningLogic := newWarningService(sqlDB)
-	relay := outbox.New(persistence.UserCreatedOutbox, publisher)
-	relayDone := make(chan struct{})
-	go func() {
-		defer close(relayDone)
-		relay.Run(ctx)
-	}()
+	outcomeLogic := &moderationoutcome.Service{DB: db}
+	reviewRepo := review.NewPostgresRepository(reviewdb.New(sqlDB))
+	orderGateway := newOrderGateway(cfg)
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg, orderGateway)
+	workerCtx, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() { stopWorkers(); workers.Wait() }()
+	workers.Go(func() { outbox.New(persistence.UserCreatedOutbox, publisher).Run(workerCtx) })
+	workers.Go(func() { review.NewOutboxRelay(reviewRepo, publisher).Run(workerCtx) })
+	completions := review.NewCompletionHandler(reviewRepo, reviewTransactions(sqlDB))
+	workers.Go(func() { consumeReviewModeration(workerCtx, cfg.kafkaBrokers, completions) })
+	workers.Go(func() {
+		consume(workerCtx, cfg.kafkaBrokers, consumers{
+			warnings: &warningdomain.CourierWarningConsumer{Logic: warningLogic},
+			outcomes: &moderationoutcome.Consumer{Outcomes: outcomeLogic},
+		})
+	})
 
-	profileLogic := &service.ProfileService{Users: persistence.Users}
+	profileLogic := &service.ProfileService{
+		Users:    persistence.Users,
+		Pictures: persistence.ProfilePictures,
+		Storage:  profilePictureStorage(imageStorage),
+	}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
@@ -119,9 +136,6 @@ func main() {
 			})
 		},
 	}
-	orderGateway := newOrderGateway(cfg)
-	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg, orderGateway)
-	outcomeLogic := &moderationoutcome.Service{DB: db}
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -145,15 +159,18 @@ func main() {
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth, internalReads))
 	servers := []*http.Server{public, internal}
 
-	if reviewPhotos != nil {
-		// Orphan review photos are reaped on a minute ticker; the claim and
-		// delete steps are retryable and idempotent.
+	if imageStorage != nil {
+		// Orphan review photos and profile pictures are reaped on a minute
+		// ticker; both domains' claim/delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := profileLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "profile picture cleanup deferred", "err", err)
 				}
 				select {
 				case <-ctx.Done():
@@ -164,27 +181,13 @@ func main() {
 		}()
 	}
 
-	// The courier-warning and moderation-outcome consumers run alongside the
-	// HTTP listeners and rebuild their subscription after a transient failure,
-	// so one bad delivery cannot stall them. rootCancel() stops it during
-	// shutdown.
-	handlers := consumers{
-		warnings: &warningdomain.CourierWarningConsumer{Logic: warningLogic},
-		outcomes: &moderationoutcome.Consumer{Outcomes: outcomeLogic},
-	}
-	consumeDone := make(chan struct{})
-	go func() {
-		defer close(consumeDone)
-		consume(ctx, cfg.kafkaBrokers, handlers)
-	}()
-
 	if err := serve(ctx, servers...); err != nil {
 		fatal("serve", err)
 	}
 	stop()
 	rootCancel()
-	<-consumeDone
-	<-relayDone
+	stopWorkers()
+	workers.Wait()
 }
 
 // serve runs every server until ctx ends or one of them stops, then shuts

@@ -72,17 +72,7 @@ func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*
 	if photos != nil {
 		reviewStorage = photos
 	}
-	service := review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
-		tx, err := sqlDB.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback() }()
-		if err := operation(reviewdb.New(tx)); err != nil {
-			return err
-		}
-		return tx.Commit()
-	}, reviewStorage, orderGateway)
+	service := review.NewService(repo, reviewTransactions(sqlDB), reviewStorage, orderGateway)
 	return service, photos
 }
 
@@ -183,4 +173,27 @@ func getCorsConfig(allowedOrigin string) *cors.Cors {
 			"Grpc-Status-Details-Bin",
 		},
 	})
+}
+
+// profilePictureStorage keeps a true nil interface when storage is absent;
+// a typed nil *images.S3 would bypass the service's nil checks.
+func profilePictureStorage(storage *images.S3) service.ProfilePictureStorage {
+	if storage == nil {
+		return nil
+	}
+	return storage
+}
+
+func reviewTransactions(sqlDB *sql.DB) review.WithTransaction {
+	return func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := operation(reviewdb.New(tx)); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
 }

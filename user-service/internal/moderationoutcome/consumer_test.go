@@ -102,9 +102,9 @@ func TestConsumerRemovesAReportWarningThroughItsReport(t *testing.T) {
 
 func TestConsumerAcknowledgesMalformedEvents(t *testing.T) {
 	for name, e := range map[string]*eventsv1.OutcomeRequested{
-		"nil":            nil,
-		"no action":      event(func(*eventsv1.OutcomeRequested) {}),
-		"bad event id":   event(func(e *eventsv1.OutcomeRequested) { e.EventId = "nope" }),
+		"nil":          nil,
+		"no action":    event(func(*eventsv1.OutcomeRequested) {}),
+		"bad event id": event(func(e *eventsv1.OutcomeRequested) { e.EventId = "nope" }),
 		"warn no report": event(func(e *eventsv1.OutcomeRequested) {
 			e.ReportId = ""
 			e.Action = &eventsv1.OutcomeRequested_WarnUser{

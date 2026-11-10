@@ -5,6 +5,8 @@
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { UserRole } from "./auth_pb";
 import { file_user_v1_auth } from "./auth_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -13,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user/v1/profile.proto.
  */
 export const file_user_v1_profile: GenFile = /*@__PURE__*/
-  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEiswEKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhkKDHBob25lX251bWJlchgGIAEoCUgAiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlQg8KDV9waG9uZV9udW1iZXJKBAgFEAZSD3RlbGVncmFtX2hhbmRsZSIVChNHZXRNeVByb2ZpbGVSZXF1ZXN0IjkKFEdldE15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUiegoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSHQoLZGVzY3JpcHRpb24YAiABKAlCCLpIBXIDGPQDEhQKDHBob25lX251bWJlchgEIAEoCUoECAMQBFIPdGVsZWdyYW1faGFuZGxlIjwKF1VwZGF0ZU15UHJvZmlsZVJlc3BvbnNlEiEKB3Byb2ZpbGUYASABKAsyEC51c2VyLnYxLlByb2ZpbGUytwEKDlByb2ZpbGVTZXJ2aWNlEk0KDEdldE15UHJvZmlsZRIcLnVzZXIudjEuR2V0TXlQcm9maWxlUmVxdWVzdBodLnVzZXIudjEuR2V0TXlQcm9maWxlUmVzcG9uc2UiABJWCg9VcGRhdGVNeVByb2ZpbGUSHy51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaIC51c2VyLnYxLlVwZGF0ZU15UHJvZmlsZVJlc3BvbnNlIgBCkgEKC2NvbS51c2VyLnYxQgxQcm9maWxlUHJvdG9QAVo4Z2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci92MTt1c2VydjGiAgNVWFiqAgdVc2VyLlYxygIHVXNlclxWMeICE1VzZXJcVjFcR1BCTWV0YWRhdGHqAghVc2VyOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_user_v1_auth]);
+  fileDesc("ChV1c2VyL3YxL3Byb2ZpbGUucHJvdG8SB3VzZXIudjEirAIKB1Byb2ZpbGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhkKDHBob25lX251bWJlchgGIAEoCUgAiAEBEh8KBHJvbGUYByABKA4yES51c2VyLnYxLlVzZXJSb2xlEhsKE3Byb2ZpbGVfcGljdHVyZV91cmwYCCABKAkSPgoacHJvZmlsZV9waWN0dXJlX2V4cGlyZXNfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEnByb2ZpbGVfcGljdHVyZV9pZBgKIAEoCUIPCg1fcGhvbmVfbnVtYmVySgQIBRAGUg90ZWxlZ3JhbV9oYW5kbGUiFQoTR2V0TXlQcm9maWxlUmVxdWVzdCI5ChRHZXRNeVByb2ZpbGVSZXNwb25zZRIhCgdwcm9maWxlGAEgASgLMhAudXNlci52MS5Qcm9maWxlInoKFlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QSFAoMZGlzcGxheV9uYW1lGAEgASgJEh0KC2Rlc2NyaXB0aW9uGAIgASgJQgi6SAVyAxj0AxIUCgxwaG9uZV9udW1iZXIYBCABKAlKBAgDEARSD3RlbGVncmFtX2hhbmRsZSI8ChdVcGRhdGVNeVByb2ZpbGVSZXNwb25zZRIhCgdwcm9maWxlGAEgASgLMhAudXNlci52MS5Qcm9maWxlIp0BCiFDcmVhdGVQcm9maWxlUGljdHVyZVVwbG9hZFJlcXVlc3QSVgoMY29udGVudF90eXBlGAEgASgJQkC6SD1yO1IKaW1hZ2UvanBlZ1IJaW1hZ2UvcG5nUgppbWFnZS93ZWJwUgppbWFnZS9oZWljUgppbWFnZS9oZWlmEiAKCnNpemVfYnl0ZXMYAiABKANCDLpICSIHGICt4gQoASKKAgoiQ3JlYXRlUHJvZmlsZVBpY3R1cmVVcGxvYWRSZXNwb25zZRISCgpwaWN0dXJlX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSVgoOdXBsb2FkX2hlYWRlcnMYAyADKAsyPi51c2VyLnYxLkNyZWF0ZVByb2ZpbGVQaWN0dXJlVXBsb2FkUmVzcG9uc2UuVXBsb2FkSGVhZGVyc0VudHJ5Ei4KCmV4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGjQKElVwbG9hZEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIj0KHVVwZGF0ZU15UHJvZmlsZVBpY3R1cmVSZXF1ZXN0EhwKCnBpY3R1cmVfaWQYASABKAlCCLpIBXIDsAEBIkMKHlVwZGF0ZU15UHJvZmlsZVBpY3R1cmVSZXNwb25zZRIhCgdwcm9maWxlGAEgASgLMhAudXNlci52MS5Qcm9maWxlIh8KHVJlbW92ZU15UHJvZmlsZVBpY3R1cmVSZXF1ZXN0IkMKHlJlbW92ZU15UHJvZmlsZVBpY3R1cmVSZXNwb25zZRIhCgdwcm9maWxlGAEgASgLMhAudXNlci52MS5Qcm9maWxlMooECg5Qcm9maWxlU2VydmljZRJNCgxHZXRNeVByb2ZpbGUSHC51c2VyLnYxLkdldE15UHJvZmlsZVJlcXVlc3QaHS51c2VyLnYxLkdldE15UHJvZmlsZVJlc3BvbnNlIgASVgoPVXBkYXRlTXlQcm9maWxlEh8udXNlci52MS5VcGRhdGVNeVByb2ZpbGVSZXF1ZXN0GiAudXNlci52MS5VcGRhdGVNeVByb2ZpbGVSZXNwb25zZSIAEncKGkNyZWF0ZVByb2ZpbGVQaWN0dXJlVXBsb2FkEioudXNlci52MS5DcmVhdGVQcm9maWxlUGljdHVyZVVwbG9hZFJlcXVlc3QaKy51c2VyLnYxLkNyZWF0ZVByb2ZpbGVQaWN0dXJlVXBsb2FkUmVzcG9uc2UiABJrChZVcGRhdGVNeVByb2ZpbGVQaWN0dXJlEiYudXNlci52MS5VcGRhdGVNeVByb2ZpbGVQaWN0dXJlUmVxdWVzdBonLnVzZXIudjEuVXBkYXRlTXlQcm9maWxlUGljdHVyZVJlc3BvbnNlIgASawoWUmVtb3ZlTXlQcm9maWxlUGljdHVyZRImLnVzZXIudjEuUmVtb3ZlTXlQcm9maWxlUGljdHVyZVJlcXVlc3QaJy51c2VyLnYxLlJlbW92ZU15UHJvZmlsZVBpY3R1cmVSZXNwb25zZSIAQpIBCgtjb20udXNlci52MUIMUHJvZmlsZVByb3RvUAFaOGdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvdjE7dXNlcnYxogIDVVhYqgIHVXNlci5WMcoCB1VzZXJcVjHiAhNVc2VyXFYxXEdQQk1ldGFkYXRh6gIIVXNlcjo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp, file_user_v1_auth]);
 
 /**
  * @generated from message user.v1.Profile
@@ -50,6 +52,23 @@ export type Profile = Message<"user.v1.Profile"> & {
    * @generated from field: user.v1.UserRole role = 7;
    */
   role: UserRole;
+
+  /**
+   * Pre-signed GET; responses carrying it are not cacheable.
+   *
+   * @generated from field: string profile_picture_url = 8;
+   */
+  profilePictureUrl: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp profile_picture_expires_at = 9;
+   */
+  profilePictureExpiresAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string profile_picture_id = 10;
+   */
+  profilePictureId: string;
 };
 
 /**
@@ -140,6 +159,128 @@ export const UpdateMyProfileResponseSchema: GenMessage<UpdateMyProfileResponse> 
   messageDesc(file_user_v1_profile, 4);
 
 /**
+ * @generated from message user.v1.CreateProfilePictureUploadRequest
+ */
+export type CreateProfilePictureUploadRequest = Message<"user.v1.CreateProfilePictureUploadRequest"> & {
+  /**
+   * @generated from field: string content_type = 1;
+   */
+  contentType: string;
+
+  /**
+   * @generated from field: int64 size_bytes = 2;
+   */
+  sizeBytes: bigint;
+};
+
+/**
+ * Describes the message user.v1.CreateProfilePictureUploadRequest.
+ * Use `create(CreateProfilePictureUploadRequestSchema)` to create a new message.
+ */
+export const CreateProfilePictureUploadRequestSchema: GenMessage<CreateProfilePictureUploadRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 5);
+
+/**
+ * @generated from message user.v1.CreateProfilePictureUploadResponse
+ */
+export type CreateProfilePictureUploadResponse = Message<"user.v1.CreateProfilePictureUploadResponse"> & {
+  /**
+   * Row ID; also Profile.profile_picture_id once active.
+   *
+   * @generated from field: string picture_id = 1;
+   */
+  pictureId: string;
+
+  /**
+   * @generated from field: string upload_url = 2;
+   */
+  uploadUrl: string;
+
+  /**
+   * @generated from field: map<string, string> upload_headers = 3;
+   */
+  uploadHeaders: { [key: string]: string };
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 4;
+   */
+  expiresAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message user.v1.CreateProfilePictureUploadResponse.
+ * Use `create(CreateProfilePictureUploadResponseSchema)` to create a new message.
+ */
+export const CreateProfilePictureUploadResponseSchema: GenMessage<CreateProfilePictureUploadResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 6);
+
+/**
+ * Idempotent; the picture must belong to the caller.
+ *
+ * @generated from message user.v1.UpdateMyProfilePictureRequest
+ */
+export type UpdateMyProfilePictureRequest = Message<"user.v1.UpdateMyProfilePictureRequest"> & {
+  /**
+   * @generated from field: string picture_id = 1;
+   */
+  pictureId: string;
+};
+
+/**
+ * Describes the message user.v1.UpdateMyProfilePictureRequest.
+ * Use `create(UpdateMyProfilePictureRequestSchema)` to create a new message.
+ */
+export const UpdateMyProfilePictureRequestSchema: GenMessage<UpdateMyProfilePictureRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 7);
+
+/**
+ * @generated from message user.v1.UpdateMyProfilePictureResponse
+ */
+export type UpdateMyProfilePictureResponse = Message<"user.v1.UpdateMyProfilePictureResponse"> & {
+  /**
+   * @generated from field: user.v1.Profile profile = 1;
+   */
+  profile?: Profile | undefined;
+};
+
+/**
+ * Describes the message user.v1.UpdateMyProfilePictureResponse.
+ * Use `create(UpdateMyProfilePictureResponseSchema)` to create a new message.
+ */
+export const UpdateMyProfilePictureResponseSchema: GenMessage<UpdateMyProfilePictureResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 8);
+
+/**
+ * @generated from message user.v1.RemoveMyProfilePictureRequest
+ */
+export type RemoveMyProfilePictureRequest = Message<"user.v1.RemoveMyProfilePictureRequest"> & {
+};
+
+/**
+ * Describes the message user.v1.RemoveMyProfilePictureRequest.
+ * Use `create(RemoveMyProfilePictureRequestSchema)` to create a new message.
+ */
+export const RemoveMyProfilePictureRequestSchema: GenMessage<RemoveMyProfilePictureRequest> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 9);
+
+/**
+ * @generated from message user.v1.RemoveMyProfilePictureResponse
+ */
+export type RemoveMyProfilePictureResponse = Message<"user.v1.RemoveMyProfilePictureResponse"> & {
+  /**
+   * @generated from field: user.v1.Profile profile = 1;
+   */
+  profile?: Profile | undefined;
+};
+
+/**
+ * Describes the message user.v1.RemoveMyProfilePictureResponse.
+ * Use `create(RemoveMyProfilePictureResponseSchema)` to create a new message.
+ */
+export const RemoveMyProfilePictureResponseSchema: GenMessage<RemoveMyProfilePictureResponse> = /*@__PURE__*/
+  messageDesc(file_user_v1_profile, 10);
+
+/**
  * @generated from service user.v1.ProfileService
  */
 export const ProfileService: GenService<{
@@ -158,6 +299,30 @@ export const ProfileService: GenService<{
     methodKind: "unary";
     input: typeof UpdateMyProfileRequestSchema;
     output: typeof UpdateMyProfileResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.ProfileService.CreateProfilePictureUpload
+   */
+  createProfilePictureUpload: {
+    methodKind: "unary";
+    input: typeof CreateProfilePictureUploadRequestSchema;
+    output: typeof CreateProfilePictureUploadResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.ProfileService.UpdateMyProfilePicture
+   */
+  updateMyProfilePicture: {
+    methodKind: "unary";
+    input: typeof UpdateMyProfilePictureRequestSchema;
+    output: typeof UpdateMyProfilePictureResponseSchema;
+  },
+  /**
+   * @generated from rpc user.v1.ProfileService.RemoveMyProfilePicture
+   */
+  removeMyProfilePicture: {
+    methodKind: "unary";
+    input: typeof RemoveMyProfilePictureRequestSchema;
+    output: typeof RemoveMyProfilePictureResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_user_v1_profile, 0);

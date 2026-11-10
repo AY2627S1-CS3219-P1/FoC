@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  performance-harness:
+    name: Performance harness checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: scripts/go.mod
+          cache-dependency-path: |
+            scripts/go.sum
+            pkg/go.sum
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Verify workload, reporting and fault recovery
+        run: make perf-test
+
   go-tests:
     name: Go tests (${{ matrix.module }})
     runs-on: ubuntu-latest

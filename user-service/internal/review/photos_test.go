@@ -447,7 +447,7 @@ func TestSubmitReviewAttachesInListOrder(t *testing.T) {
 	for i, photo := range staged {
 		ids[i] = photo.ID
 	}
-	if err := service.SubmitReview(
+	if _, err := service.SubmitReview(
 		ctx,
 		reviewer,
 		reviewee,
@@ -491,7 +491,7 @@ func TestSubmitReviewFailsWhenAttachmentLost(t *testing.T) {
 	}}
 	service := fake.withPhotos(storage)
 
-	err := service.SubmitReview(
+	_, err := service.SubmitReview(
 		context.Background(), reviewer, reviewee, uuid.New(),
 		ReviewSubmission{Rating: 4, Comment: "ok"}, []uuid.UUID{staged.ID},
 	)
@@ -504,7 +504,7 @@ func TestSubmitReviewWithoutStorageAndWithoutPhotos(t *testing.T) {
 	fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
 	service := newTestService(fake) // photos nil
 
-	if err := service.SubmitReview(
+	if _, err := service.SubmitReview(
 		context.Background(), reviewer, reviewee, uuid.New(),
 		ReviewSubmission{Rating: 5, Comment: "fine"}, nil,
 	); err != nil {

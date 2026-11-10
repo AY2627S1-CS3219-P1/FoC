@@ -2,20 +2,20 @@
 // @generated from file user/review/v1/review.proto (package user.review.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
-import type { PageInfo, Pagination } from "../../../pagination/v1/pagination_pb";
-import { file_pagination_v1_pagination } from "../../../pagination/v1/pagination_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { PageInfo, Pagination } from "../../../pagination/v1/pagination_pb";
+import { file_pagination_v1_pagination } from "../../../pagination/v1/pagination_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file user/review/v1/review.proto.
  */
 export const file_user_review_v1_review: GenFile = /*@__PURE__*/
-  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIvwBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEisKBnBob3RvcxgKIAMoCzIbLnVzZXIucmV2aWV3LnYxLlJldmlld1Bob3RvImwKC1Jldmlld1Bob3RvEgoKAmlkGAEgASgJEgsKA3VybBgCIAEoCRIUCgxjb250ZW50X3R5cGUYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiLBAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQESIgoJcGhvdG9faWRzGAUgAygJQg+6SAySAQkQBSIFcgOwAQEiFgoUU3VibWl0UmV2aWV3UmVzcG9uc2UimgEKHkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVxdWVzdBJWCgxjb250ZW50X3R5cGUYASABKAlCQLpIPXI7UgppbWFnZS9qcGVnUglpbWFnZS9wbmdSCmltYWdlL3dlYnBSCmltYWdlL2hlaWNSCmltYWdlL2hlaWYSIAoKc2l6ZV9ieXRlcxgCIAEoA0IMukgJIgcYgK3iBCgBIokCCh9DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlEhAKCHBob3RvX2lkGAEgASgJEhIKCnVwbG9hZF91cmwYAiABKAkSWgoOdXBsb2FkX2hlYWRlcnMYAyADKAsyQi51c2VyLnJldmlldy52MS5DcmVhdGVSZXZpZXdQaG90b1VwbG9hZFJlc3BvbnNlLlVwbG9hZEhlYWRlcnNFbnRyeRIuCgpleHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBo0ChJVcGxvYWRIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJyChpMaXN0UmV2aWV3c0ZvclVzZXJSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIm0KFUxpc3RNeVJldmlld3NSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvImUKGUxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QSGQoHdXNlcl9pZBgBIAEoCUIIukgFcgOwAQESLQoKcGFnaW5hdGlvbhgCIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJFChRMaXN0TXlSZXZpZXdzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIk0KHExpc3RNeVJldmlld3NSZWNlaXZlZFJlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ1Ch1MaXN0TXlSZXZpZXdzUmVjZWl2ZWRSZXNwb25zZRInCgdyZXZpZXdzGAEgAygLMhYudXNlci5yZXZpZXcudjEuUmV2aWV3EisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIkMKHUxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXF1ZXN0EiIKCW9yZGVyX2lkcxgBIAMoCUIPukgMkgEJEDIiBXIDsAEBIlcKHkxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXNwb25zZRIaChJyZXZpZXdlZF9vcmRlcl9pZHMYASADKAkSGQoRcmVtb3ZlZF9vcmRlcl9pZHMYAiADKAkiOAoaR2V0TXlSZXZpZXdGb3JPcmRlclJlcXVlc3QSGgoIb3JkZXJfaWQYASABKAlCCLpIBXIDsAEBIkUKG0dldE15UmV2aWV3Rm9yT3JkZXJSZXNwb25zZRImCgZyZXZpZXcYASABKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXciSAoTUmVtb3ZlUmV2aWV3UmVxdWVzdBIUCgJpZBgBIAEoCUIIukgFcgOwAQESGwoGcmVhc29uGAIgASgJQgu6SAhyBhABGKCNBiIWChRSZW1vdmVSZXZpZXdSZXNwb25zZSLXAQoNUmV2aWV3UmVtb3ZhbBIKCgJpZBgBIAEoCRITCgtyZXZpZXdlcl9pZBgCIAEoCRITCgtyZXZpZXdlZV9pZBgDIAEoCRIQCghvcmRlcl9pZBgEIAEoCRIOCgZyZWFzb24YBSABKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY3JlYXRlZF9ieRgHIAEoCRIXCg9jcmVhdGVkX2J5X25hbWUYCCABKAkSEQoJcmV2aWV3X2lkGAkgASgJIkoKGUxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QSLQoKcGFnaW5hdGlvbhgBIAEoCzIZLnBhZ2luYXRpb24udjEuUGFnaW5hdGlvbiJ6ChpMaXN0UmV2aWV3UmVtb3ZhbHNSZXNwb25zZRIvCghyZW1vdmFscxgBIAMoCzIdLnVzZXIucmV2aWV3LnYxLlJldmlld1JlbW92YWwSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iTAobTGlzdE15UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24ifAocTGlzdE15UmV2aWV3UmVtb3ZhbHNSZXNwb25zZRIvCghyZW1vdmFscxgBIAMoCzIdLnVzZXIucmV2aWV3LnYxLlJldmlld1JlbW92YWwSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iLwoQR2V0UmV2aWV3UmVxdWVzdBIbCglyZXZpZXdfaWQYASABKAlCCLpIBXIDsAEBIkwKEUdldFJldmlld1Jlc3BvbnNlEiYKBnJldmlldxgBIAEoCzIWLnVzZXIucmV2aWV3LnYxLlJldmlldxIPCgdyZW1vdmVkGAIgASgIMrMJCg1SZXZpZXdTZXJ2aWNlElsKDFN1Ym1pdFJldmlldxIjLnVzZXIucmV2aWV3LnYxLlN1Ym1pdFJldmlld1JlcXVlc3QaJC51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXNwb25zZSIAEnwKF0NyZWF0ZVJldmlld1Bob3RvVXBsb2FkEi4udXNlci5yZXZpZXcudjEuQ3JlYXRlUmV2aWV3UGhvdG9VcGxvYWRSZXF1ZXN0Gi8udXNlci5yZXZpZXcudjEuQ3JlYXRlUmV2aWV3UGhvdG9VcGxvYWRSZXNwb25zZSIAEm0KEkxpc3RSZXZpZXdzRm9yVXNlchIpLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdzRm9yVXNlclJlcXVlc3QaKi51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXNwb25zZSIAEl4KDUxpc3RNeVJldmlld3MSJC51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVxdWVzdBolLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZXNwb25zZSIAEnYKFUxpc3RNeVJldmlld3NSZWNlaXZlZBIsLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZWNlaXZlZFJlcXVlc3QaLS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVjZWl2ZWRSZXNwb25zZSIAEnkKFkxpc3RNeVJldmlld3NGb3JPcmRlcnMSLS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzRm9yT3JkZXJzUmVxdWVzdBouLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXNwb25zZSIAEnAKE0dldE15UmV2aWV3Rm9yT3JkZXISKi51c2VyLnJldmlldy52MS5HZXRNeVJldmlld0Zvck9yZGVyUmVxdWVzdBorLnVzZXIucmV2aWV3LnYxLkdldE15UmV2aWV3Rm9yT3JkZXJSZXNwb25zZSIAElsKDFJlbW92ZVJldmlldxIjLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1JlcXVlc3QaJC51c2VyLnJldmlldy52MS5SZW1vdmVSZXZpZXdSZXNwb25zZSIAEm0KEkxpc3RSZXZpZXdSZW1vdmFscxIpLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1JlcXVlc3QaKi51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3UmVtb3ZhbHNSZXNwb25zZSIAEnMKFExpc3RNeVJldmlld1JlbW92YWxzEisudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0GiwudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3UmVtb3ZhbHNSZXNwb25zZSIAElIKCUdldFJldmlldxIgLnVzZXIucmV2aWV3LnYxLkdldFJldmlld1JlcXVlc3QaIS51c2VyLnJldmlldy52MS5HZXRSZXZpZXdSZXNwb25zZSIAQr4BChJjb20udXNlci5yZXZpZXcudjFCC1Jldmlld1Byb3RvUAFaQWdpdGh1Yi5jb20vQVkyNjI3UzEtQ1MzMjE5LVAxL0ZvQy9wa2cvZ2VuL3VzZXIvcmV2aWV3L3YxO3Jldmlld3YxogIDVVJYqgIOVXNlci5SZXZpZXcuVjHKAg5Vc2VyXFJldmlld1xWMeICGlVzZXJcUmV2aWV3XFYxXEdQQk1ldGFkYXRh6gIQVXNlcjo6UmV2aWV3OjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_pagination_v1_pagination, file_google_protobuf_timestamp]);
+  fileDesc("Cht1c2VyL3Jldmlldy92MS9yZXZpZXcucHJvdG8SDnVzZXIucmV2aWV3LnYxIvwBCgZSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEisKBnBob3RvcxgKIAMoCzIbLnVzZXIucmV2aWV3LnYxLlJldmlld1Bob3RvImwKC1Jldmlld1Bob3RvEgoKAmlkGAEgASgJEgsKA3VybBgCIAEoCRIUCgxjb250ZW50X3R5cGUYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiSwoQUmV2aWV3U3VibWlzc2lvbhIZCgZyYXRpbmcYASABKAVCCbpIBhoEGAUoARIcCgdjb21tZW50GAIgASgJQgu6SAhyBhABGKCNBiLBAQoTU3VibWl0UmV2aWV3UmVxdWVzdBIWCgRmcm9tGAEgASgJQgi6SAVyA7ABARIUCgJ0bxgCIAEoCUIIukgFcgOwAQESGgoIb3JkZXJfaWQYAyABKAlCCLpIBXIDsAEBEjwKCnN1Ym1pc3Npb24YBCABKAsyIC51c2VyLnJldmlldy52MS5SZXZpZXdTdWJtaXNzaW9uQga6SAPIAQESIgoJcGhvdG9faWRzGAUgAygJQg+6SAySAQkQBSIFcgOwAQEigwEKFFN1Ym1pdFJldmlld1Jlc3BvbnNlEhEKCXJldmlld19pZBgBIAEoCRI7ChFtb2RlcmF0aW9uX3N0YXR1cxgDIAEoDjIgLnVzZXIucmV2aWV3LnYxLk1vZGVyYXRpb25TdGF0dXNKBAgCEANSFW1vZGVyYXRpb25fcmVxdWVzdF9pZCKaAQoeQ3JlYXRlUmV2aWV3UGhvdG9VcGxvYWRSZXF1ZXN0ElYKDGNvbnRlbnRfdHlwZRgBIAEoCUJAukg9cjtSCmltYWdlL2pwZWdSCWltYWdlL3BuZ1IKaW1hZ2Uvd2VicFIKaW1hZ2UvaGVpY1IKaW1hZ2UvaGVpZhIgCgpzaXplX2J5dGVzGAIgASgDQgy6SAkiBxiAreIEKAEiiQIKH0NyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVzcG9uc2USEAoIcGhvdG9faWQYASABKAkSEgoKdXBsb2FkX3VybBgCIAEoCRJaCg51cGxvYWRfaGVhZGVycxgDIAMoCzJCLnVzZXIucmV2aWV3LnYxLkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVzcG9uc2UuVXBsb2FkSGVhZGVyc0VudHJ5Ei4KCmV4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGjQKElVwbG9hZEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBInIKGkxpc3RSZXZpZXdzRm9yVXNlclJlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8ibQoVTGlzdE15UmV2aWV3c1Jlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iZQoZTGlzdFJldmlld3NGb3JVc2VyUmVxdWVzdBIZCgd1c2VyX2lkGAEgASgJQgi6SAVyA7ABARItCgpwYWdpbmF0aW9uGAIgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uIkUKFExpc3RNeVJldmlld3NSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iTQocTGlzdE15UmV2aWV3c1JlY2VpdmVkUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInUKHUxpc3RNeVJldmlld3NSZWNlaXZlZFJlc3BvbnNlEicKB3Jldmlld3MYASADKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSKwoKcGFnaW5hdGlvbhgCIAEoCzIXLnBhZ2luYXRpb24udjEuUGFnZUluZm8iQwodTGlzdE15UmV2aWV3c0Zvck9yZGVyc1JlcXVlc3QSIgoJb3JkZXJfaWRzGAEgAygJQg+6SAySAQkQMiIFcgOwAQEiVwoeTGlzdE15UmV2aWV3c0Zvck9yZGVyc1Jlc3BvbnNlEhoKEnJldmlld2VkX29yZGVyX2lkcxgBIAMoCRIZChFyZW1vdmVkX29yZGVyX2lkcxgCIAMoCSI4ChpHZXRNeVJldmlld0Zvck9yZGVyUmVxdWVzdBIaCghvcmRlcl9pZBgBIAEoCUIIukgFcgOwAQEiggEKG0dldE15UmV2aWV3Rm9yT3JkZXJSZXNwb25zZRImCgZyZXZpZXcYASABKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSOwoRbW9kZXJhdGlvbl9zdGF0dXMYAiABKA4yIC51c2VyLnJldmlldy52MS5Nb2RlcmF0aW9uU3RhdHVzIkgKE1JlbW92ZVJldmlld1JlcXVlc3QSFAoCaWQYASABKAlCCLpIBXIDsAEBEhsKBnJlYXNvbhgCIAEoCUILukgIcgYQARigjQYiFgoUUmVtb3ZlUmV2aWV3UmVzcG9uc2Ui1wEKDVJldmlld1JlbW92YWwSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmVhc29uGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYByABKAkSFwoPY3JlYXRlZF9ieV9uYW1lGAggASgJEhEKCXJldmlld19pZBgJIAEoCSJKChlMaXN0UmV2aWV3UmVtb3ZhbHNSZXF1ZXN0Ei0KCnBhZ2luYXRpb24YASABKAsyGS5wYWdpbmF0aW9uLnYxLlBhZ2luYXRpb24iegoaTGlzdFJldmlld1JlbW92YWxzUmVzcG9uc2USLwoIcmVtb3ZhbHMYASADKAsyHS51c2VyLnJldmlldy52MS5SZXZpZXdSZW1vdmFsEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIkwKG0xpc3RNeVJldmlld1JlbW92YWxzUmVxdWVzdBItCgpwYWdpbmF0aW9uGAEgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uInwKHExpc3RNeVJldmlld1JlbW92YWxzUmVzcG9uc2USLwoIcmVtb3ZhbHMYASADKAsyHS51c2VyLnJldmlldy52MS5SZXZpZXdSZW1vdmFsEisKCnBhZ2luYXRpb24YAiABKAsyFy5wYWdpbmF0aW9uLnYxLlBhZ2VJbmZvIi8KEEdldFJldmlld1JlcXVlc3QSGwoJcmV2aWV3X2lkGAEgASgJQgi6SAVyA7ABASJMChFHZXRSZXZpZXdSZXNwb25zZRImCgZyZXZpZXcYASABKAsyFi51c2VyLnJldmlldy52MS5SZXZpZXcSDwoHcmVtb3ZlZBgCIAEoCCKkAQokTGlzdFVucHVibGlzaGVkUmV2aWV3c0ZvclVzZXJSZXF1ZXN0Eh0KC3Jldmlld2VyX2lkGAEgASgJQgi6SAVyA7ABARItCgpwYWdpbmF0aW9uGAIgASgLMhkucGFnaW5hdGlvbi52MS5QYWdpbmF0aW9uSgQIAxAESgQIBBAFUhhtb2RlcmF0aW9uX3N0YXR1c19maWx0ZXJSCG9yZGVyX2lkIogBCiVMaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlc3BvbnNlEjIKB3Jldmlld3MYASADKAsyIS51c2VyLnJldmlldy52MS5VbnB1Ymxpc2hlZFJldmlldxIrCgpwYWdpbmF0aW9uGAIgASgLMhcucGFnaW5hdGlvbi52MS5QYWdlSW5mbyLZAwoRVW5wdWJsaXNoZWRSZXZpZXcSCgoCaWQYASABKAkSEwoLcmV2aWV3ZXJfaWQYAiABKAkSEwoLcmV2aWV3ZWVfaWQYAyABKAkSEAoIb3JkZXJfaWQYBCABKAkSDgoGcmF0aW5nGAUgASgFEg8KB2NvbW1lbnQYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcmV2aWV3ZXJfbmFtZRgIIAEoCRIVCg1yZXZpZXdlZV9uYW1lGAkgASgJEjsKEW1vZGVyYXRpb25fc3RhdHVzGAogASgOMiAudXNlci5yZXZpZXcudjEuTW9kZXJhdGlvblN0YXR1cxIdChVtb2RlcmF0aW9uX3JlcXVlc3RfaWQYCyABKAkSGAoQY29udGVudF9yZXZpc2lvbhgMIAEoBRIfChdtb2RlcmF0aW9uX3JlYXNvbl9jb2RlcxgNIAMoCRI1Cgxtb2RlcmF0ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSACIAQESHgoWYXBwbGllZF9ydW5fZ2VuZXJhdGlvbhgPIAEoBUIPCg1fbW9kZXJhdGVkX2F0KscBChBNb2RlcmF0aW9uU3RhdHVzEiEKHU1PREVSQVRJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASKAokTU9ERVJBVElPTl9TVEFUVVNfUEVORElOR19NT0RFUkFUSU9OEAESHgoaTU9ERVJBVElPTl9TVEFUVVNfQVBQUk9WRUQQAhIeChpNT0RFUkFUSU9OX1NUQVRVU19SRUpFQ1RFRBADEiYKIk1PREVSQVRJT05fU1RBVFVTX01PREVSQVRJT05fRVJST1IQBDLECgoNUmV2aWV3U2VydmljZRJbCgxTdWJtaXRSZXZpZXcSIy51c2VyLnJldmlldy52MS5TdWJtaXRSZXZpZXdSZXF1ZXN0GiQudXNlci5yZXZpZXcudjEuU3VibWl0UmV2aWV3UmVzcG9uc2UiABJ8ChdDcmVhdGVSZXZpZXdQaG90b1VwbG9hZBIuLnVzZXIucmV2aWV3LnYxLkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVxdWVzdBovLnVzZXIucmV2aWV3LnYxLkNyZWF0ZVJldmlld1Bob3RvVXBsb2FkUmVzcG9uc2UiABJtChJMaXN0UmV2aWV3c0ZvclVzZXISKS51c2VyLnJldmlldy52MS5MaXN0UmV2aWV3c0ZvclVzZXJSZXF1ZXN0GioudXNlci5yZXZpZXcudjEuTGlzdFJldmlld3NGb3JVc2VyUmVzcG9uc2UiABJeCg1MaXN0TXlSZXZpZXdzEiQudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlcXVlc3QaJS51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdzUmVzcG9uc2UiABKOAQodTGlzdFVucHVibGlzaGVkUmV2aWV3c0ZvclVzZXISNC51c2VyLnJldmlldy52MS5MaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlcXVlc3QaNS51c2VyLnJldmlldy52MS5MaXN0VW5wdWJsaXNoZWRSZXZpZXdzRm9yVXNlclJlc3BvbnNlIgASdgoVTGlzdE15UmV2aWV3c1JlY2VpdmVkEiwudXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c1JlY2VpdmVkUmVxdWVzdBotLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NSZWNlaXZlZFJlc3BvbnNlIgASeQoWTGlzdE15UmV2aWV3c0Zvck9yZGVycxItLnVzZXIucmV2aWV3LnYxLkxpc3RNeVJldmlld3NGb3JPcmRlcnNSZXF1ZXN0Gi4udXNlci5yZXZpZXcudjEuTGlzdE15UmV2aWV3c0Zvck9yZGVyc1Jlc3BvbnNlIgAScAoTR2V0TXlSZXZpZXdGb3JPcmRlchIqLnVzZXIucmV2aWV3LnYxLkdldE15UmV2aWV3Rm9yT3JkZXJSZXF1ZXN0GisudXNlci5yZXZpZXcudjEuR2V0TXlSZXZpZXdGb3JPcmRlclJlc3BvbnNlIgASWwoMUmVtb3ZlUmV2aWV3EiMudXNlci5yZXZpZXcudjEuUmVtb3ZlUmV2aWV3UmVxdWVzdBokLnVzZXIucmV2aWV3LnYxLlJlbW92ZVJldmlld1Jlc3BvbnNlIgASbQoSTGlzdFJldmlld1JlbW92YWxzEikudXNlci5yZXZpZXcudjEuTGlzdFJldmlld1JlbW92YWxzUmVxdWVzdBoqLnVzZXIucmV2aWV3LnYxLkxpc3RSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlIgAScwoUTGlzdE15UmV2aWV3UmVtb3ZhbHMSKy51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdSZW1vdmFsc1JlcXVlc3QaLC51c2VyLnJldmlldy52MS5MaXN0TXlSZXZpZXdSZW1vdmFsc1Jlc3BvbnNlIgASUgoJR2V0UmV2aWV3EiAudXNlci5yZXZpZXcudjEuR2V0UmV2aWV3UmVxdWVzdBohLnVzZXIucmV2aWV3LnYxLkdldFJldmlld1Jlc3BvbnNlIgBCvgEKEmNvbS51c2VyLnJldmlldy52MUILUmV2aWV3UHJvdG9QAVpBZ2l0aHViLmNvbS9BWTI2MjdTMS1DUzMyMTktUDEvRm9DL3BrZy9nZW4vdXNlci9yZXZpZXcvdjE7cmV2aWV3djGiAgNVUliqAg5Vc2VyLlJldmlldy5WMcoCDlVzZXJcUmV2aWV3XFYx4gIaVXNlclxSZXZpZXdcVjFcR1BCTWV0YWRhdGHqAhBVc2VyOjpSZXZpZXc6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_google_protobuf_timestamp, file_pagination_v1_pagination]);
 
 /**
  * @generated from message user.review.v1.Review
@@ -177,9 +177,22 @@ export const SubmitReviewRequestSchema: GenMessage<SubmitReviewRequest> = /*@__P
   messageDesc(file_user_review_v1_review, 3);
 
 /**
+ * Submission commits a pending review; success does not imply publication.
+ *
  * @generated from message user.review.v1.SubmitReviewResponse
  */
 export type SubmitReviewResponse = Message<"user.review.v1.SubmitReviewResponse"> & {
+  /**
+   * @generated from field: string review_id = 1;
+   */
+  reviewId: string;
+
+  /**
+   * Always PENDING_MODERATION for newly gated submissions.
+   *
+   * @generated from field: user.review.v1.ModerationStatus moderation_status = 3;
+   */
+  moderationStatus: ModerationStatus;
 };
 
 /**
@@ -437,6 +450,11 @@ export type GetMyReviewForOrderResponse = Message<"user.review.v1.GetMyReviewFor
    * @generated from field: user.review.v1.Review review = 1;
    */
   review?: Review | undefined;
+
+  /**
+   * @generated from field: user.review.v1.ModerationStatus moderation_status = 2;
+   */
+  moderationStatus: ModerationStatus;
 };
 
 /**
@@ -669,6 +687,188 @@ export const GetReviewResponseSchema: GenMessage<GetReviewResponse> = /*@__PURE_
   messageDesc(file_user_review_v1_review, 25);
 
 /**
+ * Lists reviews by author, unlike ListReviewsForUser which lists reviews received.
+ * Does not call CMS; remains available during moderation outages.
+ *
+ * @generated from message user.review.v1.ListUnpublishedReviewsForUserRequest
+ */
+export type ListUnpublishedReviewsForUserRequest = Message<"user.review.v1.ListUnpublishedReviewsForUserRequest"> & {
+  /**
+   * Owner or admin only, checked before lookup. Suspended callers may inspect their own.
+   *
+   * @generated from field: string reviewer_id = 1;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: pagination.v1.Pagination pagination = 2;
+   */
+  pagination?: Pagination | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.ListUnpublishedReviewsForUserRequest.
+ * Use `create(ListUnpublishedReviewsForUserRequestSchema)` to create a new message.
+ */
+export const ListUnpublishedReviewsForUserRequestSchema: GenMessage<ListUnpublishedReviewsForUserRequest> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 26);
+
+/**
+ * @generated from message user.review.v1.ListUnpublishedReviewsForUserResponse
+ */
+export type ListUnpublishedReviewsForUserResponse = Message<"user.review.v1.ListUnpublishedReviewsForUserResponse"> & {
+  /**
+   * @generated from field: repeated user.review.v1.UnpublishedReview reviews = 1;
+   */
+  reviews: UnpublishedReview[];
+
+  /**
+   * @generated from field: pagination.v1.PageInfo pagination = 2;
+   */
+  pagination?: PageInfo | undefined;
+};
+
+/**
+ * Describes the message user.review.v1.ListUnpublishedReviewsForUserResponse.
+ * Use `create(ListUnpublishedReviewsForUserResponseSchema)` to create a new message.
+ */
+export const ListUnpublishedReviewsForUserResponseSchema: GenMessage<ListUnpublishedReviewsForUserResponse> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 27);
+
+/**
+ * @generated from message user.review.v1.UnpublishedReview
+ */
+export type UnpublishedReview = Message<"user.review.v1.UnpublishedReview"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string reviewer_id = 2;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: string reviewee_id = 3;
+   */
+  revieweeId: string;
+
+  /**
+   * @generated from field: string order_id = 4;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: int32 rating = 5;
+   */
+  rating: number;
+
+  /**
+   * @generated from field: string comment = 6;
+   */
+  comment: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string reviewer_name = 8;
+   */
+  reviewerName: string;
+
+  /**
+   * @generated from field: string reviewee_name = 9;
+   */
+  revieweeName: string;
+
+  /**
+   * @generated from field: user.review.v1.ModerationStatus moderation_status = 10;
+   */
+  moderationStatus: ModerationStatus;
+
+  /**
+   * Correlates unpublished reviews with moderation job lookups.
+   *
+   * @generated from field: string moderation_request_id = 11;
+   */
+  moderationRequestId: string;
+
+  /**
+   * @generated from field: int32 content_revision = 12;
+   */
+  contentRevision: number;
+
+  /**
+   * Known rejection reason codes when rejected; empty otherwise.
+   *
+   * @generated from field: repeated string moderation_reason_codes = 13;
+   */
+  moderationReasonCodes: string[];
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp moderated_at = 14;
+   */
+  moderatedAt?: Timestamp | undefined;
+
+  /**
+   * Generation of the last result applied by User, for distinguishing newer CMS retries.
+   *
+   * @generated from field: int32 applied_run_generation = 15;
+   */
+  appliedRunGeneration: number;
+};
+
+/**
+ * Describes the message user.review.v1.UnpublishedReview.
+ * Use `create(UnpublishedReviewSchema)` to create a new message.
+ */
+export const UnpublishedReviewSchema: GenMessage<UnpublishedReview> = /*@__PURE__*/
+  messageDesc(file_user_review_v1_review, 28);
+
+/**
+ * Public reads and ratings include only APPROVED reviews.
+ *
+ * @generated from enum user.review.v1.ModerationStatus
+ */
+export enum ModerationStatus {
+  /**
+   * @generated from enum value: MODERATION_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: MODERATION_STATUS_PENDING_MODERATION = 1;
+   */
+  PENDING_MODERATION = 1,
+
+  /**
+   * @generated from enum value: MODERATION_STATUS_APPROVED = 2;
+   */
+  APPROVED = 2,
+
+  /**
+   * @generated from enum value: MODERATION_STATUS_REJECTED = 3;
+   */
+  REJECTED = 3,
+
+  /**
+   * Technical failure to assess, not a content verdict.
+   *
+   * @generated from enum value: MODERATION_STATUS_MODERATION_ERROR = 4;
+   */
+  MODERATION_ERROR = 4,
+}
+
+/**
+ * Describes the enum user.review.v1.ModerationStatus.
+ */
+export const ModerationStatusSchema: GenEnum<ModerationStatus> = /*@__PURE__*/
+  enumDesc(file_user_review_v1_review, 0);
+
+/**
  * @generated from service user.review.v1.ReviewService
  */
 export const ReviewService: GenService<{
@@ -703,6 +903,14 @@ export const ReviewService: GenService<{
     methodKind: "unary";
     input: typeof ListMyReviewsRequestSchema;
     output: typeof ListMyReviewsResponseSchema;
+  },
+  /**
+   * @generated from rpc user.review.v1.ReviewService.ListUnpublishedReviewsForUser
+   */
+  listUnpublishedReviewsForUser: {
+    methodKind: "unary";
+    input: typeof ListUnpublishedReviewsForUserRequestSchema;
+    output: typeof ListUnpublishedReviewsForUserResponseSchema;
   },
   /**
    * @generated from rpc user.review.v1.ReviewService.ListMyReviewsReceived
