@@ -31,7 +31,7 @@ func Transition(o Order, action Action, actor Actor) (next Status, repeat bool, 
 	if action == Pickup && o.Status == Delivering && courier {
 		return o.Status, true, nil
 	}
-	if action == ConfirmReceipt && o.Status == Completed && requester {
+	if action == ConfirmReceipt && o.Status == Completed && requester && !o.AutomaticallyCompleted {
 		return o.Status, true, nil
 	}
 

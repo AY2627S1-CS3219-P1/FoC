@@ -3,6 +3,8 @@
 package order
 
 import (
+	"errors"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -55,8 +57,21 @@ func TestPostgresReceiptTimers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Status != Completed || got.CompletedAt == nil || got.DeliveredAt == nil || got.PickedUpAt == nil {
+		if got.Status != Completed || !got.AutomaticallyCompleted || got.CompletedAt == nil || got.DeliveredAt == nil ||
+			got.PickedUpAt == nil {
 			t.Fatalf("order = %+v", got)
+		}
+		auditBefore, outboxBefore, _ := f.counts(t, o.ID)
+		_, err = NewProgress(NewMutator(f.repo)).ConfirmReceipt(f.ctx, Caller{ID: o.RequesterID}, o.ID)
+		if !errors.Is(err, ErrPrecondition) {
+			t.Fatalf("confirmation after automatic completion: %v", err)
+		}
+		stored, err := f.repo.Get(f.ctx, o.ID)
+		if err != nil || !reflect.DeepEqual(stored, got) {
+			t.Fatalf("late confirmation changed order: %+v, %v", stored, err)
+		}
+		if a, n, _ := f.counts(t, o.ID); a != auditBefore || n != outboxBefore {
+			t.Fatalf("late confirmation wrote audit/outbox: %d/%d -> %d/%d", auditBefore, outboxBefore, a, n)
 		}
 		if audit, outcomes := counts(t, o.ID); audit != 1 || outcomes != 1 {
 			t.Fatalf("audit=%d outcomes=%d", audit, outcomes)

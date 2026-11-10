@@ -24,8 +24,11 @@ func validateFields(before, after Order, action Action) error {
 	case Deliver:
 		expected.DeliveredAt = after.DeliveredAt
 		expected.UnattendedDelivery = after.UnattendedDelivery
-	case ConfirmReceipt, AutoComplete:
+	case ConfirmReceipt:
 		expected.CompletedAt = after.CompletedAt
+	case AutoComplete:
+		expected.CompletedAt = after.CompletedAt
+		expected.AutomaticallyCompleted = true
 	case Cancel, Expire, Timeout, RefuseReservation:
 		expected.PendingCancellationID = after.PendingCancellationID
 		expected.ClosedAt = after.ClosedAt

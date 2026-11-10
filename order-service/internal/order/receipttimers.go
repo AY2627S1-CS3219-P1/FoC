@@ -91,6 +91,7 @@ func (s *ReceiptTimers) Complete(ctx context.Context, id string) error {
 			after := cloneOrder(before)
 			after.Status, after.UpdatedAt = next, now
 			after.CompletedAt = &now
+			after.AutomaticallyCompleted = true
 			after.Revision++
 			details, err := json.Marshal(struct {
 				Deadline time.Time `json:"deadline"`

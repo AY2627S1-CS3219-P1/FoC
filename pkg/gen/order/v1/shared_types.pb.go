@@ -358,8 +358,10 @@ type Order struct {
 	DeliveryBuildingName string `protobuf:"bytes,23,opt,name=delivery_building_name,json=deliveryBuildingName,proto3" json:"delivery_building_name,omitempty"`
 	// Withdrawal is durable; pickup remains blocked until Credit reversal is confirmed.
 	CancellationPending bool `protobuf:"varint,24,opt,name=cancellation_pending,json=cancellationPending,proto3" json:"cancellation_pending,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// The receipt timer completed this order without requester confirmation.
+	AutomaticallyCompleted bool `protobuf:"varint,25,opt,name=automatically_completed,json=automaticallyCompleted,proto3" json:"automatically_completed,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Order) Reset() {
@@ -556,6 +558,13 @@ func (x *Order) GetDeliveryBuildingName() string {
 func (x *Order) GetCancellationPending() bool {
 	if x != nil {
 		return x.CancellationPending
+	}
+	return false
+}
+
+func (x *Order) GetAutomaticallyCompleted() bool {
+	if x != nil {
+		return x.AutomaticallyCompleted
 	}
 	return false
 }
@@ -1020,7 +1029,8 @@ var File_order_v1_shared_types_proto protoreflect.FileDescriptor
 
 const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\t\n" +
+	"\x1border/v1/shared_types.proto\x12\border.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\n" +
+	"\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12\"\n" +
@@ -1053,7 +1063,8 @@ const file_order_v1_shared_types_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
 	"\x16delivery_building_name\x18\x17 \x01(\tR\x14deliveryBuildingName\x121\n" +
-	"\x14cancellation_pending\x18\x18 \x01(\bR\x13cancellationPendingB\r\n" +
+	"\x14cancellation_pending\x18\x18 \x01(\bR\x13cancellationPending\x127\n" +
+	"\x17automatically_completed\x18\x19 \x01(\bR\x16automaticallyCompletedB\r\n" +
 	"\v_courier_idB\x0f\n" +
 	"\r_close_reasonB\x10\n" +
 	"\x0e_item_location\"\x91\x01\n" +

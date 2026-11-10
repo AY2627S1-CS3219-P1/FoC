@@ -66,6 +66,7 @@ type Order struct {
 	ExpiresAt                                                  time.Time
 	AssignedAt, PickedUpAt, DeliveredAt, CompletedAt, ClosedAt *time.Time
 	CloseReason, ItemLocation                                  *string
+	AutomaticallyCompleted                                     bool
 	UnattendedDelivery                                         bool
 	Revision                                                   int64
 	CreatedAt, UpdatedAt                                       time.Time
