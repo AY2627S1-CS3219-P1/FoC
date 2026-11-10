@@ -105,7 +105,7 @@ def main():
         response = aws("ec2", "run-instances", body={
             "LaunchTemplate": {"LaunchTemplateId": config["launch_template_id"], "Version": str(config["launch_template_version"])},
             "MinCount": 1, "MaxCount": 1, "ClientToken": name,
-            "CreditSpecification": {"CpuCredits": "standard"},
+            "CreditSpecification": {"CpuCredits": "unlimited"},
         })
         instance = response["Instances"][0]
         instance_id = instance["InstanceId"]
@@ -128,10 +128,10 @@ def main():
             if association["State"] == "associated":
                 aws("ec2", "disassociate-iam-instance-profile", "--association-id", association["AssociationId"])
         credit = aws("ec2", "describe-instance-credit-specifications", "--instance-ids", instance_id)["InstanceCreditSpecifications"][0]
-        require(credit["CpuCredits"] == "standard", "Runner must use Standard CPU credits")
+        require(credit["CpuCredits"] == "unlimited", "Runner must use Unlimited CPU credits")
         console = aws("ec2", "get-console-output", "--instance-id", instance_id, "--latest")
         save(directory / "console.PRIVATE.json", encode(console))
-        print("OUTPUT: GitHub runner online; private EKS TLS probe precedes registration; Standard CPU credits; bootstrap profile detached", flush=True)
+        print("OUTPUT: GitHub runner online; private EKS TLS probe precedes registration; Unlimited CPU credits; bootstrap profile detached", flush=True)
         if args.keep_running:
             transferred = True
             if os.environ.get("GITHUB_OUTPUT"):

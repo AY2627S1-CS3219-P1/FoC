@@ -22,7 +22,7 @@ Create organization runner group `foc-release`, selecting **only FoC**, allowing
 
 ## Disposable runner
 
-The runner has no public IP or inbound security-group rules. It reaches EKS over the existing private endpoint and uses the existing NAT gateway for outbound HTTPS and the signed Debian package downloads that the existing image builds fetch over HTTP. Its encrypted 80 GiB root disk is deleted on termination. IMDSv2 is required with hop limit one, and CPU credits are Standard. No additional NAT or always-on runner is created.
+The runner has no public IP or inbound security-group rules. It reaches EKS over the existing private endpoint and uses the existing NAT gateway for outbound HTTPS and the signed Debian package downloads that the existing image builds fetch over HTTP. Its encrypted 80 GiB root disk is deleted on termination. IMDSv2 is required with hop limit one. CPU credits are Unlimited: a new T3 has no credits, and Standard mode throttled image builds to the 30% baseline. The runner terminates after one job, so surplus credits cost a few cents per release (about US$0.05 per vCPU-hour). No additional NAT or always-on runner is created.
 
 Bootstrap installs Docker/Buildx, the Amazon Linux `awscli-2` package, and the GitHub runner, verifies the pinned download checksums, probes the private EKS endpoint with its actual CA, then consumes a one-job JIT registration from an encrypted Advanced SSM parameter. The JIT blob can exceed the standard parameter's 4 KiB limit. Its parameter has a one-hour expiration policy and is deleted after consumption. The bootstrap identity can read/delete only that parameter and decrypt only its SSM encryption context; it cannot deploy. The operator detaches this profile once the runner is online. Workflow AWS authentication uses OIDC.
 
@@ -82,7 +82,7 @@ terraform -chdir=infra/aws/ci test
 PYTHONDONTWRITEBYTECODE=1 .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
 ```
 
-Mock-provider assertions cover the environment-only OIDC trust, nine-repository/state-excluded deployment policy, encrypted disposable private runner, IMDSv2, Standard CPU credits, private/versioned bucket, and non-deploying bootstrap role. Offline CLI fixtures cover probe cleanup, expiring encrypted registration, refusal of unexpected workflow access or an existing instance, closed-group release rejection, and bootstrap failure. Live registration must be followed by read-back of runner-group/environment restrictions, IAM/EKS bindings, bucket settings, instance/profile/credit/network state, parameter deletion, and actual instance termination.
+Mock-provider assertions cover the environment-only OIDC trust, nine-repository/state-excluded deployment policy, encrypted disposable private runner, IMDSv2, Unlimited CPU credits, private/versioned bucket, and non-deploying bootstrap role. Offline CLI fixtures cover probe cleanup, expiring encrypted registration, refusal of unexpected workflow access or an existing instance, closed-group release rejection, and bootstrap failure. Live registration must be followed by read-back of runner-group/environment restrictions, IAM/EKS bindings, bucket settings, instance/profile/credit/network state, parameter deletion, and actual instance termination.
 
 ## Optional moderation image access
 

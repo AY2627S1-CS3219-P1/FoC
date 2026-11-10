@@ -51,8 +51,8 @@ run "isolated_release_identity_and_private_disposable_runner" {
     error_message = "The runner must be private, require IMDSv2, and terminate on shutdown."
   }
   assert {
-    condition     = aws_launch_template.runner.block_device_mappings[0].ebs[0].encrypted && aws_launch_template.runner.block_device_mappings[0].ebs[0].delete_on_termination && aws_launch_template.runner.credit_specification[0].cpu_credits == "standard"
-    error_message = "Disposable disk must be encrypted and deleted; CPU credits must not be Unlimited."
+    condition     = aws_launch_template.runner.block_device_mappings[0].ebs[0].encrypted && aws_launch_template.runner.block_device_mappings[0].ebs[0].delete_on_termination && aws_launch_template.runner.credit_specification[0].cpu_credits == "unlimited"
+    error_message = "Disposable disk must be encrypted and deleted; CPU credits must be Unlimited so image builds are not throttled to baseline."
   }
   assert {
     condition     = aws_s3_bucket_versioning.configuration.versioning_configuration[0].status == "Enabled" && aws_s3_bucket_public_access_block.configuration.block_public_policy && aws_s3_bucket_public_access_block.configuration.restrict_public_buckets

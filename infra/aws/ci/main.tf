@@ -226,7 +226,9 @@ resource "aws_launch_template" "runner" {
   instance_initiated_shutdown_behavior = "terminate"
   update_default_version               = true
   iam_instance_profile { arn = aws_iam_instance_profile.bootstrap.arn }
-  credit_specification { cpu_credits = "standard" }
+  # Image builds saturate both vCPUs. Standard mode starts a new T3 with no
+  # credits and throttles it to its 30% baseline.
+  credit_specification { cpu_credits = "unlimited" }
   metadata_options {
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
