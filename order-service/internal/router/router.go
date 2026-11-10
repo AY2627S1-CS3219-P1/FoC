@@ -12,9 +12,10 @@ import (
 
 // RPCServices contains RPC servers constructed at the application composition root.
 type RPCServices struct {
-	Health orderv1connect.HealthServiceHandler
-	Order  orderv1connect.OrderServiceHandler
-	Admin  orderv1connect.OrderAdminServiceHandler
+	Internal orderv1connect.OrderInternalServiceHandler
+	Health   orderv1connect.HealthServiceHandler
+	Order    orderv1connect.OrderServiceHandler
+	Admin    orderv1connect.OrderAdminServiceHandler
 }
 
 // Setup mounts the public health RPC and the protected order RPCs.
@@ -36,5 +37,15 @@ func Setup(services RPCServices, authenticate func(http.Handler) http.Handler) *
 	)
 	mux.Handle(adminPath, authenticate(adminHandler))
 
+	return mux
+}
+
+// Internal mounts private RPCs only. Reachability is the workload trust boundary:
+// Compose leaves this port unpublished and Kubernetes restricts its workload principals.
+func Internal(services RPCServices) *http.ServeMux {
+	mux := http.NewServeMux()
+	path, handler := orderv1connect.NewOrderInternalServiceHandler(services.Internal,
+		connect.WithInterceptors(validate.NewInterceptor()))
+	mux.Handle(path, handler)
 	return mux
 }

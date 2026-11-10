@@ -674,6 +674,74 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("evidence_attachments: one parent once attached, unique positions", func(t *testing.T) {
+		reportID, appealID := uuid.New(), uuid.New()
+		if err := db.Exec(
+			`INSERT INTO user_reports (id, reporter_id, subject_id, order_id, category, description)
+			 VALUES (?, ?, ?, ?, 'other', 'details')`,
+			reportID, alice.ID, admin.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec(
+			`INSERT INTO user_appeals (id, appellant_id, reason, idempotency_key, request_hash)
+			 VALUES (?, ?, 'unfair', ?, repeat('b', 64))`,
+			appealID, alice.ID, uuid.New(),
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		stage := func() uuid.UUID {
+			id := uuid.New()
+			if err := db.Exec(
+				`INSERT INTO evidence_attachments (id, owner_id, object_key, content_type, size_bytes, upload_expires_at)
+				 VALUES (?, ?, ?, 'image/png', 10, now())`,
+				id,
+				alice.ID,
+				"evidence/"+id.String(),
+			).Error; err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		attach := func(id uuid.UUID, report, appeal *uuid.UUID, ordinal *int) error {
+			return db.Exec(
+				`UPDATE evidence_attachments SET state = 'attached', report_id = ?, appeal_id = ?, ordinal = ?
+				 WHERE id = ?`,
+				report, appeal, ordinal, id,
+			).Error
+		}
+		zero, one := 0, 1
+
+		first := stage()
+		if err := attach(first, nil, nil, &zero); err == nil {
+			t.Fatal("expected an attachment without a parent to fail")
+		}
+		if err := attach(first, &reportID, &appealID, &zero); err == nil {
+			t.Fatal("expected an attachment with two parents to fail")
+		}
+		if err := attach(first, &reportID, nil, nil); err == nil {
+			t.Fatal("expected an attachment without a position to fail")
+		}
+		if err := attach(first, &reportID, nil, &zero); err != nil {
+			t.Fatalf("attach to report: %v", err)
+		}
+		second := stage()
+		if err := attach(second, &reportID, nil, &zero); err == nil {
+			t.Fatal("expected two attachments in one position to fail")
+		}
+		if err := attach(second, &reportID, nil, &one); err != nil {
+			t.Fatalf("attach second image: %v", err)
+		}
+		if err := attach(stage(), nil, &appealID, &zero); err != nil {
+			t.Fatalf("attach to appeal: %v", err)
+		}
+		if err := db.Exec(
+			"UPDATE evidence_attachments SET report_id = ? WHERE id = ?", reportID, stage(),
+		).Error; err == nil {
+			t.Fatal("expected a staged image with a parent to fail")
+		}
+	})
+
 	t.Run("hard-deleting a user cascades", func(t *testing.T) {
 		if err := db.Delete(&m.AdminBootstrap{}, "singleton").Error; err != nil {
 			t.Fatal(err)

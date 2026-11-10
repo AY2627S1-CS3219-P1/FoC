@@ -17,17 +17,21 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/appeal"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/communication"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/appealdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/evidencedb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/warningdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	authhandler "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/auth"
 	userservicejwt "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/report"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/reportoutcome"
 	review "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/review"
@@ -36,12 +40,23 @@ import (
 	warningdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/warning"
 )
 
+// newOrderGateway reads order participants from Order's internal listener, and
+// fails closed while ORDER_SERVICE_BASE_URL is unset.
+func newOrderGateway(cfg config) orders.Gateway {
+	if cfg.orderServiceURL == "" {
+		slog.Warn("ORDER_SERVICE_BASE_URL is not set; order participant checks fail closed")
+		return orders.UnavailableGateway{}
+	}
+	return orders.NewConnectGateway(orderv1connect.NewOrderInternalServiceClient(
+		&http.Client{Timeout: 5 * time.Second}, cfg.orderServiceURL))
+}
+
 // Communication sends magic links synchronously; its SMTP exchange is
 // bounded at 5s by default.
 const magicLinkTimeout = 15 * time.Second
 
 // newReviewService builds the review domain; photo storage is optional.
-func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
+func newReviewService(sqlDB *sql.DB, cfg config, orderGateway orders.Gateway) (*review.Service, *images.S3) {
 	repo := review.NewPostgresRepository(reviewdb.New(sqlDB))
 	var photos *images.S3
 	if cfg.s3Bucket != "" {
@@ -64,22 +79,38 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	if photos != nil {
 		reviewStorage = photos
 	}
-	service := review.NewService(repo, reviewTransactions(sqlDB), reviewStorage)
+	service := review.NewService(repo, reviewTransactions(sqlDB), reviewStorage, orderGateway)
 	return service, photos
+}
+
+// newEvidenceService stores report and appeal images in the review photo
+// bucket under evidence/. storage is nil without a bucket.
+func newEvidenceService(sqlDB *sql.DB, storage *images.S3) *evidence.Service {
+	// A typed-nil *images.S3 would bypass the domain's availability checks.
+	var evidenceStorage evidence.Storage
+	if storage != nil {
+		evidenceStorage = storage
+	}
+	return evidence.NewService(evidence.NewPostgresRepository(evidencedb.New(sqlDB)), evidenceStorage)
 }
 
 // newReportService reads through the shared pool and closes reports in a GORM
 // transaction, so outcomes reuse the role, warning and review domains.
-func newReportService(db *gorm.DB, sqlDB *sql.DB) *report.Service {
+func newReportService(
+	db *gorm.DB,
+	sqlDB *sql.DB,
+	images *evidence.Service,
+	orderGateway orders.Gateway,
+) *report.Service {
 	repo := report.NewPostgresRepository(reportdb.New(sqlDB))
-	return report.NewService(repo, reportoutcome.WithTransaction(db))
+	return report.NewService(repo, reportoutcome.WithTransaction(db), images, orderGateway)
 }
 
 // newAppealService closes appeals in a GORM transaction, so overturned
 // outcomes reuse the same domains as report outcomes.
-func newAppealService(db *gorm.DB, sqlDB *sql.DB) *appeal.Service {
+func newAppealService(db *gorm.DB, sqlDB *sql.DB, images *evidence.Service) *appeal.Service {
 	repo := appeal.NewPostgresRepository(appealdb.New(sqlDB))
-	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db))
+	return appeal.NewService(repo, reportoutcome.WithAppealTransaction(db), images)
 }
 
 func newWarningService(db warningdb.DBTX) *warningdomain.Service {

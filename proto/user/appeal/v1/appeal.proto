@@ -14,6 +14,7 @@ package user.appeal.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "pagination/v1/pagination.proto";
+import "user/evidence/v1/evidence.proto";
 
 service AppealService {
   // Participants.
@@ -21,6 +22,11 @@ service AppealService {
   rpc ListMyAppeals(ListMyAppealsRequest) returns (ListMyAppealsResponse) {}
   rpc GetAppeal(GetAppealRequest) returns (GetAppealResponse) {}
   rpc SubmitResponse(SubmitResponseRequest) returns (SubmitResponseResponse) {}
+
+  // Evidence images, for participants and administrators who can read the
+  // owning appeal.
+  rpc CreateEvidenceUpload(CreateEvidenceUploadRequest) returns (CreateEvidenceUploadResponse) {}
+  rpc GetEvidenceDownload(GetEvidenceDownloadRequest) returns (GetEvidenceDownloadResponse) {}
 
   // Administrators.
   rpc ListAppeals(ListAppealsRequest) returns (ListAppealsResponse) {}
@@ -101,6 +107,8 @@ message Appeal {
   string closer_name = 11;
   google.protobuf.Timestamp created_at = 12;
   google.protobuf.Timestamp updated_at = 13;
+  // Images the appellant attached (RP8.2), in order.
+  repeated user.evidence.v1.Evidence evidence = 14;
 }
 
 // A reply from a participant an administrator asked to respond.
@@ -111,6 +119,8 @@ message AppealResponse {
   string responder_name = 4;
   string body = 5;
   google.protobuf.Timestamp created_at = 6;
+  // Images the responding participant attached (RP9.4), in order.
+  repeated user.evidence.v1.Evidence evidence = 7;
 }
 
 // Resubmitting the same idempotency key and payload returns the original
@@ -127,6 +137,11 @@ message SubmitAppealRequest {
   repeated AppealedDecision decisions = 4 [(buf.validate.field).repeated = {
     min_items: 1
     max_items: 10
+  }];
+  // Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+  repeated string evidence_ids = 5 [(buf.validate.field).repeated = {
+    max_items: 5
+    items: {string: {uuid: true}}
   }];
 }
 
@@ -161,6 +176,11 @@ message SubmitResponseRequest {
   string body = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 4000
+  }];
+  // Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+  repeated string evidence_ids = 3 [(buf.validate.field).repeated = {
+    max_items: 5
+    items: {string: {uuid: true}}
   }];
 }
 
@@ -229,4 +249,22 @@ message CloseAppealRequest {
 
 message CloseAppealResponse {
   Appeal appeal = 1;
+}
+
+message CreateEvidenceUploadRequest {
+  user.evidence.v1.EvidenceUpload upload = 1 [(buf.validate.field).required = true];
+}
+
+message CreateEvidenceUploadResponse {
+  user.evidence.v1.EvidenceUploadGrant grant = 1;
+}
+
+// Signs a fresh URL for an image on a appeal the caller can read, or on one of
+// its responses.
+message GetEvidenceDownloadRequest {
+  string evidence_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetEvidenceDownloadResponse {
+  user.evidence.v1.Evidence evidence = 1;
 }

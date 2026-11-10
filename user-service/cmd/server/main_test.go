@@ -22,7 +22,7 @@ func TestImageStorageWiringKeepsAbsentStorageNil(t *testing.T) {
 	if profilePictureStorage(nil) != nil {
 		t.Fatal("absent storage must stay a nil interface")
 	}
-	reviewLogic, _ := newReviewService(nil, config{})
+	reviewLogic, _ := newReviewService(nil, config{}, nil)
 	if err := reviewLogic.CleanupOnce(context.Background()); err != nil {
 		t.Fatalf("review cleanup without storage: %v", err)
 	}

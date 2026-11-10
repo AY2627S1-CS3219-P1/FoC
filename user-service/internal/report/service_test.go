@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/api/errs"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reportdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 )
 
@@ -21,6 +26,7 @@ type fakeRepository struct {
 	reports   map[uuid.UUID]Report
 	responses []Response
 	requestOf map[uuid.UUID]uuid.UUID // review report -> originating order
+	orders    map[uuid.UUID]orders.Participants
 }
 
 func newFakeRepository() *fakeRepository {
@@ -29,7 +35,24 @@ func newFakeRepository() *fakeRepository {
 		reviews:   map[uuid.UUID]uuid.UUID{},
 		reports:   map[uuid.UUID]Report{},
 		requestOf: map[uuid.UUID]uuid.UUID{},
+		orders:    map[uuid.UUID]orders.Participants{},
 	}
+}
+
+// GetOrderParticipants answers for the orders a test registered.
+func (f *fakeRepository) GetOrderParticipants(_ context.Context, id uuid.UUID) (orders.Participants, error) {
+	participants, ok := f.orders[id]
+	if !ok {
+		return orders.Participants{}, orders.ErrNotFound
+	}
+	return participants, nil
+}
+
+// order registers an order between requester and courier.
+func (f *fakeRepository) order(requester, courier uuid.UUID) uuid.UUID {
+	id := uuid.New()
+	f.orders[id] = orders.Participants{RequesterID: requester, CourierID: courier}
+	return id
 }
 
 func (f *fakeRepository) UserExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -44,7 +67,7 @@ func (f *fakeRepository) LiveReviewAuthor(_ context.Context, reviewID uuid.UUID)
 	return author, nil
 }
 
-func (f *fakeRepository) InsertReport(_ context.Context, input ReportInput) error {
+func (f *fakeRepository) InsertReport(_ context.Context, _ *reportdb.Queries, input ReportInput) error {
 	for _, existing := range f.reports {
 		if existing.Status.IsClosed() || existing.ReporterID != input.ReporterID {
 			continue
@@ -200,10 +223,79 @@ func (f *fakeConsequences) RemoveReview(_ context.Context, _, reviewID uuid.UUID
 
 // newTestService runs each transaction against the fakes. The fake repository
 // does not roll back, so tests of failing transactions check only the error.
+// fakeEvidence prepares the images it staged and records what was attached.
+type fakeEvidence struct {
+	staged   map[uuid.UUID]bool
+	attached map[evidence.Parent][]uuid.UUID
+}
+
+func newFakeEvidence() *fakeEvidence {
+	return &fakeEvidence{staged: map[uuid.UUID]bool{}, attached: map[evidence.Parent][]uuid.UUID{}}
+}
+
+func (f *fakeEvidence) CreateUpload(context.Context, uuid.UUID, string, int64) (uuid.UUID, images.UploadGrant, error) {
+	id := uuid.New()
+	f.staged[id] = true
+	return id, images.UploadGrant{URL: "https://storage/" + id.String()}, nil
+}
+
+func (f *fakeEvidence) Prepare(_ context.Context, _ uuid.UUID, ids []uuid.UUID) ([]evidence.Prepared, error) {
+	prepared := make([]evidence.Prepared, 0, len(ids))
+	for _, id := range ids {
+		if !f.staged[id] {
+			return nil, errs.NewBadRequestError("image was not staged")
+		}
+		prepared = append(prepared, evidence.Prepared{ID: id})
+	}
+	return prepared, nil
+}
+
+func (f *fakeEvidence) Views(
+	_ context.Context,
+	parents []evidence.Parent,
+) (map[evidence.Parent][]evidence.View, error) {
+	views := map[evidence.Parent][]evidence.View{}
+	for _, parent := range parents {
+		for _, id := range f.attached[parent] {
+			views[parent] = append(views[parent], evidence.View{ID: id, URL: "https://storage/" + id.String()})
+		}
+	}
+	return views, nil
+}
+
+func (f *fakeEvidence) Locate(_ context.Context, id uuid.UUID) (evidence.Owner, error) {
+	for parent, ids := range f.attached {
+		if parent.Kind == evidence.ParentReport && slices.Contains(ids, id) {
+			return evidence.Owner{ReportID: parent.ID}, nil
+		}
+	}
+	return evidence.Owner{}, errs.NewNotFoundError("evidence not found")
+}
+
+func (f *fakeEvidence) Download(_ context.Context, id uuid.UUID) (evidence.View, error) {
+	return evidence.View{ID: id, URL: "https://storage/" + id.String() + "?fresh"}, nil
+}
+
+func (f *fakeEvidence) Attach(
+	_ context.Context,
+	_ uuid.UUID,
+	parent evidence.Parent,
+	prepared []evidence.Prepared,
+) error {
+	for _, image := range prepared {
+		f.attached[parent] = append(f.attached[parent], image.ID)
+	}
+	return nil
+}
+
 func newTestService(repo *fakeRepository, consequences *fakeConsequences) *Service {
+	return newTestServiceWithEvidence(repo, consequences, newFakeEvidence())
+}
+
+func newTestServiceWithEvidence(repo *fakeRepository, consequences *fakeConsequences, images *fakeEvidence) *Service {
 	return NewService(repo, func(_ context.Context, operation func(Tx) error) error {
-		return operation(Tx{Consequences: consequences})
-	})
+		return operation(Tx{Consequences: consequences, Evidence: images})
+	}, images, repo)
 }
 
 func wantStatus(t *testing.T, err error, status int) {
@@ -247,8 +339,9 @@ func TestSubmitReport(t *testing.T) {
 	})
 
 	t.Run("order target keeps the named subject", func(t *testing.T) {
-		order := uuid.New()
-		got, err := newTestService(newRepo(), nil).SubmitReport(context.Background(), reporter,
+		repo := newRepo()
+		order := repo.order(reporter, other)
+		got, err := newTestService(repo, nil).SubmitReport(context.Background(), reporter,
 			submission(OrderTarget(order, other)))
 		if err != nil {
 			t.Fatal(err)
@@ -388,7 +481,7 @@ func TestReportLifecycle(t *testing.T) {
 			t.Fatalf("request response: status=%s err=%v", f.status(), err)
 		}
 
-		_, response, err := f.service.SubmitResponse(ctx, f.subject, f.id, "  it was a misunderstanding ")
+		_, response, err := f.service.SubmitResponse(ctx, f.subject, f.id, "  it was a misunderstanding ", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -408,7 +501,7 @@ func TestReportLifecycle(t *testing.T) {
 
 	t.Run("an unrequested response keeps the status", func(t *testing.T) {
 		f := newLifecycle(StatusOpen, false)
-		if _, _, err := f.service.SubmitResponse(ctx, f.subject, f.id, "context"); err != nil {
+		if _, _, err := f.service.SubmitResponse(ctx, f.subject, f.id, "context", nil); err != nil {
 			t.Fatal(err)
 		}
 		if f.status() != StatusOpen {
@@ -430,7 +523,7 @@ func TestReportLifecycle(t *testing.T) {
 			return err
 		}},
 		{"respond after close", StatusClosed, func(f lifecycleFixture) error {
-			_, _, err := f.service.SubmitResponse(ctx, f.subject, f.id, "late")
+			_, _, err := f.service.SubmitResponse(ctx, f.subject, f.id, "late", nil)
 			return err
 		}},
 		{"close twice", StatusClosed, func(f lifecycleFixture) error {
@@ -449,9 +542,9 @@ func TestReportLifecycle(t *testing.T) {
 
 	t.Run("only the reported participant may respond", func(t *testing.T) {
 		f := newLifecycle(StatusAwaitingResponse, false)
-		_, _, err := f.service.SubmitResponse(ctx, f.reporter, f.id, "me too")
+		_, _, err := f.service.SubmitResponse(ctx, f.reporter, f.id, "me too", nil)
 		wantStatus(t, err, http.StatusForbidden)
-		_, _, err = f.service.SubmitResponse(ctx, uuid.New(), f.id, "stranger")
+		_, _, err = f.service.SubmitResponse(ctx, uuid.New(), f.id, "stranger", nil)
 		wantStatus(t, err, http.StatusNotFound)
 		if len(f.repo.responses) != 0 {
 			t.Fatalf("rejected responses stored: %+v", f.repo.responses)
@@ -578,4 +671,113 @@ func TestListMyReportsIncludesBothRoles(t *testing.T) {
 	if got.TotalItems() != 2 || got.TotalPages() != 2 {
 		t.Fatalf("page info = %+v", got.PageInfo)
 	}
+}
+
+func TestReportEvidence(t *testing.T) {
+	ctx := context.Background()
+	reporter, subject := uuid.New(), uuid.New()
+	repo := newFakeRepository()
+	repo.users[reporter], repo.users[subject] = true, true
+	images := newFakeEvidence()
+	service := newTestServiceWithEvidence(repo, &fakeConsequences{}, images)
+
+	// Submission attaches the reporter's images in order (RP1.6).
+	first, _, _ := service.CreateEvidenceUpload(ctx, reporter, "image/png", 10)
+	second, _, _ := service.CreateEvidenceUpload(ctx, reporter, "image/png", 10)
+	submitted, err := service.SubmitReport(ctx, reporter, Submission{
+		Target:      OrderTarget(repo.order(reporter, subject), subject),
+		Category:    CategoryNoShow,
+		Description: "never arrived",
+		EvidenceIDs: []uuid.UUID{second, first},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(submitted.Evidence) != 2 || submitted.Evidence[0].ID != second || submitted.Evidence[1].ID != first {
+		t.Fatalf("report evidence = %+v", submitted.Evidence)
+	}
+
+	// An image that was never staged fails the submission before any write.
+	_, err = service.SubmitReport(ctx, reporter, Submission{
+		Target:      OrderTarget(repo.order(reporter, subject), subject),
+		Category:    CategoryNoShow,
+		Description: "again",
+		EvidenceIDs: []uuid.UUID{uuid.New()},
+	})
+	wantStatus(t, err, http.StatusBadRequest)
+
+	// The reported participant's reply carries its own images (RP2.2).
+	reply, _, _ := service.CreateEvidenceUpload(ctx, subject, "image/jpeg", 10)
+	_, response, err := service.SubmitResponse(ctx, subject, submitted.ID, "here is proof", []uuid.UUID{reply})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Evidence) != 1 || response.Evidence[0].ID != reply {
+		t.Fatalf("response evidence = %+v", response.Evidence)
+	}
+
+	// Only those who can read the report can download its images.
+	if view, err := service.GetEvidenceDownload(ctx, subject, false, first); err != nil || view.ID != first {
+		t.Fatalf("participant download = %+v, %v", view, err)
+	}
+	if _, err := service.GetEvidenceDownload(ctx, uuid.New(), true, first); err != nil {
+		t.Fatalf("admin download: %v", err)
+	}
+	_, err = service.GetEvidenceDownload(ctx, uuid.New(), false, first)
+	wantStatus(t, err, http.StatusNotFound)
+}
+
+func TestSubmitReportChecksOrderParticipants(t *testing.T) {
+	requester, courier, stranger := uuid.New(), uuid.New(), uuid.New()
+	newRepo := func() *fakeRepository {
+		repo := newFakeRepository()
+		repo.users[requester], repo.users[courier], repo.users[stranger] = true, true, true
+		return repo
+	}
+	report := func(repo *fakeRepository, reporter uuid.UUID, target Target) error {
+		_, err := newTestService(repo, nil).SubmitReport(context.Background(), reporter, Submission{
+			Target: target, Category: CategoryNoShow, Description: "never arrived",
+		})
+		return err
+	}
+
+	t.Run("requester reports courier", func(t *testing.T) {
+		repo := newRepo()
+		if err := report(repo, requester, OrderTarget(repo.order(requester, courier), courier)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("courier reports requester", func(t *testing.T) {
+		repo := newRepo()
+		if err := report(repo, courier, OrderTarget(repo.order(requester, courier), requester)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("a non-participant cannot report", func(t *testing.T) {
+		repo := newRepo()
+		err := report(repo, stranger, OrderTarget(repo.order(requester, courier), courier))
+		wantStatus(t, err, http.StatusForbidden)
+	})
+	t.Run("a participant cannot report a non-participant", func(t *testing.T) {
+		repo := newRepo()
+		err := report(repo, requester, OrderTarget(repo.order(requester, courier), stranger))
+		wantStatus(t, err, http.StatusForbidden)
+	})
+	t.Run("an unknown order is not found", func(t *testing.T) {
+		err := report(newRepo(), requester, OrderTarget(uuid.New(), courier))
+		wantStatus(t, err, http.StatusNotFound)
+	})
+	t.Run("Order unavailable fails closed", func(t *testing.T) {
+		repo := newRepo()
+		service := NewService(repo, func(_ context.Context, operation func(Tx) error) error {
+			return operation(Tx{Evidence: newFakeEvidence()})
+		}, newFakeEvidence(), orders.UnavailableGateway{})
+		_, err := service.SubmitReport(context.Background(), requester, Submission{
+			Target: OrderTarget(uuid.New(), courier), Category: CategoryNoShow, Description: "x",
+		})
+		wantStatus(t, err, http.StatusServiceUnavailable)
+		if len(repo.reports) != 0 {
+			t.Fatal("a report was written while Order was unavailable")
+		}
+	})
 }

@@ -10,6 +10,7 @@ import (
 	events "github.com/AY2627S1-CS3219-P1/FoC/pkg/kafkagen/users/events/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/reviewdb"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/orders"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -21,11 +22,18 @@ type WithTransaction func(ctx context.Context, operation func(*reviewdb.Queries)
 type Service struct {
 	repo            Repository
 	withTransaction WithTransaction
-	photos          PhotoStorage
+	// photos may be nil when photo storage is not configured.
+	photos PhotoStorage
+	orders orders.Gateway
 }
 
-func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction, photos: photos}
+func NewService(
+	repo Repository,
+	withTransaction WithTransaction,
+	photos PhotoStorage,
+	orders orders.Gateway,
+) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, photos: photos, orders: orders}
 }
 
 // SubmitReview commits the pending review and submission outbox atomically.
@@ -39,14 +47,36 @@ func (s *Service) SubmitReview(
 	if reviewerID == revieweeID {
 		return SubmissionResult{}, errs.WrapBadRequestError(errSelfReview, "cannot review yourself")
 	}
+	participants, err := s.repo.CheckReviewParticipants(ctx, reviewerID, revieweeID)
+	if err != nil {
+		return SubmissionResult{}, err
+	}
+	if !participants.ReviewerExists {
+		return SubmissionResult{}, errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
+	}
+	if !participants.RevieweeExists {
+		return SubmissionResult{}, errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
+	}
 	// A prior submission committed, usually a lost-response retry; the pre-check
-	// runs before photo preparation so the retry gets the canonical 409.
+	// runs before the order lookup and photo preparation so an Order outage or
+	// already-attached photos cannot mask the canonical 409.
 	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
 	if exists {
 		return SubmissionResult{}, errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
+	// Only the requester and courier of a completed order review each other.
+	order, err := s.orders.GetOrderParticipants(ctx, orderID)
+	if err != nil {
+		return SubmissionResult{}, orders.ExternalError(err)
+	}
+	if !order.Completed {
+		return SubmissionResult{}, errs.NewBadRequestError("order is not completed")
+	}
+	if !order.Contains(reviewerID, revieweeID) {
+		return SubmissionResult{}, errs.NewForbiddenError("not a participant of this order")
 	}
 	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
 	if err != nil {
@@ -67,17 +97,6 @@ func (s *Service) SubmitReview(
 
 	var result SubmissionResult
 	err = s.withTransaction(ctx, func(q *reviewdb.Queries) error {
-		participants, err := s.repo.CheckReviewParticipants(ctx, q, reviewerID, revieweeID)
-		if err != nil {
-			return err
-		}
-		if !participants.ReviewerExists {
-			return errs.WrapBadRequestError(errReviewerNotFound, "reviewer does not exist")
-		}
-		if !participants.RevieweeExists {
-			return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
-		}
-
 		inserted, err := s.repo.InsertReview(ctx, q, ReviewInput{
 			ID:                  id,
 			ReviewerID:          reviewerID,

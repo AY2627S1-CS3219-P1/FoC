@@ -261,10 +261,9 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 
 func (r *PostgresRepository) CheckReviewParticipants(
 	ctx context.Context,
-	q *reviewdb.Queries,
 	reviewerID, revieweeID uuid.UUID,
 ) (ReviewParticipantExistence, error) {
-	exists, err := q.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
+	exists, err := r.queries.ReviewParticipantsExist(ctx, reviewdb.ReviewParticipantsExistParams{
 		ReviewerID: reviewerID,
 		RevieweeID: revieweeID,
 	})

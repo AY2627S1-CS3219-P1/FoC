@@ -16,6 +16,15 @@ domain in User Service (`user-service/internal/report`), exposed as
   deliberately. For a review, the subject is the review's author, and the
   originating request is the review's `order_id`. For an order, the reporter
   names the other participant.
+- **Order participants (RP1.1, RP1.2).** An order report is accepted only
+  when the reporter and the subject are the order's requester and current
+  courier. User Service reads them from Order's
+  `OrderInternalService.GetOrderParticipants` on its internal listener
+  (`user-service/internal/orders`, configured by `ORDER_SERVICE_BASE_URL`).
+  Reviews use the same client. An unknown order is not found, and an Order
+  outage or unset URL fails closed as unavailable.
+  An appeal's `request_id` needs no lookup: it must be the request of one of
+  the appealed decisions, which already belong to the appellant.
 - **Lifecycle (RP3).** `open → under_review ⇄ awaiting_response → closed`.
   Administrators begin review and request a response. A response from the
   reported participant moves `awaiting_response` back to `under_review`
@@ -83,6 +92,32 @@ applier.
   `review_removals` no longer has a unique `review_id`; each restoration answers
   one removal, so a restored review can be removed again.
 
+### Image evidence (RP1.6, RP2.2, RP8.2, RP9.4)
+
+Reports, appeals and their responses accept up to five images each, stored in
+`evidence_attachments` (`user-service/internal/evidence`). The flow reuses the
+review photo design (`docs/adr/review-photo-uploads.md`) and its
+`pkg/images` storage:
+
+- The browser uploads straight to the user image bucket under
+  `evidence/<id>`, through a grant from `CreateEvidenceUpload` on
+  `ReportService` or `AppealService`.
+- Submission checks each staged image against the stored object before its
+  transaction, then attaches it to exactly one parent inside the transaction.
+  An image that changed in between fails the submission.
+- Reads return short-lived download URLs. `GetEvidenceDownload` signs a fresh
+  one, and applies the owning report's or appeal's visibility, also for
+  images on responses.
+- Unattached images are reaped by the review photo cleanup loop. Without a
+  bucket, uploads are unavailable and submissions without images still work.
+
+Validation is metadata only (content type, size and an unchanged object), like
+review photos. Evidence carries more weight than a review photo, but an
+administrator judges it by eye, and nothing is decided automatically from its
+content. Objects are written once (`If-None-Match: *`), so an attached image
+cannot be replaced afterwards. Revisit this if evidence ever drives an
+automatic decision.
+
 Reasons for keeping reports in User Service:
 
 - Every consequence in RP5.2–RP5.4 lands on data User Service owns: warnings,
@@ -93,21 +128,16 @@ Reasons for keeping reports in User Service:
 
 ## Deferred
 
-- **Participant check (RP1.1, RP1.2)** — #301. Order reports are not yet checked
-  against the order's requester and courier. Order's `GetOrderParticipants` is
-  declared but not implemented. Draft #287 adds the internal listener and the
-  User → Order client configuration this needs.
 - **Credit adjustment (RP5.5)** — #302. Credit has no administrative adjustment
   entry type.
 - **Response-request notification (RP9.1)** — #303, for reports and appeals.
-- **Image evidence (RP1.6, RP2.2).** User Service has no object storage. A
-  separate attachments table can be added without changing the report tables.
 - **Review-moderation decisions (RP7.4).** Content moderation (#264) does not
   produce appealable decisions yet.
 
 ## Consequences
 
-- The reports migration is `00012`, and appeals add `00013` and `00014`. Draft #287 already uses `00010` and
+- The reports migration is `00012`, appeals add `00013` and `00014`, and
+  evidence adds `00015`. Draft #287 already uses `00010` and
   `00011`, and goose here refuses missing versions, so whichever change merges
   second must renumber.
 - `user_reports.review_id` uses the default `NO ACTION` foreign key, like

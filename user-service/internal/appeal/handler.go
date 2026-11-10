@@ -9,7 +9,9 @@ import (
 	paginationv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
 	appealv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/appeal/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/appeal/v1/appealv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/handlers/userdto"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,7 +21,16 @@ type Logic interface {
 	SubmitAppeal(ctx context.Context, appellantID uuid.UUID, submission Submission) (Appeal, error)
 	ListMyAppeals(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (Page, error)
 	GetAppeal(ctx context.Context, callerID uuid.UUID, isAdmin bool, id uuid.UUID) (Detail, error)
-	SubmitResponse(ctx context.Context, callerID, appealID uuid.UUID, body string) (Appeal, Response, error)
+	SubmitResponse(
+		ctx context.Context,
+		callerID, appealID uuid.UUID,
+		body string,
+		evidenceIDs []uuid.UUID,
+	) (Appeal, Response, error)
+	CreateEvidenceUpload(ctx context.Context, ownerID uuid.UUID, contentType string, sizeBytes int64) (
+		uuid.UUID, images.UploadGrant, error)
+	GetEvidenceDownload(ctx context.Context, callerID uuid.UUID, isAdmin bool, evidenceID uuid.UUID) (
+		evidence.View, error)
 	ListAppeals(ctx context.Context, filter Filter, page pagination.Pagination) (Page, error)
 	BeginReview(ctx context.Context, actorID, id uuid.UUID) (Appeal, error)
 	RequestResponse(ctx context.Context, actorID, id, participantID uuid.UUID) (Appeal, error)
@@ -50,7 +61,7 @@ func (h *Handler) SubmitAppeal(
 
 	appeal, err := h.Logic.SubmitAppeal(ctx, actorID, submission)
 	if err != nil {
-		return nil, api.ToConnectError(ctx, err)
+		return nil, evidence.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&appealv1.SubmitAppealResponse{Appeal: toAppealProto(appeal)}), nil
 }
@@ -123,14 +134,63 @@ func (h *Handler) SubmitResponse(
 		return nil, api.ToConnectError(ctx, err)
 	}
 
-	appeal, response, err := h.Logic.SubmitResponse(ctx, actorID, appealID, req.Msg.GetBody())
+	evidenceIDs, err := evidence.ParseIDs(req.Msg.GetEvidenceIds())
 	if err != nil {
 		return nil, api.ToConnectError(ctx, err)
+	}
+
+	appeal, response, err := h.Logic.SubmitResponse(ctx, actorID, appealID, req.Msg.GetBody(), evidenceIDs)
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
 	}
 	return connect.NewResponse(&appealv1.SubmitResponseResponse{
 		Appeal:   toAppealProto(appeal),
 		Response: toResponseProto(response),
 	}), nil
+}
+
+func (h *Handler) CreateEvidenceUpload(
+	ctx context.Context,
+	req *connect.Request[appealv1.CreateEvidenceUploadRequest],
+) (*connect.Response[appealv1.CreateEvidenceUploadResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+
+	upload := req.Msg.GetUpload()
+	id, grant, err := h.Logic.CreateEvidenceUpload(ctx, actorID, upload.GetContentType(), upload.GetSizeBytes())
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
+	}
+	return connect.NewResponse(&appealv1.CreateEvidenceUploadResponse{Grant: evidence.ToGrantProto(id, grant)}), nil
+}
+
+func (h *Handler) GetEvidenceDownload(
+	ctx context.Context,
+	req *connect.Request[appealv1.GetEvidenceDownloadRequest],
+) (*connect.Response[appealv1.GetEvidenceDownloadResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	callerID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+	evidenceID, err := parseID(req.Msg.GetEvidenceId(), "invalid evidence ID")
+	if err != nil {
+		return nil, api.ToConnectError(ctx, err)
+	}
+
+	view, err := h.Logic.GetEvidenceDownload(ctx, callerID, caller.Admin, evidenceID)
+	if err != nil {
+		return nil, evidence.ToConnectError(ctx, err)
+	}
+	resp := connect.NewResponse(&appealv1.GetEvidenceDownloadResponse{Evidence: evidence.ToProto(view)})
+	// The signed URL expires within minutes; caches must not keep it.
+	resp.Header().Set("Cache-Control", "no-store")
+	return resp, nil
 }
 
 // Administrators
@@ -232,6 +292,9 @@ func submissionFromProto(msg *appealv1.SubmitAppealRequest) (Submission, error) 
 		return Submission{}, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	submission := Submission{IdempotencyKey: key, Reason: msg.GetReason()}
+	if submission.EvidenceIDs, err = evidence.ParseIDs(msg.GetEvidenceIds()); err != nil {
+		return Submission{}, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	if msg.RequestId != nil {
 		if submission.RequestID, err = parseID(msg.GetRequestId(), "invalid request ID"); err != nil {
 			return Submission{}, connect.NewError(connect.CodeInvalidArgument, err)
@@ -359,6 +422,7 @@ func toAppealProto(appeal Appeal) *appealv1.Appeal {
 		CloserName:    appeal.CloserName,
 		CreatedAt:     timestamppb.New(appeal.CreatedAt),
 		UpdatedAt:     timestamppb.New(appeal.UpdatedAt),
+		Evidence:      evidence.ToProtos(appeal.Evidence),
 	}
 	if appeal.RequestID != uuid.Nil {
 		requestID := appeal.RequestID.String()
@@ -414,6 +478,7 @@ func toResponseProto(response Response) *appealv1.AppealResponse {
 		ResponderName: response.ResponderName,
 		Body:          response.Body,
 		CreatedAt:     timestamppb.New(response.CreatedAt),
+		Evidence:      evidence.ToProtos(response.Evidence),
 	}
 }
 

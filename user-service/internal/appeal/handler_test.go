@@ -13,7 +13,9 @@ import (
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/tokenclaims"
 	appealv1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/appeal/v1"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/appeal/v1/appealv1connect"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/pagination"
+	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/evidence"
 	"github.com/google/uuid"
 )
 
@@ -27,6 +29,9 @@ type handlerLogicStub struct {
 
 	participant uuid.UUID
 	resolutions []Resolution
+
+	responseEvidence []uuid.UUID
+	uploadedBy       uuid.UUID
 
 	appeal Appeal
 }
@@ -49,8 +54,34 @@ func (s *handlerLogicStub) GetAppeal(_ context.Context, callerID uuid.UUID, isAd
 	return Detail{Appeal: s.appeal}, nil
 }
 
-func (s *handlerLogicStub) SubmitResponse(context.Context, uuid.UUID, uuid.UUID, string) (Appeal, Response, error) {
+func (s *handlerLogicStub) SubmitResponse(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_ string,
+	evidenceIDs []uuid.UUID,
+) (Appeal, Response, error) {
+	s.responseEvidence = evidenceIDs
 	return s.appeal, Response{}, nil
+}
+
+func (s *handlerLogicStub) CreateEvidenceUpload(
+	_ context.Context,
+	ownerID uuid.UUID,
+	_ string,
+	_ int64,
+) (uuid.UUID, images.UploadGrant, error) {
+	s.uploadedBy = ownerID
+	return uuid.New(), images.UploadGrant{}, nil
+}
+
+func (s *handlerLogicStub) GetEvidenceDownload(
+	_ context.Context,
+	callerID uuid.UUID,
+	isAdmin bool,
+	evidenceID uuid.UUID,
+) (evidence.View, error) {
+	s.gotCaller, s.gotAdmin = callerID, isAdmin
+	return evidence.View{ID: evidenceID}, nil
 }
 
 func (s *handlerLogicStub) ListAppeals(context.Context, Filter, pagination.Pagination) (Page, error) {
