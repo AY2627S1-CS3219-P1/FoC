@@ -107,7 +107,13 @@ func main() {
 		relay.Run(ctx)
 	}()
 
-	profileLogic := &service.ProfileService{Users: persistence.Users}
+	reviewLogic, imageStorage := newReviewService(sqlDB, cfg)
+
+	profileLogic := &service.ProfileService{
+		Users:    persistence.Users,
+		Pictures: persistence.ProfilePictures,
+		Storage:  profilePictureStorage(imageStorage),
+	}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
@@ -116,7 +122,6 @@ func main() {
 			})
 		},
 	}
-	reviewLogic, reviewPhotos := newReviewService(sqlDB, cfg)
 	protected := router.ProtectedRoutes{
 		Profile:        &profilehandler.Handler{Logic: profileLogic},
 		Admin:          &adminhandler.Handler{Logic: roleLogic},
@@ -135,15 +140,18 @@ func main() {
 	internal := newServer(":"+cfg.internalPort, router.Internal(auth))
 	servers := []*http.Server{public, internal}
 
-	if reviewPhotos != nil {
-		// Orphan staging rows are reaped on a minute ticker; the domain's
-		// claim/delete steps are retryable and idempotent.
+	if imageStorage != nil {
+		// Orphan review photos and profile pictures are reaped on a minute
+		// ticker; both domains' claim/delete steps are retryable and idempotent.
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				if err := reviewLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
 					slog.WarnContext(ctx, "review photo cleanup deferred", "err", err)
+				}
+				if err := profileLogic.CleanupOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.WarnContext(ctx, "profile picture cleanup deferred", "err", err)
 				}
 				select {
 				case <-ctx.Done():
