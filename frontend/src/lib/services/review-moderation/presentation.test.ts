@@ -25,4 +25,3 @@ describe('newer retry progress over the last applied error', () => {
 		expect(presentReviewModeration(mergeReviewModeration(review, job)).label).toBe('Assessment error');
 	});
 });
-
