@@ -213,11 +213,21 @@ type OrderPage struct {
 	PageInfo PageInfo
 }
 
+// ProofRequiredError is a definitive refusal of a photoless confirmation. It
+// unwraps to ErrPrecondition so receipt recovery keeps classifying it as a
+// precondition rejection, while the RPC boundary can attach a distinct reason.
+type ProofRequiredError struct{}
+
+func (ProofRequiredError) Error() string { return "delivery proof photo is required" }
+func (ProofRequiredError) Unwrap() error { return ErrPrecondition }
+
 // Domain errors are translated by the RPC boundary.
 var (
-	ErrNotFound     = errors.New("order not found")
-	ErrForbidden    = errors.New("permission denied")
-	ErrInvalid      = errors.New("invalid argument")
-	ErrPrecondition = errors.New("ineligible order action")
-	ErrConflict     = errors.New("revision conflict")
+	ErrNotFound            = errors.New("order not found")
+	ErrForbidden           = errors.New("permission denied")
+	ErrInvalid             = errors.New("invalid argument")
+	ErrPrecondition        = errors.New("ineligible order action")
+	ErrProofRequired error = ProofRequiredError{}
+
+	ErrConflict = errors.New("revision conflict")
 )
