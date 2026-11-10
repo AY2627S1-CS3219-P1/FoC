@@ -18,7 +18,7 @@ FIELDS = (
 ENVELOPE = {"schema_version", "environment", "infrastructure_commit", "terraform_plan_sha256",
             "rds_ca_sha256", "deployment"}
 IMAGES = ("user-service", "supplier-service", "order-service", "credit-service",
-          "communication-service", "content-moderation-service", "moderation-service", "frontend", "kafka-init", "migrations")
+          "communication-service", "content-moderation-service", "frontend", "kafka-init", "migrations")
 
 
 class ReleaseError(Exception):

@@ -17,20 +17,6 @@ func compactJSON(value any) string {
 	return string(data)
 }
 
-// browserOriginKeys are foc-config entries that browsers call, so they use the
-// public hostname.
-var browserOriginKeys = []string{
-	"FRONTEND_BASE_URL",
-	"ORIGIN",
-	"PUBLIC_USER_SERVICE_URL",
-	"PUBLIC_SUPPLIER_SERVICE_URL",
-	"PUBLIC_ORDER_SERVICE_URL",
-	"PUBLIC_COMMUNICATION_SERVICE_URL",
-	"PUBLIC_CREDIT_SERVICE_URL",
-	"PUBLIC_MODERATION_SERVICE_URL",
-	"PUBLIC_REPORTS_MODERATION_SERVICE_URL",
-}
-
 func manifestPatch(kind, name string, value any) map[string]any {
 	target := map[string]any{"kind": kind}
 	if name != "" {
@@ -169,7 +155,7 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 				"ORDER_S3_ENDPOINT":          "",
 				"ORDER_S3_PUBLIC_ENDPOINT":   "https://s3." + stringValue(config, "region") + ".amazonaws.com",
 			}
-			for _, key := range browserOriginKeys {
+			for _, key := range []string{"FRONTEND_BASE_URL", "ORIGIN", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
 				values[key] = "https://" + hostname
 			}
 			if sender != "" {
@@ -253,10 +239,9 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 			resources = append(resources, "storage-class.json", "rds-ca.json")
 		case "applications", "initialization":
 			for _, service := range services {
-				deployment, job := serviceWorkloads(service)
-				kind, name := "Deployment", deployment
+				kind, name := "Deployment", service+"-service"
 				if stage == "initialization" {
-					kind, name = "Job", job
+					kind, name = "Job", service+"-migrate"
 				}
 				patches = append(
 					patches,

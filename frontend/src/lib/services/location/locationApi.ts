@@ -1,11 +1,12 @@
 import type { Building, Category, Location } from '$lib/gen/supplier/location/v1/shared_types_pb';
 
-export type SortField = 'name' | 'building';
+export type SortField = 'name' | 'building' | 'proximity';
 export type SortDirection = 'asc' | 'desc';
 export type ArchiveView = 'active' | 'archived' | 'all';
 
 /** A Location list query. Omitted fields use the service defaults. */
 export interface LocationQuery {
+	origin?: { latitude: number; longitude: number };
 	search?: string;
 	buildingId?: string;
 	categoryId?: string;

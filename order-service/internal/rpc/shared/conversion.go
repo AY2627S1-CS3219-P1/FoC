@@ -173,7 +173,17 @@ func PageInfo(p app.PageInfo) *pb.PageInfo {
 
 // Value helpers preserve optional location fields and timestamps.
 func location(l app.LocationSnapshot) *pb.LocationSnapshot {
-	return &pb.LocationSnapshot{LocationId: l.LocationID, Name: l.Name, BuildingName: l.BuildingName, Floor: l.Floor}
+	var coordinates *pb.Coordinates
+	if l.Coordinates != nil {
+		coordinates = &pb.Coordinates{Latitude: l.Coordinates.Latitude, Longitude: l.Coordinates.Longitude}
+	}
+	return &pb.LocationSnapshot{
+		LocationId:   l.LocationID,
+		Name:         l.Name,
+		BuildingName: l.BuildingName,
+		Floor:        l.Floor,
+		Coordinates:  coordinates,
+	}
 }
 
 func timestamp(t *time.Time) *timestamppb.Timestamp {

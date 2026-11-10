@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -214,8 +215,8 @@ func TestDatabaseCredentialRetryAndProvisioningContract(t *testing.T) {
 			}
 		}
 	}
-	if count != len(services) {
-		t.Fatalf("got %d database credentials, want %d", count, len(services))
+	if count != 6 {
+		t.Fatalf("got %d database credentials, want six", count)
 	}
 	info, err := os.Stat(filepath.Join(directory, "secrets.json"))
 	if err != nil || info.Mode().Perm() != 0600 {
@@ -284,8 +285,7 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 			t.Fatalf("got %d application image names, want nine", len(images))
 		}
 		for _, service := range services {
-			deployment, job := serviceWorkloads(service)
-			for _, pair := range [][2]string{{"Deployment", deployment}, {"Job", job}} {
+			for _, pair := range [][2]string{{"Deployment", service + "-service"}, {"Job", service + "-migrate"}} {
 				containers := array(podSpec(namedManifest(t, objects, pair[0], pair[1]))["containers"])
 				if len(containers) != 1 ||
 					!strings.Contains(compactJSON(object(containers[0])["volumeMounts"]), "/var/run/foc/rds") {
@@ -380,7 +380,7 @@ func assertRenderedAWSContracts(t *testing.T, objects []map[string]any, config m
 		t.Fatal("Order workload role changed")
 	}
 	values := object(namedManifest(t, objects, "ConfigMap", "foc-config")["data"])
-	for _, key := range append([]string{"PUBLIC_REPORTS_MODERATION_SERVICE_URL"}, browserOriginKeys...) {
+	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
 		if values[key] != "https://"+stringValue(config, "public_hostname") {
 			t.Fatalf("wrong public origin: %s", key)
 		}
@@ -480,4 +480,83 @@ func assertHelmLokiStorageContract(t *testing.T, objects []map[string]any) {
 		}
 	}
 	t.Fatal("actual Helm render omitted Loki StatefulSet")
+}
+
+func TestLegacyContentModerationCredentialsFollowRenamedDatabase(t *testing.T) {
+	a, directory, _ := testApplication(t)
+	directory = filepath.Join(directory, "db")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := json.Marshal(map[string]any{
+		"DB_HOST":      "offline.database.invalid",
+		"DB_USER":      "foc_moderation",
+		"DB_PASSWORD":  "legacy-test-only",
+		"DB_NAME":      "moderation_db",
+		"DATABASE_URL": "postgresql://foc_moderation:legacy-test-only@offline.database.invalid:5432/moderation_db",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "moderation.json"), legacy, 0600); err != nil {
+		t.Fatal(err)
+	}
+	admin := map[string]any{"username": "foc_admin", "password": "offline-test-only"}
+	for _, attempt := range []string{"upgrade", "retry"} {
+		if err := a.prepareDatabase(testConfiguration(), admin, directory); err != nil {
+			t.Fatalf("%s: %v", attempt, err)
+		}
+		if _, err := os.Stat(filepath.Join(directory, "moderation.json")); !os.IsNotExist(err) {
+			t.Fatalf("%s: legacy credentials remain available under the bare moderation name", attempt)
+		}
+		current := readTestObject(t, filepath.Join(directory, "content-moderation.json"))
+		if stringValue(current, "DB_USER") != "foc_content_moderation" ||
+			stringValue(current, "DB_NAME") != "content_moderation_db" ||
+			stringValue(current, "DB_PASSWORD") != "legacy-test-only" ||
+			!strings.Contains(stringValue(current, "DATABASE_URL"), "/content_moderation_db?") {
+			t.Fatalf("%s: content moderation credentials do not follow the renamed database", attempt)
+		}
+	}
+	secrets := readTestObject(t, filepath.Join(directory, "secrets.json"))
+	setup := ""
+	for _, item := range array(secrets["items"]) {
+		value := object(item)
+		if stringValue(object(value["metadata"]), "name") == "rds-provision-admin" {
+			setup = stringValue(object(value["stringData"]), "setup.sql")
+		}
+	}
+	if !strings.Contains(setup, "ALTER DATABASE moderation_db RENAME TO") ||
+		!strings.Contains(setup, "ALTER ROLE foc_moderation RENAME TO") {
+		t.Fatal("provisioning does not rename the original content moderation database and login")
+	}
+
+	fresh, freshRoot, _ := testApplication(t)
+	freshDirectory := filepath.Join(freshRoot, "fresh")
+	if err := os.MkdirAll(freshDirectory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := fresh.prepareDatabase(testConfiguration(), admin, freshDirectory); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range array(readTestObject(t, filepath.Join(freshDirectory, "secrets.json"))["items"]) {
+		value := object(item)
+		if stringValue(object(value["metadata"]), "name") == "rds-provision-admin" &&
+			strings.Contains(stringValue(object(value["stringData"]), "setup.sql"), "moderation_db RENAME") {
+			t.Fatal("provisioning without original content moderation credentials renames a bare moderation database")
+		}
+	}
+
+	mismatched := strings.ReplaceAll(string(legacy), "foc_moderation", "foc_other")
+	b, root, _ := testApplication(t)
+	other := filepath.Join(root, "other")
+	if err := os.MkdirAll(other, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other, "moderation.json"), []byte(mismatched), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.prepareDatabase(testConfiguration(), admin, other); err == nil ||
+		!strings.Contains(err.Error(), "not content moderation's original credentials") {
+		t.Fatalf("unexpected legacy credentials were adopted: %v", err)
+	}
 }

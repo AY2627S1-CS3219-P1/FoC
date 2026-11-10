@@ -34,22 +34,28 @@
 	let cameraInput: HTMLInputElement | undefined = $state();
 
 	// Previews are browser object URLs; they must be revoked when a row or the
-	// uploader itself goes away.
-	let previews = $state(new SvelteMap<string, string>());
+	// uploader itself goes away. A row's file can be swapped mid-upload (HEIC
+	// picks become JPEG), so the URL is recreated when the file changes.
+	let previews = $state(new SvelteMap<string, { file: File; url: string }>());
 	$effect(() => {
 		const ids = new Set(view.files.map((row) => row.id));
-		for (const [id, url] of previews) {
+		for (const [id, preview] of previews) {
 			if (!ids.has(id)) {
-				URL.revokeObjectURL(url);
+				URL.revokeObjectURL(preview.url);
 				previews.delete(id);
 			}
 		}
 		for (const row of view.files) {
-			if (!previews.has(row.id)) previews.set(row.id, URL.createObjectURL(row.file));
+			const preview = previews.get(row.id);
+			if (!preview) previews.set(row.id, { file: row.file, url: URL.createObjectURL(row.file) });
+			else if (preview.file !== row.file) {
+				URL.revokeObjectURL(preview.url);
+				previews.set(row.id, { file: row.file, url: URL.createObjectURL(row.file) });
+			}
 		}
 	});
 	$effect(() => () => {
-		for (const url of previews.values()) URL.revokeObjectURL(url);
+		for (const preview of previews.values()) URL.revokeObjectURL(preview.url);
 	});
 
 	const busy = $derived(view.busy || disabled);
@@ -121,8 +127,8 @@
 								: 'not uploaded yet'}
 				<li class:failed>
 					<span class="thumb" aria-label={`Photo ${index + 1}, ${stateLabel}`}>
-						{#if previews.get(row.id)}
-							<img src={previews.get(row.id)} alt="" />
+						{#if previews.get(row.id)?.url}
+							<img src={previews.get(row.id)!.url} alt="" />
 						{:else}
 							<span class="placeholder" aria-hidden="true"></span>
 						{/if}

@@ -318,7 +318,14 @@ SELECT id, requester_id, courier_id, status, pickup, delivery, delivery_instruct
  AND ($6::text = '' OR status = $6)
  AND (NOT $7::boolean OR (status NOT IN ('completed','cancelled','expired','failed','rejected') AND (requester_id = NULLIF($4::text,'')::uuid OR courier_id = NULLIF($4::text,'')::uuid)))
  AND ($8::text = '' OR pickup->>'location_id' = $8::text)
- AND ($9::text = '' OR delivery->>'building_name' = $9::text) ORDER BY created_at DESC,id DESC LIMIT $11 OFFSET $10::bigint
+ AND ($9::text = '' OR delivery->>'building_name' = $9::text) ORDER BY
+ CASE WHEN $10::boolean AND pickup->'coordinates'->>'latitude' IS NOT NULL AND pickup->'coordinates'->>'longitude' IS NOT NULL THEN
+  2 * 6371000 * asin(sqrt(least(1.0, greatest(0.0,
+   power(sin(radians((pickup->'coordinates'->>'latitude')::double precision - $11::double precision)/2), 2) +
+   cos(radians($11::double precision)) * cos(radians((pickup->'coordinates'->>'latitude')::double precision)) *
+   power(sin(radians((pickup->'coordinates'->>'longitude')::double precision - $12::double precision)/2), 2)
+  )))) END ASC NULLS LAST,
+ created_at DESC,id DESC LIMIT $14 OFFSET $13::bigint
 `
 
 type ListOrdersParams struct {
@@ -331,6 +338,9 @@ type ListOrdersParams struct {
 	ActiveOnly           bool
 	PickupID             string
 	DeliveryBuildingName string
+	Proximity            bool
+	OriginLatitude       float64
+	OriginLongitude      float64
 	PageOffset           int64
 	PageSize             int32
 }
@@ -346,6 +356,9 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		arg.ActiveOnly,
 		arg.PickupID,
 		arg.DeliveryBuildingName,
+		arg.Proximity,
+		arg.OriginLatitude,
+		arg.OriginLongitude,
 		arg.PageOffset,
 		arg.PageSize,
 	)

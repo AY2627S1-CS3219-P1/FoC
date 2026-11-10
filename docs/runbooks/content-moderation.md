@@ -50,8 +50,9 @@ The overlay sets the public CMS URL and mounts the RDS CA in CMS and its migrati
 ### 3. Provision the service database and database Secret
 
 Use the **same retained** `.local/aws/db` directory on retries. The preparer
-preserves existing credentials and adds `foc_moderation` / `moderation_db`, with
-a `moderation-db` Secret containing its TLS-verified `DATABASE_URL`.
+preserves existing credentials and gives CMS `foc_content_moderation` / `content_moderation_db`,
+with a `content-moderation-db` Secret containing its TLS-verified `DATABASE_URL`. A
+new installation creates them; an upgrade renames CMS's original database (below).
 
 ```sh
 DATABASE_SECRET_ARN=$(python3 -c 'import json; print(json.load(open(".local/aws/deployment.json"))["database_secret_arn"])')
@@ -63,6 +64,14 @@ k apply -f .local/aws/db/secrets.json
 k apply -f .local/aws/db/job.json
 k -n foc wait --for=condition=complete job/rds-provision --timeout=300s
 ```
+
+Upgrading from the original `moderation_db` / `foc_moderation` names keeps CMS's
+data. The preparer moves `moderation.json` to `moderation.legacy.json` and writes
+`content-moderation.json` with the same password. The Job ends sessions on
+`moderation_db`, then renames the database and login in place. CMS is unavailable
+from that point until the release rolls it out with the `content-moderation-db`
+Secret, so run this step just before the release. Keep `moderation.legacy.json`
+privately until the release succeeds, then delete it.
 
 The Job creates six databases/roles and Supplier's extensions. On retry, keep
 credential files; wait for running Jobs and delete only terminal Jobs before
@@ -87,7 +96,7 @@ chmod 600 .local/aws/CMS_LLM_API_KEY
 k -n foc create secret generic moderation-llm \
   --from-file=CMS_LLM_API_KEY=.local/aws/CMS_LLM_API_KEY \
   --dry-run=client -o yaml | k apply -f -
-k -n foc get secret moderation-db moderation-llm -o name
+k -n foc get secret content-moderation-db moderation-llm -o name
 ```
 
 Install the remaining signing/email/application Secrets using the
@@ -109,7 +118,7 @@ Wait for workflow success: Secret checks, nine image builds/pushes, migrations,
 Kafka topics, application rollout and public HTTPS smoke must all pass.
 
 ```sh
-k -n foc wait --for=condition=complete job/moderation-migrate --timeout=180s
+k -n foc wait --for=condition=complete job/content-moderation-migrate --timeout=180s
 k -n foc rollout status deployment/content-moderation-service --timeout=180s
 k -n foc logs deployment/content-moderation-service --tail=30
 ```
@@ -146,8 +155,12 @@ make seed-demo
 ```
 
 Frontend: `http://localhost:5173`; login mail: `http://localhost:8025`. Repeat
-step 6. For existing volumes missing CMS's database, see the
-[database initialization workaround](../../LANDMINES/new-service-database.md).
+step 6. `postgres-init` reruns `docker/postgres/init-dbs.sh` before CMS starts.
+On an existing volume, it renames CMS's original `moderation_dev` to
+`content_moderation_dev`, keeping its data. Local Kubernetes provisioning renames
+`moderation_db` / `moderation_app` the same way. Remove `MODERATION_DB` and
+`MODERATION_DATABASE_URL` from an existing `.env`: CMS now reads
+`CONTENT_MODERATION_DB` and `CONTENT_MODERATION_DATABASE_URL`.
 
 ## Change settings or recover stalled reviews
 

@@ -433,3 +433,56 @@ run "logging_has_dedicated_private_storage_and_identity" {
     error_message = "Loki may list and manage objects only in its own bucket, including compactor deletion."
   }
 }
+
+# The extraction requires an isolated service identity/database. The AWS demo
+# preparation contract keeps evidence private and leaves runtime deployment off.
+run "moderation_is_disabled_by_default" {
+  command = plan
+  assert {
+    condition     = !contains(keys(aws_ecr_repository.images), "moderation-service") && length(aws_s3_bucket.moderation_evidence) == 0 && length(aws_iam_role.moderation) == 0 && length(aws_iam_role_policy.moderation) == 0 && !contains(keys(local.workload_identities), "moderation") && output.moderation == null && !output.deployment.moderation_enabled
+    error_message = "Default plans must not provision moderation resources or database credentials."
+  }
+}
+
+run "moderation_has_isolated_private_evidence_resources" {
+  command = plan
+  variables {
+    enable_moderation_service = true
+  }
+  override_resource {
+    target          = aws_s3_bucket.moderation_evidence[0]
+    override_during = plan
+    values = {
+      id  = "demo-moderation-evidence"
+      arn = "arn:aws:s3:::demo-moderation-evidence"
+    }
+  }
+  assert {
+    condition     = length(aws_ecr_repository.images) == 10 && aws_ecr_repository.images["moderation-service"].name == "foc-demo/moderation-service" && aws_ecr_repository.images["moderation-service"].image_tag_mutability == "IMMUTABLE" && !aws_ecr_repository.images["moderation-service"].force_delete
+    error_message = "Moderation requires one additional immutable, retained image repository."
+  }
+  assert {
+    condition     = aws_s3_bucket.moderation_evidence[0].id != aws_s3_bucket.orders.id && aws_s3_bucket.moderation_evidence[0].id != aws_s3_bucket.loki.id && !aws_s3_bucket.moderation_evidence[0].force_destroy && aws_s3_bucket_public_access_block.moderation_evidence[0].block_public_acls && aws_s3_bucket_public_access_block.moderation_evidence[0].block_public_policy && aws_s3_bucket_public_access_block.moderation_evidence[0].ignore_public_acls && aws_s3_bucket_public_access_block.moderation_evidence[0].restrict_public_buckets && one(one(aws_s3_bucket_server_side_encryption_configuration.moderation_evidence[0].rule).apply_server_side_encryption_by_default).sse_algorithm == "AES256"
+    error_message = "Evidence must stay encrypted, private, separate from Order/Loki, and retained during teardown."
+  }
+  assert {
+    condition     = one(aws_s3_bucket_cors_configuration.moderation_evidence[0].cors_rule).allowed_origins == toset(["https://a1b2c3d4.execute-api.ap-southeast-1.amazonaws.com"]) && one(aws_s3_bucket_cors_configuration.moderation_evidence[0].cors_rule).allowed_methods == toset(["GET", "HEAD", "PUT"])
+    error_message = "Direct evidence transfers require exact-origin browser CORS, not public access."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.moderation[0].policy).Statement[0].Action == ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"] && jsondecode(aws_iam_role_policy.moderation[0].policy).Statement[0].Resource == "arn:aws:s3:::demo-moderation-evidence/evidence/*" && length(jsondecode(aws_iam_role_policy.moderation[0].policy).Statement) == 1
+    error_message = "Moderation may read/write/delete only its own evidence prefix, not list buckets, send mail, or administer infrastructure."
+  }
+  assert {
+    condition     = aws_iam_role.moderation[0].name == "foc-demo-moderation-evidence" && local.workload_identities["moderation"] == "system:serviceaccount:foc:moderation-service" && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["moderation"].statement).condition : condition.values if endswith(condition.variable, ":sub")])) == toset(["system:serviceaccount:foc:moderation-service"]) && toset(one([for condition in one(data.aws_iam_policy_document.workload_trust["moderation"].statement).condition : condition.values if endswith(condition.variable, ":aud")])) == toset(["sts.amazonaws.com"])
+    error_message = "Only the exact moderation Kubernetes identity may assume its evidence role using STS."
+  }
+  assert {
+    condition     = jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Effect == "Deny" && jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Action == "s3:*" && jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Condition.Bool["aws:SecureTransport"] == "false" && toset(jsondecode(aws_s3_bucket_policy.moderation_evidence[0].policy).Statement[0].Resource) == toset(["arn:aws:s3:::demo-moderation-evidence", "arn:aws:s3:::demo-moderation-evidence/*"])
+    error_message = "Evidence storage must reject insecure transport for the bucket and every object."
+  }
+  assert {
+    condition     = output.deployment.moderation_enabled && output.moderation.database_name == "moderation_db" && output.moderation.database_role == "foc_moderation" && output.moderation.database_secret == "moderation-db" && output.moderation.service_account == "moderation-service" && output.moderation.namespace == "foc"
+    error_message = "Operator outputs must describe the isolated moderation identity and database contract."
+  }
+}

@@ -270,7 +270,6 @@ var originKeys = []string{
 	"PUBLIC_COMMUNICATION_SERVICE_URL",
 	"PUBLIC_CREDIT_SERVICE_URL",
 	"PUBLIC_MODERATION_SERVICE_URL",
-	"PUBLIC_REPORTS_MODERATION_SERVICE_URL",
 	"ORDER_S3_PUBLIC_ENDPOINT",
 }
 
@@ -324,7 +323,7 @@ func (o *operator) deployAll() error {
 			return err
 		}
 	} else {
-		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "moderation-db", "reports-moderation-db", "moderation-llm", "jwt-signing", "kafka-ui-auth", "telegram"} {
+		for _, name := range []string{"user-db", "supplier-db", "order-db", "credit-db", "communication-db", "content-moderation-db", "moderation-db", "moderation-llm", "jwt-signing", "kafka-ui-auth", "telegram"} {
 			if _, err := o.query("-n", "foc", "get", "secret", name); err != nil {
 				return err
 			}
@@ -432,7 +431,7 @@ func (o *operator) deployAll() error {
 		}
 	}
 	note(
-		"Bootstrap deployed User, Supplier, Order, Credit, Communication, Moderation and frontend; the complete D3 business workflow remains unverified.",
+		"Bootstrap deployed User, Supplier, Order, Credit, Communication and frontend; the complete D3 business workflow remains unverified.",
 	)
 	return nil
 }

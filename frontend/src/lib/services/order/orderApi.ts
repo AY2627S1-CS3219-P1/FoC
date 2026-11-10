@@ -1,6 +1,8 @@
 import type { Order, OrderStatus, ParticipantRole } from '$lib/gen/order/v1/shared_types_pb';
 
 export interface OrderQuery {
+	sort?: 'newest' | 'proximity';
+	origin?: { latitude: number; longitude: number };
 	page?: number;
 	pageSize?: number;
 	pickupLocationId?: string;

@@ -98,7 +98,7 @@ def main():
                       "--alias", "foc-release", "--kubeconfig", env["KUBECONFIG"]], env=env)
         Path(env["KUBECONFIG"]).chmod(0o600)
         kubectl = ["kubectl", "--context", "foc-release", "--request-timeout=15s"]
-        secrets = [name + "-db" for name in ("user", "supplier", "order", "credit", "communication", "moderation", "reports-moderation")]
+        secrets = [name + "-db" for name in ("user", "supplier", "order", "credit", "communication", "content-moderation")]
         secrets += ["jwt-signing", "kafka-ui-auth", "telegram", "moderation-llm"]
         if not config["ses_sender_email"]:
             secrets.append("smtp")

@@ -136,6 +136,7 @@ type remotes struct {
 	original                                                                                           map[string]*creditpb.Reservation
 	reserveCalls, releaseCalls, getCalls, holds, locationCalls                                         int
 	unknownReserve, unknownAfterReserve, unknownGet, unknownRelease, refuse, archived, locationFailure bool
+	locationLatitude                                                                                   float64
 	onReserve                                                                                          func()
 	onGet                                                                                              func(*creditpb.Reservation)
 }
@@ -268,12 +269,17 @@ func (r *remotes) GetLocation(
 	}
 	r.mu.Lock()
 	r.locationCalls++
-	archived, failed := r.archived, r.locationFailure
+	archived, failed, latitude := r.archived, r.locationFailure, r.locationLatitude
 	r.mu.Unlock()
 	if failed {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("Supplier down"))
 	}
-	loc := &locationpb.Location{Id: req.Msg.Id, Name: "Campus location", Building: &locationpb.Building{Name: "COM1"}}
+	loc := &locationpb.Location{
+		Id:          req.Msg.Id,
+		Name:        "Campus location",
+		Building:    &locationpb.Building{Name: "COM1"},
+		Coordinates: &locationpb.Coordinates{Latitude: latitude, Longitude: 103},
+	}
 	if archived {
 		loc.ArchivedAt = timestamppb.Now()
 	}

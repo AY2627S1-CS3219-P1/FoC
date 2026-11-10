@@ -18,6 +18,8 @@ docker compose restart communication-service
 ```
 
 The script uses the container configuration and leaves existing databases intact.
+Content moderation already depends on Compose's `postgres-init`, which runs this
+script on every `docker compose up`, so it does not need this step.
 Do not reset the volume with `docker compose down -v`: it deletes every service's local data. This also applies to older volumes lacking `order_dev` or `credit_dev`.
 
 **Remove this entry when:** service databases are created on startup instead of by the init script, or no new service databases are expected.

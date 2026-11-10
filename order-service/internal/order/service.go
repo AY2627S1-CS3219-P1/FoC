@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math"
 	"time"
 	"unicode/utf8"
 
@@ -93,6 +94,15 @@ func (s *Service) list(ctx context.Context, q ReadQuery) (OrderPage, error) {
 	if q.ListRequest.DeliveryID != "" || utf8.RuneCountInString(q.ListRequest.DeliveryBuildingName) > 200 {
 		return OrderPage{}, ErrInvalid
 	}
+	if q.ListRequest.Sort != "" && q.ListRequest.Sort != SortNewest && q.ListRequest.Sort != SortProximity {
+		return OrderPage{}, ErrInvalid
+	}
+	if q.ListRequest.Origin != nil && !q.ListRequest.Origin.IsValid() {
+		return OrderPage{}, ErrInvalid
+	}
+	if q.ListRequest.Sort == SortProximity && q.ListRequest.Origin == nil {
+		return OrderPage{}, ErrInvalid
+	}
 	out, err := s.reader.List(ctx, q)
 	if err != nil {
 		return OrderPage{}, err
@@ -125,4 +135,13 @@ func (s *Service) ListOffers(ctx context.Context, c Caller, id string, status Of
 	}
 
 	return s.reader.Offers(ctx, c, id, status)
+}
+
+func (p Coordinates) IsValid() bool {
+	return !math.IsNaN(p.Latitude) && !math.IsNaN(p.Longitude) && !math.IsInf(p.Latitude, 0) &&
+		!math.IsInf(p.Longitude, 0) &&
+		p.Latitude >= -90 &&
+		p.Latitude <= 90 &&
+		p.Longitude >= -180 &&
+		p.Longitude <= 180
 }

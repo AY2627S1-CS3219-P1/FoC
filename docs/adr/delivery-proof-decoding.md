@@ -18,6 +18,12 @@ Use a 1 GiB pixel-cache ceiling with memory mapping and disk spill disabled. The
 
 An execution timeout, spawn failure or external kill is a retryable server validation failure, not evidence of an invalid image or a storage outage. Malformed media remains a precondition rejection. CI/deployment capability verification must exercise all required format cases without skips. Missing runtime support must not allow the system to issue grants for photos it cannot validate later.
 
+## Photo resolution budgets
+
+The courier's browser resamples a picked photo to at most 4000 px on its long side before requesting an upload grant, so ordinary phone outputs (including "24 MP" modes that exceed 24,000,000 actual pixels) stay inside the native area budget and uploads shrink on mobile data. Photos the browser cannot decode (HEIC outside Safari) or any processing failure upload the original bytes, and the server still decides. One resampled copy is reused across upload retries so a retry declares the same size as its grant.
+
+On the server, a header-only standard-library read of JPEG/PNG dimensions rejects a declared area of 24,000,001 pixels or more with a specific photo-too-large rejection before any native run. That rejection unwraps to the same precondition rejection used for malformed media, so delivery recovery keeps treating oversized evidence as a rejected attempt rather than a retryable outage. The native decode check is unchanged and remains authoritative; WebP and HEIC have no standard header reader, so their area admission stays with the native decoder.
+
 ## Evidence lifetime and authorization
 
 Explicit photo removal must retire its scoped upload identity before the browser discards it. Retirement releases the active staging slot and atomically leaves a fence even if the original admission response was lost. Late signing/admission and confirmation cannot revive or attach that identity. Accepted evidence cannot be retired. The concrete persistence/cleanup adapter keeps the identity fence, preserves outstanding grant expiry and deletes abandoned bytes only after those grants expire. Retired keys are periodically revisited to reap a PUT that finished after an earlier deletion. Retirement does not revoke an already issued PUT URL. The active staging cap is not a total abandoned-object or request-rate quota; deployment still needs authenticated admission rate and storage controls.

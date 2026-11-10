@@ -45,6 +45,24 @@ func TestSupportedProofImagesDecode(t *testing.T) {
 	}
 }
 
+// An ordinary phone output sits inside the byte contract, so its area must come
+// from pixels. A JPEG/PNG header above the native area limit cannot decode at
+// all and is rejected with the specific message without a native run.
+func TestProofDecoderRejectsJPEGAndPNGHeadersAboveTheAreaLimit(t *testing.T) {
+	binary, err := exec.LookPath("magick")
+	if err != nil {
+		t.Skip("ImageMagick is required")
+	}
+	body, err := exec.CommandContext(t.Context(), binary, "-size", "6000x5000", "xc:white", "jpeg:-").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = NewDecoder(binary).Validate(t.Context(), "image/jpeg", body)
+	if !errors.Is(err, app.ErrProofImageTooLarge) || !errors.Is(err, app.ErrPrecondition) {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestProofDecoderRejectsTruncatedAndMismatchedImages(t *testing.T) {
 	if _, err := exec.LookPath("magick"); err != nil {
 		t.Skip("ImageMagick is required")
