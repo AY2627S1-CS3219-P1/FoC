@@ -173,6 +173,7 @@ func (t *cancellationPostgresTx) InsertCancellation(ctx context.Context, w Cance
 		return err
 	}
 	t.cancellations[w.ID], t.changed[w.OrderID] = w, true
+	t.markChanged(w.OrderID, false)
 	return nil
 }
 
@@ -206,6 +207,9 @@ func (t *cancellationPostgresTx) SaveCancellation(ctx context.Context, w Cancell
 		return err
 	}
 	t.cancellations[w.ID] = w
+	if before.Status != w.Status {
+		t.markChanged(w.OrderID, false)
+	}
 	if w.Status != CancellationPending {
 		t.changed[w.OrderID] = true
 	}

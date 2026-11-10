@@ -9,6 +9,7 @@
  import { OrderActionRejected, type OrderOffersApi } from '$lib/services/order-offers';
  import { clearOfferAction, loadOfferAction, saveOfferAction, isProposalRetryExpired, type OfferAction } from '$lib/services/order-offers/retry';
  import { describeOrderError } from '$lib/services/order/errors';
+ import { realtimeService } from '$lib/services';
  import { proposalSchema } from '$lib/services/order-offers/proposalSchema';
  let { order, refresh, api, callerId, suspended }: {
   order: Order; refresh: () => Promise<void>; api: OrderOffersApi; callerId: string; suspended: boolean
@@ -70,7 +71,24 @@
    if (read === offerRead && callerId === caller && order.id === id) { offers = result; listError = ''; }
   } catch (cause) { if (read === offerRead && callerId === caller && order.id === id) listError = describeOrderError(cause, 'load offers'); }
  }
- $effect(() => { const revision = order.revision; void revision; void loadOffers(); });
+ $effect(() => {
+  const id = order.id, caller = callerId;
+  if (!id || !caller) return;
+  const stop = realtimeService.subscribe(['orders', 'openOrders'], async () => {
+   await loadOffers(); await checkAttempt();
+  });
+  return () => { offerRead++; stop(); };
+ });
+ async function checkAttempt() {
+  const pending = action, current = epoch;
+  if (busy || !pending?.attemptId || !['pending','compensating'].includes(pending.outcome)) return;
+  try {
+   const result = await api.getAttempt(pending.attemptId);
+   if (current !== epoch || action !== pending || busy) return;
+   const outcome = result.status === AssignmentAttemptStatus.SUCCEEDED ? 'succeeded' : result.status === AssignmentAttemptStatus.REJECTED ? 'rejected' : result.status === AssignmentAttemptStatus.COMPENSATING ? 'compensating' : 'pending';
+   action = { ...pending, outcome }; saveOfferAction(sessionStorage, callerId, order.id, action); message = outcomeMessage(action);
+  } catch { /* Missing/unavailable status is still uncertain; never repeat the mutation. */ }
+ }
  $effect(() => { const timer = setInterval(() => { now = Date.now(); }, 1000); return () => clearInterval(timer); });
  onDestroy(() => { epoch++; offerRead++; });
  async function perform(next: OfferAction) {
@@ -90,7 +108,7 @@
     if (current !== epoch) return;
     const status = result.attempt.status;
     const outcome = status === AssignmentAttemptStatus.SUCCEEDED ? 'succeeded' : status === AssignmentAttemptStatus.COMPENSATING ? 'compensating' : status === AssignmentAttemptStatus.REJECTED ? 'rejected' : 'pending';
-    action = { ...next, outcome }; saveOfferAction(sessionStorage, caller, id, action); message = outcomeMessage(action);
+    action = { ...next, attemptId: result.attempt.attemptId, outcome }; saveOfferAction(sessionStorage, caller, id, action); message = outcomeMessage(action);
    }
   } catch (cause) {
    if (current !== epoch) return;
@@ -105,7 +123,7 @@
    if (current === epoch) {
     try { await refresh(); await loadOffers(); }
     catch { if (current === epoch) error += ' Could not update the order. Refresh to try again.'; }
-    finally { if (current === epoch) busy = false; }
+    finally { if (current === epoch) { busy = false; realtimeService.invalidate(['orders']); } }
    }
   }
  }

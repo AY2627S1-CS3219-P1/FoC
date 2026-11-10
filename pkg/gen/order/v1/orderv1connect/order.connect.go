@@ -33,6 +33,12 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// OrderServiceGetAssignmentAttemptProcedure is the fully-qualified name of the OrderService's
+	// GetAssignmentAttempt RPC.
+	OrderServiceGetAssignmentAttemptProcedure = "/order.v1.OrderService/GetAssignmentAttempt"
+	// OrderServiceGetCancellationProcedure is the fully-qualified name of the OrderService's
+	// GetCancellation RPC.
+	OrderServiceGetCancellationProcedure = "/order.v1.OrderService/GetCancellation"
 	// OrderServiceCreateOrderProcedure is the fully-qualified name of the OrderService's CreateOrder
 	// RPC.
 	OrderServiceCreateOrderProcedure = "/order.v1.OrderService/CreateOrder"
@@ -88,6 +94,8 @@ const (
 
 // OrderServiceClient is a client for the order.v1.OrderService service.
 type OrderServiceClient interface {
+	GetAssignmentAttempt(context.Context, *connect.Request[v1.GetAssignmentAttemptRequest]) (*connect.Response[v1.GetAssignmentAttemptResponse], error)
+	GetCancellation(context.Context, *connect.Request[v1.GetCancellationRequest]) (*connect.Response[v1.GetCancellationResponse], error)
 	CreateOrder(context.Context, *connect.Request[v1.CreateOrderRequest]) (*connect.Response[v1.CreateOrderResponse], error)
 	CreateItemImageUpload(context.Context, *connect.Request[v1.CreateItemImageUploadRequest]) (*connect.Response[v1.CreateItemImageUploadResponse], error)
 	GetOrder(context.Context, *connect.Request[v1.GetOrderRequest]) (*connect.Response[v1.GetOrderResponse], error)
@@ -119,6 +127,20 @@ func NewOrderServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 	baseURL = strings.TrimRight(baseURL, "/")
 	orderServiceMethods := v1.File_order_v1_order_proto.Services().ByName("OrderService").Methods()
 	return &orderServiceClient{
+		getAssignmentAttempt: connect.NewClient[v1.GetAssignmentAttemptRequest, v1.GetAssignmentAttemptResponse](
+			httpClient,
+			baseURL+OrderServiceGetAssignmentAttemptProcedure,
+			connect.WithSchema(orderServiceMethods.ByName("GetAssignmentAttempt")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getCancellation: connect.NewClient[v1.GetCancellationRequest, v1.GetCancellationResponse](
+			httpClient,
+			baseURL+OrderServiceGetCancellationProcedure,
+			connect.WithSchema(orderServiceMethods.ByName("GetCancellation")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		createOrder: connect.NewClient[v1.CreateOrderRequest, v1.CreateOrderResponse](
 			httpClient,
 			baseURL+OrderServiceCreateOrderProcedure,
@@ -245,6 +267,8 @@ func NewOrderServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // orderServiceClient implements OrderServiceClient.
 type orderServiceClient struct {
+	getAssignmentAttempt  *connect.Client[v1.GetAssignmentAttemptRequest, v1.GetAssignmentAttemptResponse]
+	getCancellation       *connect.Client[v1.GetCancellationRequest, v1.GetCancellationResponse]
 	createOrder           *connect.Client[v1.CreateOrderRequest, v1.CreateOrderResponse]
 	createItemImageUpload *connect.Client[v1.CreateItemImageUploadRequest, v1.CreateItemImageUploadResponse]
 	getOrder              *connect.Client[v1.GetOrderRequest, v1.GetOrderResponse]
@@ -263,6 +287,16 @@ type orderServiceClient struct {
 	confirmReceipt        *connect.Client[v1.ConfirmReceiptRequest, v1.ConfirmReceiptResponse]
 	cancelOrder           *connect.Client[v1.CancelOrderRequest, v1.CancelOrderResponse]
 	recordItemLocation    *connect.Client[v1.RecordItemLocationRequest, v1.RecordItemLocationResponse]
+}
+
+// GetAssignmentAttempt calls order.v1.OrderService.GetAssignmentAttempt.
+func (c *orderServiceClient) GetAssignmentAttempt(ctx context.Context, req *connect.Request[v1.GetAssignmentAttemptRequest]) (*connect.Response[v1.GetAssignmentAttemptResponse], error) {
+	return c.getAssignmentAttempt.CallUnary(ctx, req)
+}
+
+// GetCancellation calls order.v1.OrderService.GetCancellation.
+func (c *orderServiceClient) GetCancellation(ctx context.Context, req *connect.Request[v1.GetCancellationRequest]) (*connect.Response[v1.GetCancellationResponse], error) {
+	return c.getCancellation.CallUnary(ctx, req)
 }
 
 // CreateOrder calls order.v1.OrderService.CreateOrder.
@@ -357,6 +391,8 @@ func (c *orderServiceClient) RecordItemLocation(ctx context.Context, req *connec
 
 // OrderServiceHandler is an implementation of the order.v1.OrderService service.
 type OrderServiceHandler interface {
+	GetAssignmentAttempt(context.Context, *connect.Request[v1.GetAssignmentAttemptRequest]) (*connect.Response[v1.GetAssignmentAttemptResponse], error)
+	GetCancellation(context.Context, *connect.Request[v1.GetCancellationRequest]) (*connect.Response[v1.GetCancellationResponse], error)
 	CreateOrder(context.Context, *connect.Request[v1.CreateOrderRequest]) (*connect.Response[v1.CreateOrderResponse], error)
 	CreateItemImageUpload(context.Context, *connect.Request[v1.CreateItemImageUploadRequest]) (*connect.Response[v1.CreateItemImageUploadResponse], error)
 	GetOrder(context.Context, *connect.Request[v1.GetOrderRequest]) (*connect.Response[v1.GetOrderResponse], error)
@@ -384,6 +420,20 @@ type OrderServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewOrderServiceHandler(svc OrderServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	orderServiceMethods := v1.File_order_v1_order_proto.Services().ByName("OrderService").Methods()
+	orderServiceGetAssignmentAttemptHandler := connect.NewUnaryHandler(
+		OrderServiceGetAssignmentAttemptProcedure,
+		svc.GetAssignmentAttempt,
+		connect.WithSchema(orderServiceMethods.ByName("GetAssignmentAttempt")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	orderServiceGetCancellationHandler := connect.NewUnaryHandler(
+		OrderServiceGetCancellationProcedure,
+		svc.GetCancellation,
+		connect.WithSchema(orderServiceMethods.ByName("GetCancellation")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	orderServiceCreateOrderHandler := connect.NewUnaryHandler(
 		OrderServiceCreateOrderProcedure,
 		svc.CreateOrder,
@@ -507,6 +557,10 @@ func NewOrderServiceHandler(svc OrderServiceHandler, opts ...connect.HandlerOpti
 	)
 	return "/order.v1.OrderService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case OrderServiceGetAssignmentAttemptProcedure:
+			orderServiceGetAssignmentAttemptHandler.ServeHTTP(w, r)
+		case OrderServiceGetCancellationProcedure:
+			orderServiceGetCancellationHandler.ServeHTTP(w, r)
 		case OrderServiceCreateOrderProcedure:
 			orderServiceCreateOrderHandler.ServeHTTP(w, r)
 		case OrderServiceCreateItemImageUploadProcedure:
@@ -551,6 +605,14 @@ func NewOrderServiceHandler(svc OrderServiceHandler, opts ...connect.HandlerOpti
 
 // UnimplementedOrderServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedOrderServiceHandler struct{}
+
+func (UnimplementedOrderServiceHandler) GetAssignmentAttempt(context.Context, *connect.Request[v1.GetAssignmentAttemptRequest]) (*connect.Response[v1.GetAssignmentAttemptResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.GetAssignmentAttempt is not implemented"))
+}
+
+func (UnimplementedOrderServiceHandler) GetCancellation(context.Context, *connect.Request[v1.GetCancellationRequest]) (*connect.Response[v1.GetCancellationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.GetCancellation is not implemented"))
+}
 
 func (UnimplementedOrderServiceHandler) CreateOrder(context.Context, *connect.Request[v1.CreateOrderRequest]) (*connect.Response[v1.CreateOrderResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("order.v1.OrderService.CreateOrder is not implemented"))

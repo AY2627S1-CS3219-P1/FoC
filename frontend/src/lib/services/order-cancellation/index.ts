@@ -7,6 +7,7 @@ export interface CancellationSubmission {
 	expectedRevision: string;
 	reason: string;
 	key: string;
+	operationId?: string;
 }
 
 export interface CancellationOutcome {
@@ -17,6 +18,7 @@ export interface CancellationOutcome {
 
 export interface ParticipantActionsApi {
 	cancel(input: CancellationSubmission): Promise<CancellationOutcome>;
+	getCancellation(operationId: string): Promise<CancellationOutcome>;
 	pickup(id: string): Promise<void>;
 	receipt(id: string): Promise<void>;
 	recordLocation(id: string, location: string): Promise<void>;
@@ -25,6 +27,11 @@ export interface ParticipantActionsApi {
 export function createParticipantActionsApi(transport: Transport): ParticipantActionsApi {
 	const client = createClient(OrderService, transport);
 	return {
+		async getCancellation(operationId) {
+			const result = (await client.getCancellation({ operationId })).cancellation;
+			if (!result?.operationId || ![CancellationStatus.PENDING, CancellationStatus.SUCCEEDED, CancellationStatus.SUPERSEDED].includes(result.status)) throw new Error('Cancellation result is unknown');
+			return { operationId: result.operationId, status: result.status };
+		},
 		async cancel(input) {
 			const result = await client.cancelOrder({
 				id: input.orderId, reason: input.reason, idempotencyKey: input.key,
@@ -53,5 +60,6 @@ export function loadCancellation(storage: Storage, caller: string, order: string
 		[...value.reason].length > 500 || typeof value.key !== 'string' || !uuid.test(value.key) ||
 		typeof value.expectedRevision !== 'string' || !/^[1-9][0-9]*$/.test(value.expectedRevision) ||
 		BigInt(value.expectedRevision) > 9223372036854775807n) throw new Error('Invalid saved cancellation');
-	return { orderId: order, reason: value.reason, key: value.key, expectedRevision: value.expectedRevision };
+	if (value.operationId !== undefined && (typeof value.operationId !== 'string' || !uuid.test(value.operationId))) throw new Error('Invalid saved cancellation');
+	return { orderId: order, reason: value.reason, key: value.key, expectedRevision: value.expectedRevision, ...(value.operationId ? { operationId: value.operationId } : {}) };
 }

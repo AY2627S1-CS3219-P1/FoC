@@ -253,7 +253,16 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 			t.Fatal(err)
 		}
 		ids := map[string]bool{}
+		changes := map[string]bool{}
 		for fact := range claims {
+			// Advisory changes can be claimed independently of business facts.
+			if fact.Kind == "order.changed" {
+				if changes[fact.ID] {
+					t.Fatal("claimed the same change event twice")
+				}
+				changes[fact.ID] = true
+				continue
+			}
 			if ids[fact.OrderID] || fact.Revision != 1 {
 				t.Fatal("published past an outstanding earlier fact")
 			}
@@ -261,6 +270,9 @@ func TestOrderOutboxWithKafka(t *testing.T) {
 		}
 		if len(ids) != 2 {
 			t.Fatalf("claimed %d Orders", len(ids))
+		}
+		if len(changes) != 4 {
+			t.Fatalf("claimed %d change events, want 4", len(changes))
 		}
 		reopen()
 		if err := outbox.New(store, publisher).Drain(f.ctx, 50); err != nil {

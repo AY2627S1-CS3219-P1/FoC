@@ -8,6 +8,8 @@ export interface TelegramLinkStatus {
 	linked: boolean;
 	username?: string;
 	linkedAt?: Date;
+	/** The running bot; absent while Telegram is disabled. */
+	botUrl?: string;
 }
 
 export interface TelegramLinkApi {

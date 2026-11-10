@@ -51,3 +51,27 @@ func TestRemovedCourierSurvivesStatusEventWireEncoding(t *testing.T) {
 		})
 	}
 }
+
+func TestOfferMadeEncodesTheOffer(t *testing.T) {
+	at := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	payload, err := json.Marshal(app.FactsPayload{
+		OrderID: "order", Revision: 4, RequesterID: "requester", Status: app.AwaitingCourier,
+		Action: app.ProposeOffer, At: at, Offer: &app.OfferFact{ID: "offer", CourierID: "courier", Credits: 15},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorID := "courier"
+	message, err := encode(Fact{
+		ID: "offer-event", OrderID: "order", Revision: 4, Version: 1, Kind: string(app.OfferMade),
+		ActorKind: "user", ActorID: &actorID, PickupName: "COM2", Payload: payload,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer, ok := message.(*events.OrderOfferMade)
+	if !ok || offer.GetOfferId() != "offer" || offer.GetCredits() != 15 || offer.GetCourierId() != "courier" ||
+		offer.GetRequesterId() != "requester" || offer.GetPickupLocationName() != "COM2" || offer.GetRevision() != 4 {
+		t.Fatalf("message = %v", message)
+	}
+}

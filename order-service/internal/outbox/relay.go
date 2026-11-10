@@ -41,21 +41,28 @@ func New(repository Repository, publisher Publisher) *Relay {
 }
 
 func (r *Relay) Drain(ctx context.Context, limit int) error {
+	_, err := r.drain(ctx, limit)
+	return err
+}
+
+// drain reports a full batch even when some facts were safely deferred. Storage
+// failures stop the batch so Run waits before retrying the failed operation.
+func (r *Relay) drain(ctx context.Context, limit int) (bool, error) {
 	var deferred error
 	// Freeze eligibility for this batch so a deferred fact cannot become due
 	// again while later publications are slow. Each claim still gets a fresh lease.
 	eligibleAt := r.now().UTC()
 	for range limit {
 		if err := ctx.Err(); err != nil {
-			return errors.Join(deferred, err)
+			return false, errors.Join(deferred, err)
 		}
 		now := r.now().UTC()
 		fact, err := r.repository.Claim(ctx, eligibleAt, now.Add(30*time.Second))
 		if err != nil {
-			return errors.Join(deferred, err)
+			return false, errors.Join(deferred, err)
 		}
 		if fact == nil {
-			return deferred
+			return false, deferred
 		}
 		message, err := encode(*fact)
 		if err == nil {
@@ -66,7 +73,7 @@ func (r *Relay) Drain(ctx context.Context, limit int) error {
 		if err != nil {
 			deferred = errors.Join(deferred, err)
 			if retryErr := r.repository.Retry(ctx, *fact, r.now().UTC().Add(2*time.Second)); retryErr != nil {
-				return errors.Join(deferred, retryErr)
+				return false, errors.Join(deferred, retryErr)
 			}
 			// This Order remains blocked behind its deferred fact. Other Orders
 			// can still use the rest of this bounded batch.
@@ -75,26 +82,32 @@ func (r *Relay) Drain(ctx context.Context, limit int) error {
 		// A local failure here deliberately leaves the event outstanding. The next
 		// owner republishes the same ID even if Kafka already accepted it.
 		if err := r.repository.Published(ctx, *fact, r.now().UTC()); err != nil {
-			return errors.Join(deferred, err)
+			return false, errors.Join(deferred, err)
 		}
 	}
-	return deferred
+	return true, deferred
 }
 
 func (r *Relay) Run(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := r.Drain(ctx, 50); err != nil && ctx.Err() == nil {
+		full, err := r.drain(ctx, 50)
+		if err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "Order outbox publication deferred", "error", err)
 		}
+		if full {
+			continue
+		}
+		// Poll only after exhausting eligible work or encountering a storage
+		// failure. Full batches continue without imposing a throughput quota.
+		timer := time.NewTimer(time.Second)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
 	}
 }

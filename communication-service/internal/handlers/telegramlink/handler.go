@@ -69,14 +69,19 @@ func (h *Handler) GetTelegramLink(
 	if err != nil {
 		return nil, err
 	}
+	resp := &communicationv1.GetTelegramLinkResponse{}
+	if bot := h.BotUsername(); bot != "" {
+		botURL := (&url.URL{Scheme: "https", Host: "t.me", Path: "/" + bot}).String()
+		resp.BotUrl = &botURL
+	}
 	link, err := h.Logic.Get(ctx, userID)
 	if errors.Is(err, linking.ErrNotLinked) {
-		return connect.NewResponse(&communicationv1.GetTelegramLinkResponse{}), nil
+		return connect.NewResponse(resp), nil
 	}
 	if err != nil {
 		return nil, internal(ctx, err)
 	}
-	resp := &communicationv1.GetTelegramLinkResponse{Linked: true, LinkedAt: timestamppb.New(link.LinkedAt)}
+	resp.Linked, resp.LinkedAt = true, timestamppb.New(link.LinkedAt)
 	if link.Username != "" {
 		resp.TelegramUsername = &link.Username
 	}

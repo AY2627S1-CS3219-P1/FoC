@@ -368,6 +368,8 @@ func TestProductionDeploySkipsLocalDatabaseProvisioning(t *testing.T) {
 	fakeCommand(t, "kubectl", `printf '%s\n' "$*" >> "$K8S_TEST_LOG"
 case "$*" in
  *'config get-contexts'*) printf 'kind-foc-test';;
+ *'create --dry-run=client --validate=false -k '*'/applications -o json'*) printf '%s' '{"kind":"List","items":[{"kind":"Deployment","metadata":{"name":"communication-service","namespace":"foc"},"spec":{"template":{"spec":{"containers":[{"envFrom":[{"secretRef":{"name":"smtp"}}]}]}}}}]}';;
+ *'create --dry-run=client --validate=false -k '*'-o json'*) printf '%s' '{"kind":"Gateway","metadata":{"name":"foc-public","namespace":"istio-ingress"},"spec":{"listeners":[{"protocol":"HTTPS","tls":{"certificateRefs":[{"name":"foc-public-tls"}]}}]}}';;
  *'kustomize'*) printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: fixture\n';;
  *'get job'*'jsonpath={.status.succeeded}'*) printf '1:';;
  *'get secret grafana-admin'*) printf 'dXNlcg==:cGFzcw==';;
@@ -388,6 +390,12 @@ esac`)
 	}
 	if !strings.Contains(calls, "get secret user-db") || !strings.Contains(calls, "get secret communication-db") {
 		t.Fatal("production did not require per-service secrets")
+	}
+	if !strings.Contains(calls, "get secret smtp") {
+		t.Fatal("production SMTP deployment did not require its Secret")
+	}
+	if !strings.Contains(calls, "get secret foc-public-tls") {
+		t.Fatal("production HTTPS listener did not require its certificate Secret")
 	}
 	migration := strings.Index(calls, "get job user-migrate -o")
 	application := strings.Index(calls, "rollout restart deployment/user-service")

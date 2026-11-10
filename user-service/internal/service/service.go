@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/AY2627S1-CS3219-P1/FoC/pkg/email"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/jwt"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/models"
 	userdomain "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/user"
@@ -62,11 +61,25 @@ type TokenCodec interface {
 	PublicKeys() jwt.JWKSet
 }
 
+// MagicLinkPurpose says whether a magic link signs in or finishes sign-up.
+type MagicLinkPurpose int
+
+const (
+	MagicLinkLogin MagicLinkPurpose = iota + 1
+	MagicLinkRegister
+)
+
+// MagicLinkSender delivers magic links. Communication Service sends and words
+// the email.
+type MagicLinkSender interface {
+	SendMagicLink(ctx context.Context, to, link string, purpose MagicLinkPurpose) error
+}
+
 type Dependencies struct {
 	Resources       Resources
 	WithTransaction WithTransaction
 	TokenCodec      TokenCodec
-	EmailSender     email.EmailSender
+	MagicLinks      MagicLinkSender
 }
 
 type Config struct {

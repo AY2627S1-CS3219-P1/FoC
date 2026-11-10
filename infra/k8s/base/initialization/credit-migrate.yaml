@@ -20,13 +20,18 @@ spec:
         - name: credit-migrate
           image: foc/migrations:local
           imagePullPolicy: IfNotPresent
-          args: ["-dir", "/migrations/credit", "postgres", "$(DATABASE_URL)", "up"]
+          args: ["-dir", "/migrations/credit", "up"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-          envFrom:
-            - secretRef:
-                name: credit-db
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: credit-db
+                  key: DATABASE_URL

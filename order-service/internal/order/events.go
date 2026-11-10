@@ -18,6 +18,7 @@ const (
 	StatusChanged  FactKind = "order.status_changed"
 	Outcome        FactKind = "order.outcome"
 	CourierWarning FactKind = "order.courier_warning_requested"
+	OfferMade      FactKind = "order.offer_made"
 )
 
 type Fact struct {
@@ -44,6 +45,16 @@ type FactsPayload struct {
 	DeliveredAt        *time.Time `json:"delivered_at,omitempty"`
 	AfterPickup        bool       `json:"after_pickup"`
 	At                 time.Time  `json:"at"`
+	// Set only on OfferMade facts.
+	Offer *OfferFact `json:"offer,omitempty"`
+}
+
+// OfferFact is a courier's new offer. MakeOffer records it in the change's
+// audit details, so NewChange can rebuild the OfferMade fact from them.
+type OfferFact struct {
+	ID        string `json:"offer_id"`
+	CourierID string `json:"courier_id"`
+	Credits   int64  `json:"credits"`
 }
 
 // NewChange builds mandatory audit/facts. Creation is expected revision zero,
@@ -153,6 +164,9 @@ func NewChange(
 			Details:        details,
 		},
 	}
+	if action == ProposeOffer {
+		return withOfferFact(c, after, actor, details, newID)
+	}
 	if previous == after.Status {
 		return c, nil
 	}
@@ -193,5 +207,31 @@ func NewChange(
 		add(CourierWarning)
 	}
 
+	return c, nil
+}
+
+// withOfferFact adds the OfferMade fact for a ProposeOffer change, from the
+// offer MakeOffer recorded in the audit details.
+func withOfferFact(c Change, after Order, actor Actor, details json.RawMessage, newID func() string) (Change, error) {
+	var offer OfferFact
+	if err := json.Unmarshal(details, &offer); err != nil {
+		return Change{}, ErrInvalid
+	}
+	if _, err := parseID(offer.ID); err != nil || offer.CourierID != actor.ID || offer.Credits <= after.RewardCredits {
+		return Change{}, ErrInvalid
+	}
+	payload, err := json.Marshal(FactsPayload{
+		OrderID:     after.ID,
+		Revision:    after.Revision,
+		RequesterID: after.RequesterID,
+		Status:      after.Status,
+		Action:      ProposeOffer,
+		At:          after.UpdatedAt,
+		Offer:       &offer,
+	})
+	if err != nil {
+		return Change{}, err
+	}
+	c.Facts = append(c.Facts, Fact{ID: newID(), Kind: OfferMade, Version: 1, Payload: payload})
 	return c, nil
 }

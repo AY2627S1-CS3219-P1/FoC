@@ -129,3 +129,21 @@ func TestStorageErrorsStayInternal(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestGetTelegramLinkReportsTheRunningBot(t *testing.T) {
+	for name, tc := range map[string]struct {
+		logic *fakeLogic
+		bot   string
+		want  string
+	}{
+		"linked":       {&fakeLogic{link: linking.Link{LinkedAt: time.Now()}}, "foc_bot", "https://t.me/foc_bot"},
+		"unlinked":     {&fakeLogic{err: linking.ErrNotLinked}, "foc_bot", "https://t.me/foc_bot"},
+		"bot disabled": {&fakeLogic{err: linking.ErrNotLinked}, "", ""},
+	} {
+		resp, err := handler(tc.logic, tc.bot).
+			GetTelegramLink(signedIn(), connect.NewRequest(&communicationv1.GetTelegramLinkRequest{}))
+		if err != nil || resp.Msg.GetBotUrl() != tc.want || (tc.want == "") != (resp.Msg.BotUrl == nil) {
+			t.Fatalf("%s: bot URL = %v, %v", name, resp.Msg.BotUrl, err)
+		}
+	}
+}
