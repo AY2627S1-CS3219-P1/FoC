@@ -418,6 +418,17 @@ Communication is added independently without replacing User's existing role.
 The renderer uses Communication's ARN; the User ARN output does not itself change
 User's ServiceAccount annotation.
 
+Before applying in an existing environment, inspect the email role and policy
+state bindings. `aws_iam_role.email[0]` and `aws_iam_role_policy.email[0]` must
+refer to `<name>-user-email`; the corresponding `communication_email[0]`
+resources must refer to `<name>-communication-email`. An environment that applied
+the earlier Communication-only configuration may instead bind `email[0]` to
+Communication's role. Source changes do not migrate those bindings: have the
+infrastructure operator reconcile them under the backend lock, then review a
+fresh plan. Do not apply a plan that replaces an existing email role as part of
+this migration. A correctly bound environment with both roles already managed
+should show no changes to either role or its policy.
+
 SES sender verification, production access, workload authorization, and actual
 mailbox delivery are separate checks. A policy simulation is not proof of live
 sending. After deployment, verify the workload's role and send an approved test
