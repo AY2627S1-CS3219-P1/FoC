@@ -6,9 +6,12 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,6 +49,96 @@ func (s *recordingEmailSender) snapshot() []email.Email {
 	return append([]email.Email(nil), s.sent...)
 }
 
+func notificationTestPool(t *testing.T, ctx context.Context, dsn string) *pgxpool.Pool {
+	t.Helper()
+	admin, err := database.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(admin.Close)
+	schema := "email_startup_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = admin.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE") })
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	poolConfig.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}
+
+func TestQueuedEmailRecoversWhileTelegramStartupRetries(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	pool := notificationTestPool(t, ctx, dsn)
+	userID, eventID := uuid.New(), uuid.New()
+	if err := (&users.PostgresStore{Queries: db.New(pool)}).SaveEmail(
+		ctx,
+		userID,
+		"alice@foc.local",
+		time.Now(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&notify.PostgresEmailQueue{Pool: pool}).Enqueue(
+		ctx,
+		eventID,
+		userID,
+		"retained outcome",
+		time.Now(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":503,"description":"Unavailable"}`)
+	}))
+	defer server.Close()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	var workers sync.WaitGroup
+	runCtx, stop := context.WithCancel(ctx)
+	defer func() { stop(); workers.Wait() }()
+	var botUsername atomic.Pointer[string]
+	startBot(runCtx, config{telegramToken: "123:token", telegramAPI: server.URL}, log,
+		nil, nil, &botUsername, func() {}, func() {}, &workers)
+	mailer := &recordingEmailSender{}
+	startEmailWorker(runCtx, log, &notify.PostgresEmailQueue{Pool: pool}, mailer, &workers)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var sent bool
+		err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM order_notifications_sent WHERE event_id = $1)`, eventID).
+			Scan(&sent)
+		if err == nil && sent && attempts.Load() > 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("queued email waited for Telegram startup")
+		case <-ticker.C:
+		}
+	}
+	if botUsername.Load() != nil || len(mailer.snapshot()) != 1 {
+		t.Fatalf("bot unexpectedly ready or email missing: bot=%v emails=%+v", botUsername.Load(), mailer.snapshot())
+	}
+}
+
 // Uses the real startup path and a dedicated Kafka broker with both
 // order.status_changed and users.create provisioned. The order's committed
 // offset is observed before shutdown; its user event is published only after
@@ -57,29 +150,7 @@ func TestEmailNotificationAfterCommittedOutcomeAndConsumerRestart(t *testing.T) 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	admin, err := database.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer admin.Close()
-	schema := "email_startup_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _, _ = admin.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE") }()
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	poolConfig.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
-	if err := database.Migrate(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
+	pool := notificationTestPool(t, ctx, dsn)
 	// This test owns its schema and considers only events from this run.
 	if _, err := (&notify.PostgresDeliveries{Queries: db.New(pool)}).Start(
 		ctx,
@@ -93,9 +164,11 @@ func TestEmailNotificationAfterCommittedOutcomeAndConsumerRestart(t *testing.T) 
 	start := func() func() {
 		runCtx, stop := context.WithCancel(ctx)
 		var workers sync.WaitGroup
+		queue := &notify.PostgresEmailQueue{Pool: pool}
+		startEmailWorker(runCtx, log, queue, mailer, &workers)
 		startNotifications(runCtx, config{kafkaBrokers: brokers}, log,
 			&linking.Service{Store: &linking.PostgresStore{Pool: pool}, Now: time.Now},
-			&chat.PostgresStore{Pool: pool}, pool, mailer, false, &workers)
+			&chat.PostgresStore{Pool: pool}, pool, queue, false, &workers)
 		return sync.OnceFunc(func() { stop(); workers.Wait() })
 	}
 	stop := start()

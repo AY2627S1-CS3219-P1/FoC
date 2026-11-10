@@ -35,11 +35,16 @@ type PendingEmails interface {
 	WithNext(ctx context.Context, at time.Time, send func(EmailDelivery) (EmailResult, error)) (bool, error)
 }
 
-// EmailWorker delivers queued fallback independently of the Kafka consumer.
+// EmailSender is the delivery contract consumed by the queue worker.
+type EmailSender interface {
+	Send(context.Context, email.Email) error
+}
+
+// EmailWorker delivers queued fallback independently of Kafka and Telegram.
 // A missing user email remains pending; it never holds up ready recipients.
 type EmailWorker struct {
 	Queue  PendingEmails
-	Sender email.EmailSender
+	Sender EmailSender
 	Log    *slog.Logger
 	Now    func() time.Time
 }

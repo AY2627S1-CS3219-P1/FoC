@@ -158,7 +158,7 @@ func main() {
 	links := &linking.Service{Store: &linking.PostgresStore{Pool: pool}, Now: time.Now}
 	// Email is optional: without SMTP, magic links report unavailable and
 	// notifications go only to Telegram.
-	var mailer email.EmailSender
+	var mailer emailSender
 	if cfg.smtp.Addr != "" {
 		mailer = cfg.smtp
 	} else {
@@ -170,6 +170,12 @@ func main() {
 	var botUsername atomic.Pointer[string]
 	chats := &chat.PostgresStore{Pool: pool}
 	var workers sync.WaitGroup
+	var emailQueue notify.EmailQueue
+	if mailer != nil {
+		queue := &notify.PostgresEmailQueue{Pool: pool}
+		emailQueue = queue
+		startEmailWorker(ctx, log, queue, mailer, &workers)
+	}
 	workers.Go(func() {
 		chat.RunCleanup(ctx, chats, log, time.Now)
 	})
@@ -177,11 +183,11 @@ func main() {
 	// still run when email is configured.
 	emailOnly := func() {
 		if mailer != nil {
-			startNotifications(ctx, cfg, log, links, chats, pool, mailer, false, &workers)
+			startNotifications(ctx, cfg, log, links, chats, pool, emailQueue, false, &workers)
 		}
 	}
 	startBot(ctx, cfg, log, links, chats, &botUsername, func() {
-		startNotifications(ctx, cfg, log, links, chats, pool, mailer, true, &workers)
+		startNotifications(ctx, cfg, log, links, chats, pool, emailQueue, true, &workers)
 	}, emailOnly, &workers)
 	currentBot := func() string {
 		if name := botUsername.Load(); name != nil {
@@ -279,6 +285,23 @@ func startBot(ctx context.Context, cfg config, log *slog.Logger, links *linking.
 	})
 }
 
+type emailSender interface {
+	Send(context.Context, email.Email) error
+}
+
+// startEmailWorker recovers accepted deliveries even while Telegram's startup
+// check is retrying or the Kafka consumer cannot connect.
+func startEmailWorker(
+	ctx context.Context,
+	log *slog.Logger,
+	queue notify.PendingEmails,
+	mailer emailSender,
+	workers *sync.WaitGroup,
+) {
+	worker := &notify.EmailWorker{Queue: queue, Sender: mailer, Log: log, Now: time.Now}
+	workers.Go(func() { worker.Run(ctx) })
+}
+
 // startNotifications consumes order status changes in the background when
 // Kafka is configured: it updates the chat participants, then sends
 // notifications. It also stores users' emails from users.create. It runs only
@@ -291,7 +314,7 @@ func startNotifications(
 	links *linking.Service,
 	chats *chat.PostgresStore,
 	pool *pgxpool.Pool,
-	mailer email.EmailSender,
+	emailQueue notify.EmailQueue,
 	withTelegram bool,
 	workers *sync.WaitGroup,
 ) {
@@ -301,13 +324,6 @@ func startNotifications(
 	}
 	deliveries := &notify.PostgresDeliveries{Queries: db.New(pool)}
 	emails := &users.PostgresStore{Queries: db.New(pool)}
-	var emailQueue notify.EmailQueue
-	if mailer != nil {
-		queue := &notify.PostgresEmailQueue{Pool: pool}
-		emailQueue = queue
-		worker := &notify.EmailWorker{Queue: queue, Sender: mailer, Log: log, Now: time.Now}
-		workers.Go(func() { worker.Run(ctx) })
-	}
 	handler := &notify.Handler{
 		Links:        links,
 		Deliveries:   deliveries,

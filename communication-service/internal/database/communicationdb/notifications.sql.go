@@ -33,6 +33,25 @@ func (q *Queries) NotificationAccepted(ctx context.Context, arg NotificationAcce
 	return exists, err
 }
 
+const notificationSent = `-- name: NotificationSent :one
+SELECT EXISTS (
+    SELECT 1 FROM order_notifications_sent
+    WHERE event_id = $1 AND user_id = $2
+)
+`
+
+type NotificationSentParams struct {
+	EventID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) NotificationSent(ctx context.Context, arg NotificationSentParams) (bool, error) {
+	row := q.db.QueryRow(ctx, notificationSent, arg.EventID, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const notificationsStart = `-- name: NotificationsStart :one
 SELECT started_at FROM notifications_start
 `

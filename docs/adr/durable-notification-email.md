@@ -19,6 +19,9 @@ in-memory wake-up or replay of the outcome is required.
 
 Each SMTP attempt holds a PostgreSQL row lock. `SKIP LOCKED` permits multiple
 workers without expiring a lease while its original sender is still running.
+After locking a row, a separate sent-record lookup sees any completion that
+committed while a concurrent replay INSERT was waiting behind its deletion.
+Such stale replay rows are removed without another SMTP attempt.
 SMTP's configured timeout bounds the network exchange. Sending successfully
 records `order_notifications_sent` and deletes the queued row in one transaction.
 Temporary SMTP failures reschedule that row after one minute. Permanent SMTP
@@ -32,3 +35,7 @@ or shutdown preserves work for the next worker. Magic links remain synchronous.
 Pending and rejected rows are not automatically expired. Users whose creation
 events have left Kafka retention still need an email backfill; their notifications
 remain visibly pending until then. This change does not implement that backfill.
+
+The email worker starts as soon as mail delivery is configured, independently
+of bot readiness and Kafka connectivity, so accepted backlog can recover even
+while Telegram's startup check is retrying.

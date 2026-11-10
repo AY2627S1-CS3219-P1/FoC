@@ -14,12 +14,16 @@ import (
 
 var _ communicationv1connect.EmailServiceHandler = (*Handler)(nil)
 
+type EmailSender interface {
+	Send(context.Context, email.Email) error
+}
+
 // Handler sends account email for other services.
 type Handler struct {
 	communicationv1connect.UnimplementedEmailServiceHandler
 
 	// Sender is nil when SMTP isn't configured.
-	Sender email.EmailSender
+	Sender EmailSender
 	Log    *slog.Logger
 }
 

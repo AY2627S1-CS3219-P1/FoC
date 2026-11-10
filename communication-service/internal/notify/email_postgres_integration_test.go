@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/textproto"
 	"os"
 	"strings"
@@ -291,6 +292,95 @@ func TestEmailCompletionRollsBackAsOneTransaction(t *testing.T) {
 		(SELECT count(*) FROM notification_emails WHERE event_id = $1),
 		(SELECT count(*) FROM order_notifications_sent WHERE event_id = $1)`, eventID).Scan(&queued, &sent); err != nil || queued != 1 || sent != 0 {
 		t.Fatalf("partial completion committed: queued=%d sent=%d err=%v", queued, sent, err)
+	}
+}
+
+func TestConcurrentEnqueueDuringEmailCompletionDoesNotResend(t *testing.T) {
+	pool := openEmailPostgres(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	queue := &PostgresEmailQueue{Pool: pool}
+	userID := uuid.New()
+	projectEmail(t, pool, userID, "alice@foc.local")
+	eventID := enqueueEmail(t, queue, userID, "outcome", now)
+
+	// Pause completion after DELETE has marked the row, but before COMMIT.
+	// The replay's INSERT then reads the old sent-record snapshot and waits on
+	// that deletion's unique-key conflict, exactly as during a group rebalance.
+	control, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer control.Release()
+	lockID := time.Now().UnixNano()
+	if _, err := control.Exec(ctx, "SELECT pg_advisory_lock($1)", lockID); err != nil {
+		t.Fatal(err)
+	}
+	unblock := sync.OnceFunc(func() {
+		_, _ = control.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", lockID)
+	})
+	defer unblock()
+	if _, err := pool.Exec(
+		ctx,
+		fmt.Sprintf(`CREATE FUNCTION pause_email_completion() RETURNS trigger LANGUAGE plpgsql AS
+		$$ BEGIN PERFORM pg_advisory_xact_lock(%d); RETURN OLD; END $$;
+		CREATE TRIGGER pause_completion AFTER DELETE ON notification_emails
+		FOR EACH ROW EXECUTE FUNCTION pause_email_completion()`, lockID),
+	); err != nil {
+		t.Fatal(err)
+	}
+	awaitBlocked := func(description string, blocked func() bool) {
+		t.Helper()
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for !blocked() {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("timed out waiting for %s", description)
+			case <-ticker.C:
+			}
+		}
+	}
+	handler, _, _, _ := newHandler()
+	mailer := &fakeMailer{}
+	worker := &EmailWorker{Queue: queue, Sender: mailer, Log: handler.Log, Now: handler.Now}
+	completed := make(chan error, 1)
+	go func() { _, err := worker.DeliverNext(ctx); completed <- err }()
+	awaitBlocked("worker completion", func() bool {
+		var blocked bool
+		err := pool.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))`, control.Conn().PgConn().PID()).
+			Scan(&blocked)
+		return err == nil && blocked
+	})
+	replay, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replay.Release()
+	enqueued := make(chan error, 1)
+	go func() {
+		enqueued <- db.New(replay).EnqueueNotificationEmail(ctx, db.EnqueueNotificationEmailParams{
+			EventID: eventID, UserID: userID, Body: "outcome", CreatedAt: now,
+		})
+	}()
+	awaitBlocked("concurrent replay insertion", func() bool {
+		var blocked bool
+		err := pool.QueryRow(ctx, "SELECT cardinality(pg_blocking_pids($1)) > 0", replay.Conn().PgConn().PID()).
+			Scan(&blocked)
+		return err == nil && blocked
+	})
+	unblock()
+	for _, result := range []<-chan error{completed, enqueued} {
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := worker.DeliverNext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(mailer.sent) != 1 {
+		t.Fatalf("concurrent replay sent the same email %d times", len(mailer.sent))
 	}
 }
 

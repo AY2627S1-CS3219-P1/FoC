@@ -52,6 +52,18 @@ func (q *PostgresEmailQueue) WithNext(
 			return fmt.Errorf("claim email: %w", err)
 		}
 		processed = true
+		// A replay INSERT can wait behind completion's DELETE and then insert
+		// using its older sent-record snapshot. This separate statement runs
+		// after the row lock is acquired and sees the committed completion.
+		sent, err := queries.NotificationSent(ctx, db.NotificationSentParams{EventID: row.EventID, UserID: row.UserID})
+		if err != nil {
+			return fmt.Errorf("check completed email: %w", err)
+		}
+		if sent {
+			return queries.DeleteNotificationEmail(ctx, db.DeleteNotificationEmailParams{
+				EventID: row.EventID, UserID: row.UserID,
+			})
+		}
 		result, err := send(EmailDelivery{
 			EventID: row.EventID, UserID: row.UserID, Address: row.Email, Text: row.Body,
 		})
