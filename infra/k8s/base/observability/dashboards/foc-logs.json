@@ -102,7 +102,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (response_code) (count_over_time({namespace=\"istio-ingress\",container=\"istio-proxy\"} | json | response_code >= 500 [$__interval]))",
+          "expr": "sum by (response_code) (count_over_time({namespace=\"istio-ingress\",container=\"istio-proxy\"} | json | __error__=\"\" | response_code >= 500 [$__interval]))",
           "legendFormat": "{{response_code}}",
           "refId": "A"
         }
