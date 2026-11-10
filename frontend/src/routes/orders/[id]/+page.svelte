@@ -103,8 +103,38 @@
 	// bot's URL from Communication Service.
 	let telegram = $state<TelegramLinkStatus | null>(null);
 	$effect(() => {
-		if (!authService.user || !canChat || telegram) return;
-		telegramLinkApi.getStatus().then((status) => (telegram = status), () => undefined);
+		const identity = authService.user?.id;
+		telegram = null;
+		if (!identity || !canChat) return;
+		let active = true;
+		let pending = false;
+		let foundBot = false;
+		async function refreshTelegram() {
+			if (pending || foundBot) return;
+			pending = true;
+			try {
+				const status = await telegramLinkApi.getStatus();
+				if (active && authService.user?.id === identity) {
+					telegram = status;
+					foundBot = Boolean(status.botUrl);
+				}
+			} catch {
+				// Keep the configured fallback and retry a startup/outage response.
+			} finally {
+				pending = false;
+			}
+		}
+		void refreshTelegram();
+		const retry = () => { if (!document.hidden) void refreshTelegram(); };
+		const timer = setInterval(retry, 15000);
+		document.addEventListener('visibilitychange', retry);
+		window.addEventListener('online', retry);
+		return () => {
+			active = false;
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', retry);
+			window.removeEventListener('online', retry);
+		};
 	});
 	const chatUrl = $derived.by(() => {
 		const bot = telegram?.botUrl || telegramBotUrl;

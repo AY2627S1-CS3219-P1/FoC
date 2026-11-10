@@ -119,7 +119,19 @@ func (h *Handler) openChat(ctx context.Context, msg *telegram.Message, id string
 	}
 	opened, err := h.Chat.OpenChat(ctx, msg, orderID)
 	if err != nil {
-		return err
+		var retry *telegram.RetryError
+		if errors.As(err, &retry) {
+			// The relay already decided the outcome; retry only its feedback.
+			return err
+		}
+		// Storage failed before confirmation. Recheck the link, participants,
+		// and chat eligibility rather than retaining an old authorization.
+		return &telegram.RetryError{
+			Err: err,
+			Retry: func(ctx context.Context) error {
+				return h.openChat(ctx, msg, id)
+			},
+		}
 	}
 	if !opened {
 		return h.Sender.SendMessage(ctx, msg.Chat.ID, startReply)
