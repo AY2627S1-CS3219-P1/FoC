@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: moderation-migrate
+  labels:
+    foc.dev/stage: initialization
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: moderation-migrate
+      annotations:
+        sidecar.istio.io/nativeSidecar: "true"
+    spec:
+      serviceAccountName: moderation-migrate
+      restartPolicy: Never
+      containers:
+        - name: moderation-migrate
+          image: foc/migrations:local
+          imagePullPolicy: IfNotPresent
+          args: ["-dir", "/migrations/moderation", "up"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: GOOSE_DRIVER
+              value: postgres
+            - name: GOOSE_DBSTRING
+              valueFrom:
+                secretKeyRef:
+                  name: moderation-db
+                  key: DATABASE_URL

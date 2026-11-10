@@ -214,8 +214,8 @@ func TestDatabaseCredentialRetryAndProvisioningContract(t *testing.T) {
 			}
 		}
 	}
-	if count != 5 {
-		t.Fatalf("got %d database credentials, want five", count)
+	if count != 6 {
+		t.Fatalf("got %d database credentials, want six", count)
 	}
 	info, err := os.Stat(filepath.Join(directory, "secrets.json"))
 	if err != nil || info.Mode().Perm() != 0600 {
@@ -280,11 +280,15 @@ func TestAWSOverlayActualOperatorAndHelm(t *testing.T) {
 				}
 			}
 		}
-		if len(images) != 8 {
-			t.Fatalf("got %d application image names, want eight", len(images))
+		if len(images) != 9 {
+			t.Fatalf("got %d application image names, want nine", len(images))
 		}
 		for _, service := range services {
-			for _, pair := range [][2]string{{"Deployment", service + "-service"}, {"Job", service + "-migrate"}} {
+			deployment := service + "-service"
+			if service == "moderation" {
+				deployment = "content-moderation-service"
+			}
+			for _, pair := range [][2]string{{"Deployment", deployment}, {"Job", service + "-migrate"}} {
 				containers := array(podSpec(namedManifest(t, objects, pair[0], pair[1]))["containers"])
 				if len(containers) != 1 ||
 					!strings.Contains(compactJSON(object(containers[0])["volumeMounts"]), "/var/run/foc/rds") {
@@ -379,7 +383,7 @@ func assertRenderedAWSContracts(t *testing.T, objects []map[string]any, config m
 		t.Fatal("Order workload role changed")
 	}
 	values := object(namedManifest(t, objects, "ConfigMap", "foc-config")["data"])
-	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL"} {
+	for _, key := range []string{"ORIGIN", "FRONTEND_BASE_URL", "PUBLIC_USER_SERVICE_URL", "PUBLIC_SUPPLIER_SERVICE_URL", "PUBLIC_ORDER_SERVICE_URL", "PUBLIC_CREDIT_SERVICE_URL", "PUBLIC_COMMUNICATION_SERVICE_URL", "PUBLIC_MODERATION_SERVICE_URL"} {
 		if values[key] != "https://"+stringValue(config, "public_hostname") {
 			t.Fatalf("wrong public origin: %s", key)
 		}

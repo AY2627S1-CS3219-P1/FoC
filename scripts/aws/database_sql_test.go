@@ -112,6 +112,6 @@ func TestPostgreSQLProvisioningRetryOwnershipAndPrivilegeCleanup(t *testing.T) {
 		t.Fatal(output)
 	}
 	t.Log(
-		"PASS: real PostgreSQL non-superuser created five owned databases, retried, rejected wrong ownership, and removed temporary privileges",
+		"PASS: real PostgreSQL non-superuser created six owned databases, retried, rejected wrong ownership, and removed temporary privileges",
 	)
 }
