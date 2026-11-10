@@ -24,9 +24,25 @@ type PostgresEmailQueue struct {
 
 // Enqueue commits before the notification handler acknowledges Kafka. Replays
 // preserve the first message and cannot requeue a completed delivery.
-func (q *PostgresEmailQueue) Enqueue(ctx context.Context, eventID, userID uuid.UUID, text string, at time.Time) error {
+func (q *PostgresEmailQueue) Enqueue(
+	ctx context.Context,
+	eventID, userID uuid.UUID,
+	text string,
+	at time.Time,
+	validity EmailValidity,
+) error {
+	var expiresAt *time.Time
+	if !validity.ExpiresAt.IsZero() {
+		expiresAt = &validity.ExpiresAt
+	}
+	var orderID *uuid.UUID
+	var revision *int64
+	if validity.OrderID != uuid.Nil {
+		orderID, revision = &validity.OrderID, &validity.Revision
+	}
 	if err := db.New(q.Pool).EnqueueNotificationEmail(ctx, db.EnqueueNotificationEmailParams{
 		EventID: eventID, UserID: userID, Body: text, CreatedAt: at,
+		ExpiresAt: expiresAt, OrderID: orderID, OrderRevision: revision, UnlessReassigned: validity.UnlessReassigned,
 	}); err != nil {
 		return fmt.Errorf("enqueue email: %w", err)
 	}
@@ -62,6 +78,11 @@ func (q *PostgresEmailQueue) WithNext(
 		if sent {
 			return queries.DeleteNotificationEmail(ctx, db.DeleteNotificationEmailParams{
 				EventID: row.EventID, UserID: row.UserID,
+			})
+		}
+		if row.SkipReason != "" {
+			return queries.SkipNotificationEmail(ctx, db.SkipNotificationEmailParams{
+				EventID: row.EventID, UserID: row.UserID, AttemptedAt: &at, LastError: row.SkipReason,
 			})
 		}
 		result, err := send(EmailDelivery{
