@@ -364,3 +364,11 @@ CMS reads `CMS_LLM_MODEL_ID` and `CMS_LLM_BASE_URL` from `foc-config` and
 `gemma4:26b`. Restart CMS after changing these settings. No moderation
 configuration seed or configuration admin API is deployed. Provider settings
 rejections stop workers until restart; database health can remain healthy.
+
+For step-by-step database, provider-key, Terraform and application provisioning,
+follow the [moderation runbook](../../docs/runbooks/content-moderation.md).
+
+For local Kubernetes, set `K8S_LLM_API_KEY` before `make k8s-deploy`. The operator
+fills an existing empty provider-key file but preserves a nonempty one. To rotate
+it, remove only `.local/k8s/secrets/CMS_LLM_API_KEY`, supply the new value and
+redeploy; retain all database and signing-key files.

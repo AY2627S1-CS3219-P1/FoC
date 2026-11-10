@@ -1,123 +1,172 @@
-# Content moderation operations
+# Provision review moderation
 
-See the [ADR](../adr/review-content-moderation.md) for the workflow and the
-[service README](../../content-moderation-service/README.md) for settings.
+Use `main` with the full moderation stack merged. CMS assesses text; User Service
+owns publication and ratings. Settings take effect at startup.
 
-## Starting and changing settings
+## AWS deployment
 
-Supply a model ID through `CMS_LLM_MODEL_ID`, a provider endpoint through
-`CMS_LLM_BASE_URL`, and a secret through `CMS_LLM_API_KEY`. The model must be
-available at the endpoint. Restart CMS after changing these values. There is
-no configuration database, seed, admin editor or draft testing API.
+Start with the [AWS platform setup](../../infra/aws/README.md#1-private-inputs-and-state-after-approval)
+and [release administrator setup](aws-releases.md#administrator-setup) completed:
+EKS/RDS, cluster platform, operator kubeconfig and the two Terraform backends.
+Run the steps below from the repository root with the infrastructure/operator
+identity. The restricted release identity cannot provision databases or Secrets.
 
-Without a provider key CMS keeps accepting submissions but leaves workers
-idle. Without Kafka brokers ingestion and completion delivery do not run.
-Missing required startup settings cause startup to fail with a validation error.
+### 1. Apply the updated infrastructure
 
-## Diagnosing stalled work
+Review plans for **both** `infra/aws` and `infra/aws/ci` using their existing
+backends. Apply through the [infrastructure apply/publication procedure](aws-releases.md#apply-and-publish)
+and [CI provisioning procedure](../../infra/aws/ci/README.md). Retain the
+publication's `CONFIG_VERSION`, `CONFIG_SHA256` and RDS CA file for the release.
 
-Check queue depth, oldest queued job, pending outbox count, and worker logs.
-`CMS_LOGGING_INTERVAL` controls periodic reports. Health probes check database
-availability, so a healthy listener alone does not prove workers are assessing.
+Expect a `content-moderation-service` ECR repository and scoped release-role
+access: nine images in total. CMS shares the existing EKS/RDS/network resources.
+The operator supplies workload Secrets; Terraform does not hold the provider key.
 
-A rejected provider key, model or request setting logs that assessment workers
-have stopped. Fix the deployment settings and restart the affected processes.
-The claim is released and can run with the new process settings. Calls still
-count as attempts: repeated failed restarts may require a manual job retry.
-Ordinary connection, timeout, server and output errors follow bounded retries.
+Check `CMS_LLM_MODEL_ID` and `CMS_LLM_BASE_URL` in
+[`foc-config`](../../infra/k8s/base/dependencies/config.yaml) before releasing.
+Use a model actually served by the provider. Merge non-secret setting changes to
+main before dispatching a release; never put the key there.
 
-Use the admin review moderation RPCs to inspect job attempts or retry a terminal
-error. Retry requires the expected run generation, fences the previous run and
-uses the current process settings. Owners can only view their own job summaries.
-Technical failure never publishes an approved verdict.
+### 2. Render the operator overlay
 
-For pending completion events, inspect Kafka connectivity and outbox relay logs.
-Publishing and acknowledgement are separate; duplicates are expected and User
-Service deduplicates by event ID. Never manually alter an approved or rejected
-review to compensate for a delivery delay.
-
-## Health
-
-Direct CMS probes use `/grpc.health.v1.Health/Check`. The shared Kubernetes
-gateway exposes CMS health at `/moderation/grpc.health.v1.Health/Check` and
-rewrites the prefix. Other moderation RPC routes require authentication.
-
-## Verification
-
-Use separate throwaway User and CMS databases. Run unit tests in each module,
-and CMS integration tests with `TEST_DATABASE_URL` and `-tags=integration -p 1`.
-Provider adapter tests use local fake HTTP servers and require no paid key.
-The frontend browser check intercepts all RPCs and exercises configuration
-removal and newer-generation retry rendering. It does not verify real login,
-provider credentials, Kafka or end-to-end publication.
-
-### Repeatable commands
-
-From each service directory, run unit tests and then integration tests against
-that service's own throwaway database. Integration suites migrate and may clear
-schemas; use a separate database for User and CMS.
+Use the publication's CA file and the operator's `KUBECONFIG` / `K8S_CONTEXT`:
 
 ```sh
-GOWORK=off go test -mod=readonly ./...
-GOWORK=off TEST_DATABASE_URL="$TEST_DATABASE_URL" go test -mod=readonly -p 1 \
-  -tags=integration ./... -count=1 -timeout=10m
+set -euo pipefail
+umask 077
+mkdir -p .local/aws
+terraform -chdir=infra/aws output -json deployment > .local/aws/deployment.json
+make aws-tools k8s-tools
+export PATH="$PWD/.tools/aqua/bin:$PATH"
+export RDS_CA_FILE="$PWD/.local/aws/publications/global-bundle.pem"
+.tools/bin/aws render-overlay --outputs .local/aws/deployment.json \
+  --rds-ca "$RDS_CA_FILE" --output .local/aws/production
+k() { kubectl --context "$K8S_CONTEXT" "$@"; }
+k apply -k .local/aws/production/dependencies
 ```
 
-With the frontend development server running, the browser regression command is:
+The overlay sets the public CMS URL and mounts the RDS CA in CMS and its migration Job.
+
+### 3. Provision the service database and database Secret
+
+Use the **same retained** `.local/aws/db` directory on retries. The preparer
+preserves existing credentials and adds `foc_moderation` / `moderation_db`, with
+a `moderation-db` Secret containing its TLS-verified `DATABASE_URL`.
 
 ```sh
-MODERATION_TEST_BASE_URL=http://localhost:5173 npm --prefix frontend run test:moderation
+DATABASE_SECRET_ARN=$(python3 -c 'import json; print(json.load(open(".local/aws/deployment.json"))["database_secret_arn"])')
+aws secretsmanager get-secret-value --secret-id "$DATABASE_SECRET_ARN" \
+  --region "$AWS_REGION" --query SecretString --output text > .local/aws/rds-admin.json
+.tools/bin/aws prepare-database --outputs .local/aws/deployment.json \
+  --admin-secret .local/aws/rds-admin.json --directory .local/aws/db
+k apply -f .local/aws/db/secrets.json
+k apply -f .local/aws/db/job.json
+k -n foc wait --for=condition=complete job/rds-provision --timeout=300s
 ```
 
-### Verification history and limits
+The Job creates six databases/roles and Supplier's extensions. On retry, keep
+credential files; wait for running Jobs and delete only terminal Jobs before
+recreating them. After success, remove temporary administrator access:
 
-The 8 November fake-provider end-to-end smoke and 9 November live SoCLaaS
-checks recorded in the earlier runbook tested the former configuration
-save/test/activation workflow. They established approval/rejection delivery,
-publication filtering and provider compatibility for that earlier code and
-model profile. They do not establish live compatibility of the simplified
-runtime-settings implementation. The old opt-in configuration suite was removed
-with that workflow; its historical command is no longer a current test command.
+```sh
+k -n foc delete job/rds-provision secret/rds-provision-admin serviceaccount/rds-provision
+rm .local/aws/rds-admin.json
+```
 
-For the simplified implementation, unit and PostgreSQL integration suites and
-the mocked browser checks passed. A fresh live smoke with local SoCLaaS
-credentials has not been recorded. Such a check must use the configured model
-and JSON object request, real User/CMS binaries and Kafka, and verify pending
-submission, terminal outbox delivery, approval/rejection application and rating
-counts. A successful health probe alone does not establish those outcomes.
+Retain `.local/aws/db/*.json` privately. Do not print credentials or provisioning logs.
 
-## Recovery details
+### 4. Install the provider Secret
 
-| Symptom | Action and expected behavior |
+The operator supplies a private, nonempty `.local/aws/CMS_LLM_API_KEY` file
+containing only the provider key. Install it without putting the key in arguments:
+
+```sh
+test -s .local/aws/CMS_LLM_API_KEY
+chmod 600 .local/aws/CMS_LLM_API_KEY
+k -n foc create secret generic moderation-llm \
+  --from-file=CMS_LLM_API_KEY=.local/aws/CMS_LLM_API_KEY \
+  --dry-run=client -o yaml | k apply -f -
+k -n foc get secret moderation-db moderation-llm -o name
+```
+
+Install the remaining signing/email/application Secrets using the
+[AWS checklist](../../infra/aws/README.md#4-provision-the-six-databases-and-remaining-secrets).
+An empty provider key leaves workers idle.
+
+### 5. Release the application stack from main
+
+Apply the updated [release RBAC](../../infra/aws/ci/release-rbac.yaml) with the
+administrator identity, then dispatch the existing protected release workflow:
+
+```sh
+k apply -f infra/aws/ci/release-rbac.yaml
+gh workflow run aws-release.yml --ref main \
+  -f config_version="$CONFIG_VERSION" -f config_sha256="$CONFIG_SHA256"
+```
+
+Wait for workflow success: Secret checks, nine image builds/pushes, migrations,
+Kafka topics, application rollout and public HTTPS smoke must all pass.
+
+```sh
+k -n foc wait --for=condition=complete job/moderation-migrate --timeout=180s
+k -n foc rollout status deployment/content-moderation-service --timeout=180s
+k -n foc logs deployment/content-moderation-service --tail=30
+```
+
+Expect worker-pool and outbox-relay startup logs; configuration errors stop workers.
+
+### 6. Verify the feature, not just health
+
+At the public origin, POST `{}` to
+`/moderation/grpc.health.v1.Health/Check`; expect a serving response. Then use two
+approved test accounts and a completed order:
+
+1. Leave a benign review. Submission returns pending; public visibility and
+   ratings must follow approval, never submission alone.
+2. Refresh the order or open **Reviews you left → View unpublished reviews**.
+   Wait for assessment. Approval must publish the review and update the rating
+   count/average once. Published reviews have no status chip on the order page.
+3. In `/admin/reviews/unpublished`, look up the author's email. For a review
+   rejected by the policy, verify it remains unpublished, has rejection reasons,
+   does not affect ratings and still blocks another review for that order.
+
+Health and model discovery do not prove inference. Verify the actual job verdict
+and publication. Local SoCLaaS approval/delivery/ratings passed on 10 November
+2026 with `llama3.1:8b`; `gemma4:26b` returned 503 then. Verify the deployed model anew.
+
+## Local Compose
+
+Fill the required database settings and `CMS_LLM_MODEL_ID`, `CMS_LLM_BASE_URL`,
+`CMS_LLM_API_KEY` in `.env` (use `.env.example` for a new file), then:
+
+```sh
+docker compose up -d --build
+make seed-demo
+```
+
+Frontend: `http://localhost:5173`; login mail: `http://localhost:8025`. Repeat
+step 6. For existing volumes missing CMS's database, see the
+[database initialization workaround](../../LANDMINES/new-service-database.md).
+
+## Change settings or recover stalled reviews
+
+For a provider-key change, replace `moderation-llm` using step 4 and run
+`k -n foc rollout restart deployment/content-moderation-service`, then wait for
+rollout completion. For model/endpoint changes, update the reviewed ConfigMap
+source and release again. All replicas must read the corrected startup settings.
+
+| Symptom | Check / action |
 | --- | --- |
-| Worker crash or shutdown | Owned releases return work to the queue; otherwise lease expiry allows recovery. Old tokens cannot finalize. Repeated releases still consume attempts. |
-| Provider configuration rejection | Inspect the sanitized attempt class and worker-stop log, correct process settings and restart every affected replica. Release does not publish a terminal event. |
-| Terminal `errored` job | Use admin inspection and retry with the expected generation. Retry increments the generation once; a stale retry fails its guard. |
-| Kafka outage | Restore connectivity and inspect consumer/relay logs. Durable User submissions and committed CMS results remain in their respective outboxes. |
-| Undecodable Kafka bytes | Subscriber stops and restarts; inspect the bad record and repair the offset deliberately. The typed ingestion handler cannot acknowledge undecodable bytes. |
-| Existing local Postgres volume lacks CMS database | Run the idempotent init script below and restart CMS. |
+| Pending with no attempts | Confirm a nonempty provider key, worker-start logs and submission-topic ingestion. |
+| Configuration error; workers stopped | Correct settings and restart CMS. The attempt records `configuration`; releasing the job emits no completion event. |
+| Connection, timeout, rate limit or invalid output | Inspect sanitized attempts; bounded retries run automatically. |
+| Terminal assessment error | Inspect through the admin moderation RPC and retry with its current expected generation. This is not a content rejection. |
+| CMS completed but User remains pending | Check completion outbox, Kafka and User consumer logs; delivery is at least once and User deduplicates it. |
+| Crash / lost claim | Lease expiry recovers work. Repeated crashes/releases consume the attempt budget. |
+| Consumer repeatedly fails decoding a Kafka record | Inspect the failing record and repair the source/offset deliberately; restarting alone does not acknowledge it. |
 
-```sh
-docker compose exec -T postgres /bin/bash /docker-entrypoint-initdb.d/init-dbs.sh
-docker compose restart content-moderation-service
-```
-
-Worker database phases have a five-second deadline capped at half the lease.
-Detached release cleanup is bounded to two seconds. If cleanup cannot finish,
-lease expiry remains the recovery mechanism. A stale completion rolls back its
-attempt and outbox changes. The relay publishes outside the claim transaction;
-ambiguous delivery can repeat an event with the same ID.
-
-## Local Kubernetes provider key
-
-Supplying `K8S_LLM_API_KEY` on redeployment fills an existing empty
-`.local/k8s/secrets/CMS_LLM_API_KEY` file. Existing nonempty keys are preserved.
-To rotate a nonempty key, remove only that provider-key file, supply the new
-value through `K8S_LLM_API_KEY`, and redeploy. The deployment restarts CMS to
-read its new environment. Database passwords and signing keys retain their
-existing preservation rules. Do not print keys in logs or command output.
-
-The statistics regression holds the reviewee's row lock while submitting,
-rejecting/erroring and removing unpublished reviews. Those operations must
-complete without waiting for the ratings lock. Applying approval and removing
-an approved review still update the count and average atomically.
+Operational logs report queue depth, oldest work, failures and pending outbox
+counts (`CMS_LOGGING_INTERVAL`). Direct pod health is
+`/grpc.health.v1.Health/Check`; gateway health uses the `/moderation` prefix.
+Use the [service README](../../content-moderation-service/README.md) for runtime
+settings/tests and the [ADR](../adr/review-content-moderation.md) for guarantees.

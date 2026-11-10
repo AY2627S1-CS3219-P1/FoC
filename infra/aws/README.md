@@ -190,7 +190,7 @@ PATH="$PWD/.tools/bin:$PWD/.tools/aqua/bin:$PATH" \
 
 Go CLI fixtures mock all AWS calls; Terraform tests mock the upstream VPC/EKS modules. They exercise root
 resource safeguards, render the actual Kubernetes bases with a non-default
-hostname, preserve the private RPC boundary, mount RDS certificates in all five
+hostname, preserve the private RPC boundary, mount RDS certificates in all six
 services and migration Jobs, and preserve private database passwords on retry.
 They also invoke the actual Go operator against the generated AWS overlay.
 For the full pinned Helm/IRSA/claim rendering check, install the pinned Helm tool
@@ -361,7 +361,7 @@ to S3. Long RPCs, large responses, cookies, RPC errors, and page/asset responses
 still need live verification. Local TLS port-forward smoke commands assume the
 original in-cluster HTTPS profile and are not acceptance tests for this profile.
 
-## 4. Provision the five databases and remaining Secrets
+## 4. Provision the six databases and remaining Secrets
 
 Read the RDS-managed admin secret directly into a private file, never chat or
 terminal output. Set `DATABASE_SECRET_ARN` from deployment outputs:
@@ -390,7 +390,7 @@ administrator cleanup. It does not drop data or rotate existing roles. It is NOT
 part of the automatic deployment stages. On retry, first inspect the previous
 Job's status. Never delete a running Job. After success, remove the completed
 Job, its `rds-provision-admin` Secret and unused ServiceAccount, and remove the
-local admin JSON. Keep the five private service credential files for retries.
+local admin JSON. Keep the six private service credential files for retries.
 Treat failure logs as potentially sensitive. Do not stream them into chat.
 
 For SES API delivery, set `ses_sender_email` to a bare, verified email address
@@ -444,6 +444,9 @@ manager, following docs/runbooks/kubernetes.md:
   sandbox mode requires verified recipients. Check actual delivery, including
   spam/DMARC behavior when using an address on a domain you do not control.
   Do not silently fall back to Mailpit.
+- `moderation-llm`: `CMS_LLM_API_KEY`, supplied privately by the operator.
+  The [moderation runbook](../../docs/runbooks/content-moderation.md) covers its
+  database, model settings, release and workflow verification.
 - `jwt-signing`: `jwt-signing-private.pem`, generated privately and retained.
 - `telegram`: TELEGRAM_BOT_TOKEN, empty to disable. Never run two pollers with
   the same bot token.
@@ -480,7 +483,7 @@ information URL is not evidence that the application has been deployed.
 ## 5. Publish images and deploy
 
 ECR repositories have immutable tags. Use a unique commit/build tag every time;
-rebuilding an existing tag will fail. All eight images must target linux/amd64
+rebuilding an existing tag will fail. All nine images must target linux/amd64
 because the worker nodes are x86_64, even when building on Apple Silicon.
 Set `K8S_IMAGE_PREFIX` from deployment outputs. Export the four `K8S_LOKI_*`
 settings printed by the renderer: bucket and role come from
