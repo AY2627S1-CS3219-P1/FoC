@@ -27,6 +27,7 @@ type fakeRepository struct {
 	countFromUser   int64
 	listRemovals    []ReviewRemoval
 	countRemovals   int64
+	myRemovalsFor   uuid.UUID
 	participantsErr error
 	listErr         error
 	countErr        error
@@ -172,6 +173,19 @@ func (f *fakeRepository) ListReviewRemovals(_ context.Context, _, _ int64) ([]Re
 }
 
 func (f *fakeRepository) CountReviewRemovals(_ context.Context) (int64, error) {
+	return f.countRemovals, f.countErr
+}
+
+func (f *fakeRepository) ListMyReviewRemovals(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	_, _ int64,
+) ([]ReviewRemoval, error) {
+	f.myRemovalsFor = reviewerID
+	return f.listRemovals, f.listErr
+}
+
+func (f *fakeRepository) CountMyReviewRemovals(_ context.Context, _ uuid.UUID) (int64, error) {
 	return f.countRemovals, f.countErr
 }
 

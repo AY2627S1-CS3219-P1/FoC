@@ -35,6 +35,7 @@ type Logic interface {
 	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
+	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, page pagination.Pagination) (RemovalPage, error)
 }
 
 // Handler adapts the review proto RPCs to the review service.
@@ -273,6 +274,33 @@ func (h *Handler) ListReviewRemovals(
 	return connect.NewResponse(toListReviewRemovalsResponse(pageResult)), nil
 }
 
+// ListMyReviewRemovals lists the caller's removed reviews. Suspended callers may
+// use it, because they may appeal (U6.8).
+func (h *Handler) ListMyReviewRemovals(
+	ctx context.Context,
+	req *connect.Request[reviewv1.ListMyReviewRemovalsRequest],
+) (*connect.Response[reviewv1.ListMyReviewRemovalsResponse], error) {
+	actorID, err := userdto.ActorID(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	page, err := newPage(req.Msg.GetPagination())
+	if err != nil {
+		return nil, toConnectError(ctx, errs.WrapBadRequestError(err, "invalid pagination"))
+	}
+
+	pageResult, err := h.Logic.ListMyReviewRemovals(ctx, actorID, page)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+
+	listed := toListReviewRemovalsResponse(pageResult)
+	return connect.NewResponse(&reviewv1.ListMyReviewRemovalsResponse{
+		Removals:   listed.GetRemovals(),
+		Pagination: listed.GetPagination(),
+	}), nil
+}
+
 // A suspended caller may only list reviews received by their own user.
 func authorizeSelfReviews(c userdto.Caller, userID uuid.UUID) error {
 	if !c.IsSuspended() {
@@ -402,6 +430,7 @@ func toReviewRemovalProto(removal ReviewRemoval) *reviewv1.ReviewRemoval {
 		CreatedAt:     timestamppb.New(removal.CreatedAt),
 		CreatedBy:     removal.CreatedBy.String(),
 		CreatedByName: removal.CreatedByName,
+		ReviewId:      removal.ReviewID.String(),
 	}
 }
 

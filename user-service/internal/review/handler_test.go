@@ -47,9 +47,10 @@ type handlerLogicStub struct {
 	removedBy     uuid.UUID
 	removeErr     error
 
-	removalsPage RemovalPage
-	removalsErr  error
-	removalsFor  pagination.Pagination
+	removalsPage       RemovalPage
+	removalsErr        error
+	removalsFor        pagination.Pagination
+	myRemovalsReviewer uuid.UUID
 
 	reviewedFor      uuid.UUID
 	reviewedOrderIDs []uuid.UUID
@@ -139,6 +140,16 @@ func (s *handlerLogicStub) RemoveReview(_ context.Context, id uuid.UUID, reason 
 }
 
 func (s *handlerLogicStub) ListReviewRemovals(_ context.Context, page pagination.Pagination) (RemovalPage, error) {
+	s.removalsFor = page
+	return s.removalsPage, s.removalsErr
+}
+
+func (s *handlerLogicStub) ListMyReviewRemovals(
+	_ context.Context,
+	reviewerID uuid.UUID,
+	page pagination.Pagination,
+) (RemovalPage, error) {
+	s.myRemovalsReviewer = reviewerID
 	s.removalsFor = page
 	return s.removalsPage, s.removalsErr
 }
@@ -557,6 +568,34 @@ func TestRemoveReviewRPC(t *testing.T) {
 			t.Fatalf("invalid id: %v", err)
 		}
 	})
+}
+
+func TestListMyReviewRemovalsRPC(t *testing.T) {
+	caller := uuid.New()
+	reviewID := uuid.New()
+	stub := &handlerLogicStub{removalsPage: RemovalPage{
+		Removals: []ReviewRemoval{{ID: uuid.New(), ReviewID: reviewID, ReviewerID: caller, Reason: "abuse"}},
+		PageInfo: pagination.NewPageInfo(1, 20, 1),
+	}}
+	client := reviewClient(t, stub, auth.Caller{ID: caller.String()})
+
+	resp, err := client.ListMyReviewRemovals(
+		context.Background(),
+		connect.NewRequest(&reviewv1.ListMyReviewRemovalsRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("list my removals: %v", err)
+	}
+
+	if stub.myRemovalsReviewer != caller {
+		t.Fatalf("reviewer = %v, want the caller %v", stub.myRemovalsReviewer, caller)
+	}
+	if len(resp.Msg.Removals) != 1 || resp.Msg.Removals[0].GetReviewId() != reviewID.String() {
+		t.Fatalf("unexpected removals: %+v", resp.Msg.Removals)
+	}
+	if resp.Msg.Pagination.GetTotalItems() != 1 {
+		t.Fatalf("unexpected pagination: %+v", resp.Msg.Pagination)
+	}
 }
 
 func TestListReviewRemovalsRPC(t *testing.T) {

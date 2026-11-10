@@ -14,6 +14,32 @@ import (
 	"github.com/lib/pq"
 )
 
+const countMyReviewRemovals = `-- name: CountMyReviewRemovals :one
+SELECT COUNT(*)
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.created_at
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM user_reports ur
+      WHERE ur.review_id = r.id AND ur.status = 'closed' AND ur.outcome = 'review_removal'
+        AND ur.closed_at = latest.created_at
+  )
+`
+
+func (q *Queries) CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countMyReviewRemovals, reviewerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countReviewRemovals = `-- name: CountReviewRemovals :one
 SELECT COUNT(*)
 FROM review_removals
@@ -139,6 +165,83 @@ func (q *Queries) LatestUnrestoredRemoval(ctx context.Context, reviewID uuid.UUI
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listMyReviewRemovals = `-- name: ListMyReviewRemovals :many
+SELECT latest.id, r.id AS review_id, r.reviewer_id, r.reviewee_id, r.order_id, latest.reason, latest.created_at,
+       latest.created_by, creator.display_name AS created_by_name
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.id, rr.reason, rr.created_at, rr.created_by
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+JOIN users creator ON creator.id = latest.created_by
+WHERE r.reviewer_id = $1::UUID AND r.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM user_reports ur
+      WHERE ur.review_id = r.id AND ur.status = 'closed' AND ur.outcome = 'review_removal'
+        AND ur.closed_at = latest.created_at
+  )
+ORDER BY latest.created_at DESC, latest.id DESC
+LIMIT $3::bigint OFFSET $2::bigint
+`
+
+type ListMyReviewRemovalsParams struct {
+	ReviewerID uuid.UUID
+	PageOffset int64
+	PageLimit  int64
+}
+
+type ListMyReviewRemovalsRow struct {
+	ID            uuid.UUID
+	ReviewID      uuid.UUID
+	ReviewerID    uuid.UUID
+	RevieweeID    uuid.UUID
+	OrderID       uuid.UUID
+	Reason        string
+	CreatedAt     time.Time
+	CreatedBy     uuid.UUID
+	CreatedByName string
+}
+
+// The caller's removed reviews, each with its latest unrestored removal. A
+// removal that a report outcome applied is excluded: the report closes in the
+// same transaction, so both rows carry that transaction's now().
+func (q *Queries) ListMyReviewRemovals(ctx context.Context, arg ListMyReviewRemovalsParams) ([]ListMyReviewRemovalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMyReviewRemovals, arg.ReviewerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMyReviewRemovalsRow{}
+	for rows.Next() {
+		var i ListMyReviewRemovalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewID,
+			&i.ReviewerID,
+			&i.RevieweeID,
+			&i.OrderID,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.CreatedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listReviewOrderStatuses = `-- name: ListReviewOrderStatuses :many

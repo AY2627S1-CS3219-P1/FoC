@@ -982,3 +982,105 @@ func TestReviewRestorationIntegration(t *testing.T) {
 		t.Fatalf("removals=%d restorations=%d, want 2 and 2", removals, restorations)
 	}
 }
+
+// TestListMyReviewRemovalsIntegration lists only the caller's reviews that are
+// still removed outside a report: restored reviews and report removals are
+// appealed elsewhere or not at all.
+func TestListMyReviewRemovalsIntegration(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	db, err := database.Open(dsn, 5, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := database.Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	service := buildReviewService(t, sqlDB)
+
+	reviewer, reviewee, admin := uuid.New(), uuid.New(), uuid.New()
+	for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
+		insertUser(t, ctx, sqlDB, id)
+	}
+	submit := func(comment string) uuid.UUID {
+		t.Helper()
+		orderID := uuid.New()
+		if err := service.SubmitReview(
+			ctx, reviewer, reviewee, orderID, ReviewSubmission{Rating: 2, Comment: comment}, nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+		var id uuid.UUID
+		if err := sqlDB.QueryRowContext(ctx,
+			"SELECT id FROM reviews WHERE reviewer_id = $1 AND order_id = $2", reviewer, orderID,
+		).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	// Removed by an administrator outside a report: listed.
+	removed := submit("removed")
+	if err := service.RemoveReview(ctx, removed, "abuse", admin); err != nil {
+		t.Fatal(err)
+	}
+
+	// Removed, then restored: not listed.
+	restored := submit("restored")
+	if err := service.RemoveReview(ctx, restored, "abuse", admin); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RestoreReview(ctx, restored, "overturned", uuid.Nil, admin); err != nil {
+		t.Fatal(err)
+	}
+
+	// Removed by a report outcome, closed at the removal's time: not listed.
+	byReport := submit("by report")
+	if err := service.RemoveReview(ctx, byReport, "report outcome", admin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO user_reports (reporter_id, subject_id, review_id, category, description, status,
+		                          outcome, outcome_reason, closed_at, closed_by)
+		SELECT $1, $2, $3, 'harassment', 'rude', 'closed', 'review_removal', 'upheld', rr.created_at, $4
+		FROM review_removals rr WHERE rr.review_id = $3`,
+		reviewee, reviewer, byReport, admin,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// A live review: not listed.
+	submit("live")
+
+	page, err := pagination.New(1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.ListMyReviewRemovals(ctx, reviewer, page)
+	if err != nil {
+		t.Fatalf("list my removals: %v", err)
+	}
+
+	if len(result.Removals) != 1 || result.Removals[0].ReviewID != removed || result.Removals[0].Reason != "abuse" {
+		t.Fatalf("removals = %+v, want only the review removed outside a report", result.Removals)
+	}
+	if result.PageInfo.TotalItems() != 1 {
+		t.Fatalf("total = %d, want 1", result.PageInfo.TotalItems())
+	}
+
+	others, err := service.ListMyReviewRemovals(ctx, reviewee, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(others.Removals) != 0 {
+		t.Fatalf("another user's removals leaked: %+v", others.Removals)
+	}
+}

@@ -107,6 +107,49 @@ LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
 SELECT COUNT(*)
 FROM review_removals;
 
+-- The caller's removed reviews, each with its latest unrestored removal. A
+-- removal that a report outcome applied is excluded: the report closes in the
+-- same transaction, so both rows carry that transaction's now().
+-- name: ListMyReviewRemovals :many
+SELECT latest.id, r.id AS review_id, r.reviewer_id, r.reviewee_id, r.order_id, latest.reason, latest.created_at,
+       latest.created_by, creator.display_name AS created_by_name
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.id, rr.reason, rr.created_at, rr.created_by
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+JOIN users creator ON creator.id = latest.created_by
+WHERE r.reviewer_id = @reviewer_id::UUID AND r.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM user_reports ur
+      WHERE ur.review_id = r.id AND ur.status = 'closed' AND ur.outcome = 'review_removal'
+        AND ur.closed_at = latest.created_at
+  )
+ORDER BY latest.created_at DESC, latest.id DESC
+LIMIT @page_limit::bigint OFFSET @page_offset::bigint;
+
+-- name: CountMyReviewRemovals :one
+SELECT COUNT(*)
+FROM reviews r
+JOIN LATERAL (
+    SELECT rr.created_at
+    FROM review_removals rr
+    WHERE rr.review_id = r.id
+      AND NOT EXISTS (SELECT 1 FROM review_restorations x WHERE x.removal_id = rr.id)
+    ORDER BY rr.created_at DESC, rr.id DESC
+    LIMIT 1
+) latest ON true
+WHERE r.reviewer_id = @reviewer_id::UUID AND r.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM user_reports ur
+      WHERE ur.review_id = r.id AND ur.status = 'closed' AND ur.outcome = 'review_removal'
+        AND ur.closed_at = latest.created_at
+  );
+
 -- Lock the row before the aggregate read; FOR NO KEY UPDATE avoids conflicting
 -- with the key-share locks InsertReview's foreign keys take.
 -- name: LockReviewee :exec

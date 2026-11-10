@@ -242,6 +242,35 @@ func (r *PostgresRepository) CountReviewRemovals(ctx context.Context) (int64, er
 	return count, nil
 }
 
+func (r *PostgresRepository) ListMyReviewRemovals(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	offset, limit int64,
+) ([]ReviewRemoval, error) {
+	rows, err := r.queries.ListMyReviewRemovals(ctx, reviewdb.ListMyReviewRemovalsParams{
+		ReviewerID: reviewerID,
+		PageOffset: offset,
+		PageLimit:  limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list my removals: %w", err)
+	}
+
+	out := make([]ReviewRemoval, len(rows))
+	for i, row := range rows {
+		out[i] = toReviewRemovalListed(reviewdb.ListReviewRemovalsRow(row))
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error) {
+	count, err := r.queries.CountMyReviewRemovals(ctx, reviewerID)
+	if err != nil {
+		return 0, fmt.Errorf("count my removals: %w", err)
+	}
+	return count, nil
+}
+
 func (r *PostgresRepository) CheckReviewParticipants(
 	ctx context.Context,
 	reviewerID, revieweeID uuid.UUID,

@@ -268,6 +268,24 @@ func (s *Service) ListReviewRemovals(ctx context.Context, page pagination.Pagina
 	return RemovalPage{Removals: removals, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
 }
 
+// ListMyReviewRemovals lists the caller's reviews removed outside a report, so
+// the caller can appeal them.
+func (s *Service) ListMyReviewRemovals(
+	ctx context.Context,
+	reviewerID uuid.UUID,
+	page pagination.Pagination,
+) (RemovalPage, error) {
+	removals, err := s.repo.ListMyReviewRemovals(ctx, reviewerID, page.Offset(), page.PageSize())
+	if err != nil {
+		return RemovalPage{}, err
+	}
+	total, err := s.repo.CountMyReviewRemovals(ctx, reviewerID)
+	if err != nil {
+		return RemovalPage{}, err
+	}
+	return RemovalPage{Removals: removals, PageInfo: pagination.NewPageInfo(page.Page(), page.PageSize(), total)}, nil
+}
+
 // The surrogate id is unrelated to the review's id and survives a later
 // permanent deletion of the review.
 func newRemoval(reason string, createdBy uuid.UUID) (ReviewRemoval, error) {

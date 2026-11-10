@@ -111,6 +111,10 @@ func (reviewStub) ListReviewRemovals(context.Context, pagination.Pagination) (re
 	return review.RemovalPage{}, nil
 }
 
+func (reviewStub) ListMyReviewRemovals(context.Context, uuid.UUID, pagination.Pagination) (review.RemovalPage, error) {
+	return review.RemovalPage{}, nil
+}
+
 type allowedDomainStub struct {
 	calls  atomic.Int32
 	domain atomic.Value

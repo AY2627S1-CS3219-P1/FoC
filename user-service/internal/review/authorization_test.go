@@ -63,6 +63,10 @@ func TestAuthorizeCaller(t *testing.T) {
 			reviewv1connect.ReviewServiceListReviewRemovalsProcedure, false},
 		{"admin may list removals", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleAdmin), Admin: true}},
 			reviewv1connect.ReviewServiceListReviewRemovalsProcedure, true},
+		{"list my removals open to suspended", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleSuspendedUser)}},
+			reviewv1connect.ReviewServiceListMyReviewRemovalsProcedure, true},
+		{"list my removals open to user", userdto.Caller{Caller: auth.Caller{ID: "a", Role: string(tokenclaims.RoleUser)}},
+			reviewv1connect.ReviewServiceListMyReviewRemovalsProcedure, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := authorizeCaller(tc.caller, tc.procedure)

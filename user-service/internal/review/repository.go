@@ -37,6 +37,8 @@ type Repository interface {
 	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
+	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, offset, limit int64) ([]ReviewRemoval, error)
+	CountMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID) (int64, error)
 	CheckReviewParticipants(ctx context.Context, reviewerID, revieweeID uuid.UUID) (ReviewParticipantExistence, error)
 	// ReviewExists reports an existing review, including removed ones (mirrors the unique index).
 	ReviewExists(ctx context.Context, reviewerID, orderID uuid.UUID) (bool, error)
