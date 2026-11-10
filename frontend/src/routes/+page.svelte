@@ -356,7 +356,7 @@
 		position: absolute;
 		top: 0.75rem;
 		right: 0.75rem;
-		z-index: 500;
+		z-index: 10; /* Above the map panel's internals, below the top bar (30) and drawer (50). */
 		display: flex;
 		gap: 0.25rem;
 		padding: 0.25rem;
@@ -369,7 +369,7 @@
 		position: absolute;
 		left: 0.75rem;
 		bottom: 0.75rem;
-		z-index: 500;
+		z-index: 10; /* Above the map panel's internals, below the top bar (30) and drawer (50). */
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
