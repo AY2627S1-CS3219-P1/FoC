@@ -255,16 +255,18 @@
 							? `${reviewDate.format(new Date(myReview.createdAt))} · `
 							: ''}about the {revieweeRole}
 						{#if myReview.moderationStatus !== ModerationStatus.APPROVED}
-							<ReviewStatusChip
-								label={myReview.moderationStatus === ModerationStatus.REJECTED
-									? 'Rejected'
-									: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
-										? 'Assessment error' : 'Awaiting assessment'}
-								tone={myReview.moderationStatus === ModerationStatus.REJECTED
-									? 'rejected'
-									: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
-										? 'error' : 'pending'}
-							/>
+							<span class="review-status">
+								<ReviewStatusChip
+									label={myReview.moderationStatus === ModerationStatus.REJECTED
+										? 'Rejected'
+										: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+											? 'Assessment error' : 'Awaiting assessment'}
+									tone={myReview.moderationStatus === ModerationStatus.REJECTED
+										? 'rejected'
+										: myReview.moderationStatus === ModerationStatus.MODERATION_ERROR
+											? 'error' : 'pending'}
+								/>
+							</span>
 						{/if}
 					</p>
 				</header>
@@ -346,6 +348,7 @@
 	.field-error { color: var(--m3c-error, #b3261e); }
 	.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 	.review-card .sub { margin: 0; }
+	.review-status { margin-inline-start: 0.5rem; }
 	.review-rating { margin: 0; line-height: 1; }
 	.review-photos { margin-top: 0.4rem; }
 	.stars { color: var(--m3c-primary); letter-spacing: 0.1rem; }
