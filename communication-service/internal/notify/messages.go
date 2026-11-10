@@ -50,7 +50,7 @@ const (
 	alwaysDeliver delivery = iota
 	// dropIfLate is sent only within LateWindow of the change.
 	dropIfLate
-	// unlessReassigned is sent unless the removed courier has accepted again.
+	// unlessReassigned is sent only while the removed courier is not currently assigned.
 	unlessReassigned
 	// ifStillCurrent is sent only while the change is the order's latest.
 	ifStillCurrent

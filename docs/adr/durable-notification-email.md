@@ -52,4 +52,4 @@ worker rechecks these conditions when claiming a row, even if its user's email i
 still missing. Obsolete notifications become `skipped` with a recorded reason and
 remain accepted for deduplication. Always-deliver outcomes retain no expiry.
 
-Removed-courier notices survive assignment to a different courier, but are suppressed if the same courier accepts again. This recipient-specific condition is checked before Telegram delivery and persisted with queued email so a delayed address or SMTP retry cannot revive a stale unassignment.
+Removed-courier notices survive assignment to a different courier, but are suppressed while the same courier is currently assigned. This recipient-specific condition is checked before Telegram delivery and persisted with queued email so a delayed address or SMTP retry cannot contradict a current assignment. Distinct removals may each notify a courier who is unassigned again; delivery is deduplicated per event and recipient, rather than retaining assignment history to send only the latest removal.
