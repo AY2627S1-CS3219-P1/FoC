@@ -53,6 +53,12 @@ const (
 	// AppealServiceSubmitResponseProcedure is the fully-qualified name of the AppealService's
 	// SubmitResponse RPC.
 	AppealServiceSubmitResponseProcedure = "/user.appeal.v1.AppealService/SubmitResponse"
+	// AppealServiceCreateEvidenceUploadProcedure is the fully-qualified name of the AppealService's
+	// CreateEvidenceUpload RPC.
+	AppealServiceCreateEvidenceUploadProcedure = "/user.appeal.v1.AppealService/CreateEvidenceUpload"
+	// AppealServiceGetEvidenceDownloadProcedure is the fully-qualified name of the AppealService's
+	// GetEvidenceDownload RPC.
+	AppealServiceGetEvidenceDownloadProcedure = "/user.appeal.v1.AppealService/GetEvidenceDownload"
 	// AppealServiceListAppealsProcedure is the fully-qualified name of the AppealService's ListAppeals
 	// RPC.
 	AppealServiceListAppealsProcedure = "/user.appeal.v1.AppealService/ListAppeals"
@@ -74,6 +80,10 @@ type AppealServiceClient interface {
 	ListMyAppeals(context.Context, *connect.Request[v1.ListMyAppealsRequest]) (*connect.Response[v1.ListMyAppealsResponse], error)
 	GetAppeal(context.Context, *connect.Request[v1.GetAppealRequest]) (*connect.Response[v1.GetAppealResponse], error)
 	SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error)
+	// Evidence images, for participants and administrators who can read the
+	// owning appeal.
+	CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error)
+	GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error)
 	// Administrators.
 	ListAppeals(context.Context, *connect.Request[v1.ListAppealsRequest]) (*connect.Response[v1.ListAppealsResponse], error)
 	BeginReview(context.Context, *connect.Request[v1.BeginReviewRequest]) (*connect.Response[v1.BeginReviewResponse], error)
@@ -116,6 +126,18 @@ func NewAppealServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(appealServiceMethods.ByName("SubmitResponse")),
 			connect.WithClientOptions(opts...),
 		),
+		createEvidenceUpload: connect.NewClient[v1.CreateEvidenceUploadRequest, v1.CreateEvidenceUploadResponse](
+			httpClient,
+			baseURL+AppealServiceCreateEvidenceUploadProcedure,
+			connect.WithSchema(appealServiceMethods.ByName("CreateEvidenceUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		getEvidenceDownload: connect.NewClient[v1.GetEvidenceDownloadRequest, v1.GetEvidenceDownloadResponse](
+			httpClient,
+			baseURL+AppealServiceGetEvidenceDownloadProcedure,
+			connect.WithSchema(appealServiceMethods.ByName("GetEvidenceDownload")),
+			connect.WithClientOptions(opts...),
+		),
 		listAppeals: connect.NewClient[v1.ListAppealsRequest, v1.ListAppealsResponse](
 			httpClient,
 			baseURL+AppealServiceListAppealsProcedure,
@@ -145,14 +167,16 @@ func NewAppealServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // appealServiceClient implements AppealServiceClient.
 type appealServiceClient struct {
-	submitAppeal    *connect.Client[v1.SubmitAppealRequest, v1.SubmitAppealResponse]
-	listMyAppeals   *connect.Client[v1.ListMyAppealsRequest, v1.ListMyAppealsResponse]
-	getAppeal       *connect.Client[v1.GetAppealRequest, v1.GetAppealResponse]
-	submitResponse  *connect.Client[v1.SubmitResponseRequest, v1.SubmitResponseResponse]
-	listAppeals     *connect.Client[v1.ListAppealsRequest, v1.ListAppealsResponse]
-	beginReview     *connect.Client[v1.BeginReviewRequest, v1.BeginReviewResponse]
-	requestResponse *connect.Client[v1.RequestResponseRequest, v1.RequestResponseResponse]
-	closeAppeal     *connect.Client[v1.CloseAppealRequest, v1.CloseAppealResponse]
+	submitAppeal         *connect.Client[v1.SubmitAppealRequest, v1.SubmitAppealResponse]
+	listMyAppeals        *connect.Client[v1.ListMyAppealsRequest, v1.ListMyAppealsResponse]
+	getAppeal            *connect.Client[v1.GetAppealRequest, v1.GetAppealResponse]
+	submitResponse       *connect.Client[v1.SubmitResponseRequest, v1.SubmitResponseResponse]
+	createEvidenceUpload *connect.Client[v1.CreateEvidenceUploadRequest, v1.CreateEvidenceUploadResponse]
+	getEvidenceDownload  *connect.Client[v1.GetEvidenceDownloadRequest, v1.GetEvidenceDownloadResponse]
+	listAppeals          *connect.Client[v1.ListAppealsRequest, v1.ListAppealsResponse]
+	beginReview          *connect.Client[v1.BeginReviewRequest, v1.BeginReviewResponse]
+	requestResponse      *connect.Client[v1.RequestResponseRequest, v1.RequestResponseResponse]
+	closeAppeal          *connect.Client[v1.CloseAppealRequest, v1.CloseAppealResponse]
 }
 
 // SubmitAppeal calls user.appeal.v1.AppealService.SubmitAppeal.
@@ -173,6 +197,16 @@ func (c *appealServiceClient) GetAppeal(ctx context.Context, req *connect.Reques
 // SubmitResponse calls user.appeal.v1.AppealService.SubmitResponse.
 func (c *appealServiceClient) SubmitResponse(ctx context.Context, req *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error) {
 	return c.submitResponse.CallUnary(ctx, req)
+}
+
+// CreateEvidenceUpload calls user.appeal.v1.AppealService.CreateEvidenceUpload.
+func (c *appealServiceClient) CreateEvidenceUpload(ctx context.Context, req *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error) {
+	return c.createEvidenceUpload.CallUnary(ctx, req)
+}
+
+// GetEvidenceDownload calls user.appeal.v1.AppealService.GetEvidenceDownload.
+func (c *appealServiceClient) GetEvidenceDownload(ctx context.Context, req *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error) {
+	return c.getEvidenceDownload.CallUnary(ctx, req)
 }
 
 // ListAppeals calls user.appeal.v1.AppealService.ListAppeals.
@@ -202,6 +236,10 @@ type AppealServiceHandler interface {
 	ListMyAppeals(context.Context, *connect.Request[v1.ListMyAppealsRequest]) (*connect.Response[v1.ListMyAppealsResponse], error)
 	GetAppeal(context.Context, *connect.Request[v1.GetAppealRequest]) (*connect.Response[v1.GetAppealResponse], error)
 	SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error)
+	// Evidence images, for participants and administrators who can read the
+	// owning appeal.
+	CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error)
+	GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error)
 	// Administrators.
 	ListAppeals(context.Context, *connect.Request[v1.ListAppealsRequest]) (*connect.Response[v1.ListAppealsResponse], error)
 	BeginReview(context.Context, *connect.Request[v1.BeginReviewRequest]) (*connect.Response[v1.BeginReviewResponse], error)
@@ -240,6 +278,18 @@ func NewAppealServiceHandler(svc AppealServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(appealServiceMethods.ByName("SubmitResponse")),
 		connect.WithHandlerOptions(opts...),
 	)
+	appealServiceCreateEvidenceUploadHandler := connect.NewUnaryHandler(
+		AppealServiceCreateEvidenceUploadProcedure,
+		svc.CreateEvidenceUpload,
+		connect.WithSchema(appealServiceMethods.ByName("CreateEvidenceUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	appealServiceGetEvidenceDownloadHandler := connect.NewUnaryHandler(
+		AppealServiceGetEvidenceDownloadProcedure,
+		svc.GetEvidenceDownload,
+		connect.WithSchema(appealServiceMethods.ByName("GetEvidenceDownload")),
+		connect.WithHandlerOptions(opts...),
+	)
 	appealServiceListAppealsHandler := connect.NewUnaryHandler(
 		AppealServiceListAppealsProcedure,
 		svc.ListAppeals,
@@ -274,6 +324,10 @@ func NewAppealServiceHandler(svc AppealServiceHandler, opts ...connect.HandlerOp
 			appealServiceGetAppealHandler.ServeHTTP(w, r)
 		case AppealServiceSubmitResponseProcedure:
 			appealServiceSubmitResponseHandler.ServeHTTP(w, r)
+		case AppealServiceCreateEvidenceUploadProcedure:
+			appealServiceCreateEvidenceUploadHandler.ServeHTTP(w, r)
+		case AppealServiceGetEvidenceDownloadProcedure:
+			appealServiceGetEvidenceDownloadHandler.ServeHTTP(w, r)
 		case AppealServiceListAppealsProcedure:
 			appealServiceListAppealsHandler.ServeHTTP(w, r)
 		case AppealServiceBeginReviewProcedure:
@@ -305,6 +359,14 @@ func (UnimplementedAppealServiceHandler) GetAppeal(context.Context, *connect.Req
 
 func (UnimplementedAppealServiceHandler) SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.appeal.v1.AppealService.SubmitResponse is not implemented"))
+}
+
+func (UnimplementedAppealServiceHandler) CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.appeal.v1.AppealService.CreateEvidenceUpload is not implemented"))
+}
+
+func (UnimplementedAppealServiceHandler) GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.appeal.v1.AppealService.GetEvidenceDownload is not implemented"))
 }
 
 func (UnimplementedAppealServiceHandler) ListAppeals(context.Context, *connect.Request[v1.ListAppealsRequest]) (*connect.Response[v1.ListAppealsResponse], error) {

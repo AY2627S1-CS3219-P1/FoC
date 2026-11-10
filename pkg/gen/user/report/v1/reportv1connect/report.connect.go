@@ -52,6 +52,12 @@ const (
 	// ReportServiceSubmitResponseProcedure is the fully-qualified name of the ReportService's
 	// SubmitResponse RPC.
 	ReportServiceSubmitResponseProcedure = "/user.report.v1.ReportService/SubmitResponse"
+	// ReportServiceCreateEvidenceUploadProcedure is the fully-qualified name of the ReportService's
+	// CreateEvidenceUpload RPC.
+	ReportServiceCreateEvidenceUploadProcedure = "/user.report.v1.ReportService/CreateEvidenceUpload"
+	// ReportServiceGetEvidenceDownloadProcedure is the fully-qualified name of the ReportService's
+	// GetEvidenceDownload RPC.
+	ReportServiceGetEvidenceDownloadProcedure = "/user.report.v1.ReportService/GetEvidenceDownload"
 	// ReportServiceListReportsProcedure is the fully-qualified name of the ReportService's ListReports
 	// RPC.
 	ReportServiceListReportsProcedure = "/user.report.v1.ReportService/ListReports"
@@ -73,6 +79,10 @@ type ReportServiceClient interface {
 	ListMyReports(context.Context, *connect.Request[v1.ListMyReportsRequest]) (*connect.Response[v1.ListMyReportsResponse], error)
 	GetReport(context.Context, *connect.Request[v1.GetReportRequest]) (*connect.Response[v1.GetReportResponse], error)
 	SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error)
+	// Evidence images, for participants and administrators who can read the
+	// owning report.
+	CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error)
+	GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error)
 	// Administrators.
 	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
 	BeginReview(context.Context, *connect.Request[v1.BeginReviewRequest]) (*connect.Response[v1.BeginReviewResponse], error)
@@ -115,6 +125,18 @@ func NewReportServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(reportServiceMethods.ByName("SubmitResponse")),
 			connect.WithClientOptions(opts...),
 		),
+		createEvidenceUpload: connect.NewClient[v1.CreateEvidenceUploadRequest, v1.CreateEvidenceUploadResponse](
+			httpClient,
+			baseURL+ReportServiceCreateEvidenceUploadProcedure,
+			connect.WithSchema(reportServiceMethods.ByName("CreateEvidenceUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		getEvidenceDownload: connect.NewClient[v1.GetEvidenceDownloadRequest, v1.GetEvidenceDownloadResponse](
+			httpClient,
+			baseURL+ReportServiceGetEvidenceDownloadProcedure,
+			connect.WithSchema(reportServiceMethods.ByName("GetEvidenceDownload")),
+			connect.WithClientOptions(opts...),
+		),
 		listReports: connect.NewClient[v1.ListReportsRequest, v1.ListReportsResponse](
 			httpClient,
 			baseURL+ReportServiceListReportsProcedure,
@@ -144,14 +166,16 @@ func NewReportServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // reportServiceClient implements ReportServiceClient.
 type reportServiceClient struct {
-	submitReport    *connect.Client[v1.SubmitReportRequest, v1.SubmitReportResponse]
-	listMyReports   *connect.Client[v1.ListMyReportsRequest, v1.ListMyReportsResponse]
-	getReport       *connect.Client[v1.GetReportRequest, v1.GetReportResponse]
-	submitResponse  *connect.Client[v1.SubmitResponseRequest, v1.SubmitResponseResponse]
-	listReports     *connect.Client[v1.ListReportsRequest, v1.ListReportsResponse]
-	beginReview     *connect.Client[v1.BeginReviewRequest, v1.BeginReviewResponse]
-	requestResponse *connect.Client[v1.RequestResponseRequest, v1.RequestResponseResponse]
-	closeReport     *connect.Client[v1.CloseReportRequest, v1.CloseReportResponse]
+	submitReport         *connect.Client[v1.SubmitReportRequest, v1.SubmitReportResponse]
+	listMyReports        *connect.Client[v1.ListMyReportsRequest, v1.ListMyReportsResponse]
+	getReport            *connect.Client[v1.GetReportRequest, v1.GetReportResponse]
+	submitResponse       *connect.Client[v1.SubmitResponseRequest, v1.SubmitResponseResponse]
+	createEvidenceUpload *connect.Client[v1.CreateEvidenceUploadRequest, v1.CreateEvidenceUploadResponse]
+	getEvidenceDownload  *connect.Client[v1.GetEvidenceDownloadRequest, v1.GetEvidenceDownloadResponse]
+	listReports          *connect.Client[v1.ListReportsRequest, v1.ListReportsResponse]
+	beginReview          *connect.Client[v1.BeginReviewRequest, v1.BeginReviewResponse]
+	requestResponse      *connect.Client[v1.RequestResponseRequest, v1.RequestResponseResponse]
+	closeReport          *connect.Client[v1.CloseReportRequest, v1.CloseReportResponse]
 }
 
 // SubmitReport calls user.report.v1.ReportService.SubmitReport.
@@ -172,6 +196,16 @@ func (c *reportServiceClient) GetReport(ctx context.Context, req *connect.Reques
 // SubmitResponse calls user.report.v1.ReportService.SubmitResponse.
 func (c *reportServiceClient) SubmitResponse(ctx context.Context, req *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error) {
 	return c.submitResponse.CallUnary(ctx, req)
+}
+
+// CreateEvidenceUpload calls user.report.v1.ReportService.CreateEvidenceUpload.
+func (c *reportServiceClient) CreateEvidenceUpload(ctx context.Context, req *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error) {
+	return c.createEvidenceUpload.CallUnary(ctx, req)
+}
+
+// GetEvidenceDownload calls user.report.v1.ReportService.GetEvidenceDownload.
+func (c *reportServiceClient) GetEvidenceDownload(ctx context.Context, req *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error) {
+	return c.getEvidenceDownload.CallUnary(ctx, req)
 }
 
 // ListReports calls user.report.v1.ReportService.ListReports.
@@ -201,6 +235,10 @@ type ReportServiceHandler interface {
 	ListMyReports(context.Context, *connect.Request[v1.ListMyReportsRequest]) (*connect.Response[v1.ListMyReportsResponse], error)
 	GetReport(context.Context, *connect.Request[v1.GetReportRequest]) (*connect.Response[v1.GetReportResponse], error)
 	SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error)
+	// Evidence images, for participants and administrators who can read the
+	// owning report.
+	CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error)
+	GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error)
 	// Administrators.
 	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
 	BeginReview(context.Context, *connect.Request[v1.BeginReviewRequest]) (*connect.Response[v1.BeginReviewResponse], error)
@@ -239,6 +277,18 @@ func NewReportServiceHandler(svc ReportServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(reportServiceMethods.ByName("SubmitResponse")),
 		connect.WithHandlerOptions(opts...),
 	)
+	reportServiceCreateEvidenceUploadHandler := connect.NewUnaryHandler(
+		ReportServiceCreateEvidenceUploadProcedure,
+		svc.CreateEvidenceUpload,
+		connect.WithSchema(reportServiceMethods.ByName("CreateEvidenceUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	reportServiceGetEvidenceDownloadHandler := connect.NewUnaryHandler(
+		ReportServiceGetEvidenceDownloadProcedure,
+		svc.GetEvidenceDownload,
+		connect.WithSchema(reportServiceMethods.ByName("GetEvidenceDownload")),
+		connect.WithHandlerOptions(opts...),
+	)
 	reportServiceListReportsHandler := connect.NewUnaryHandler(
 		ReportServiceListReportsProcedure,
 		svc.ListReports,
@@ -273,6 +323,10 @@ func NewReportServiceHandler(svc ReportServiceHandler, opts ...connect.HandlerOp
 			reportServiceGetReportHandler.ServeHTTP(w, r)
 		case ReportServiceSubmitResponseProcedure:
 			reportServiceSubmitResponseHandler.ServeHTTP(w, r)
+		case ReportServiceCreateEvidenceUploadProcedure:
+			reportServiceCreateEvidenceUploadHandler.ServeHTTP(w, r)
+		case ReportServiceGetEvidenceDownloadProcedure:
+			reportServiceGetEvidenceDownloadHandler.ServeHTTP(w, r)
 		case ReportServiceListReportsProcedure:
 			reportServiceListReportsHandler.ServeHTTP(w, r)
 		case ReportServiceBeginReviewProcedure:
@@ -304,6 +358,14 @@ func (UnimplementedReportServiceHandler) GetReport(context.Context, *connect.Req
 
 func (UnimplementedReportServiceHandler) SubmitResponse(context.Context, *connect.Request[v1.SubmitResponseRequest]) (*connect.Response[v1.SubmitResponseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.report.v1.ReportService.SubmitResponse is not implemented"))
+}
+
+func (UnimplementedReportServiceHandler) CreateEvidenceUpload(context.Context, *connect.Request[v1.CreateEvidenceUploadRequest]) (*connect.Response[v1.CreateEvidenceUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.report.v1.ReportService.CreateEvidenceUpload is not implemented"))
+}
+
+func (UnimplementedReportServiceHandler) GetEvidenceDownload(context.Context, *connect.Request[v1.GetEvidenceDownloadRequest]) (*connect.Response[v1.GetEvidenceDownloadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.report.v1.ReportService.GetEvidenceDownload is not implemented"))
 }
 
 func (UnimplementedReportServiceHandler) ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error) {

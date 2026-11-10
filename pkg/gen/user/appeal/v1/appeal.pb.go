@@ -18,7 +18,8 @@ package appealv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	v1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
+	v11 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
+	v1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/evidence/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -471,6 +472,8 @@ type Appeal struct {
 	CloserName    string                 `protobuf:"bytes,11,opt,name=closer_name,json=closerName,proto3" json:"closer_name,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Images the appellant attached (RP8.2), in order.
+	Evidence      []*v1.Evidence `protobuf:"bytes,14,rep,name=evidence,proto3" json:"evidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -596,6 +599,13 @@ func (x *Appeal) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Appeal) GetEvidence() []*v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 // A reply from a participant an administrator asked to respond.
 type AppealResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -605,6 +615,8 @@ type AppealResponse struct {
 	ResponderName string                 `protobuf:"bytes,4,opt,name=responder_name,json=responderName,proto3" json:"responder_name,omitempty"`
 	Body          string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Images the responding participant attached (RP9.4), in order.
+	Evidence      []*v1.Evidence `protobuf:"bytes,7,rep,name=evidence,proto3" json:"evidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -681,6 +693,13 @@ func (x *AppealResponse) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *AppealResponse) GetEvidence() []*v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 // Resubmitting the same idempotency key and payload returns the original
 // appeal (RP7.7); the same key with a different payload is ALREADY_EXISTS.
 type SubmitAppealRequest struct {
@@ -688,9 +707,11 @@ type SubmitAppealRequest struct {
 	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	// The originating order. Optional: when omitted it is derived from the
 	// decisions if they share one.
-	RequestId     *string             `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3,oneof" json:"request_id,omitempty"`
-	Reason        string              `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	Decisions     []*AppealedDecision `protobuf:"bytes,4,rep,name=decisions,proto3" json:"decisions,omitempty"`
+	RequestId *string             `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3,oneof" json:"request_id,omitempty"`
+	Reason    string              `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Decisions []*AppealedDecision `protobuf:"bytes,4,rep,name=decisions,proto3" json:"decisions,omitempty"`
+	// Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+	EvidenceIds   []string `protobuf:"bytes,5,rep,name=evidence_ids,json=evidenceIds,proto3" json:"evidence_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -753,6 +774,13 @@ func (x *SubmitAppealRequest) GetDecisions() []*AppealedDecision {
 	return nil
 }
 
+func (x *SubmitAppealRequest) GetEvidenceIds() []string {
+	if x != nil {
+		return x.EvidenceIds
+	}
+	return nil
+}
+
 type SubmitAppealResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Appeal        *Appeal                `protobuf:"bytes,1,opt,name=appeal,proto3" json:"appeal,omitempty"`
@@ -800,7 +828,7 @@ func (x *SubmitAppealResponse) GetAppeal() *Appeal {
 // Appeals the caller filed or is a counterpart of. Open to suspended users.
 type ListMyAppealsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Pagination    *v1.Pagination         `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.Pagination        `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -835,7 +863,7 @@ func (*ListMyAppealsRequest) Descriptor() ([]byte, []int) {
 	return file_user_appeal_v1_appeal_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListMyAppealsRequest) GetPagination() *v1.Pagination {
+func (x *ListMyAppealsRequest) GetPagination() *v11.Pagination {
 	if x != nil {
 		return x.Pagination
 	}
@@ -845,7 +873,7 @@ func (x *ListMyAppealsRequest) GetPagination() *v1.Pagination {
 type ListMyAppealsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Appeals       []*Appeal              `protobuf:"bytes,1,rep,name=appeals,proto3" json:"appeals,omitempty"`
-	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.PageInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -887,7 +915,7 @@ func (x *ListMyAppealsResponse) GetAppeals() []*Appeal {
 	return nil
 }
 
-func (x *ListMyAppealsResponse) GetPagination() *v1.PageInfo {
+func (x *ListMyAppealsResponse) GetPagination() *v11.PageInfo {
 	if x != nil {
 		return x.Pagination
 	}
@@ -994,9 +1022,11 @@ func (x *GetAppealResponse) GetResponses() []*AppealResponse {
 // Only the participant asked to respond may reply, while the appeal is
 // AWAITING_RESPONSE. The reply moves it back to UNDER_REVIEW.
 type SubmitResponseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppealId      string                 `protobuf:"bytes,1,opt,name=appeal_id,json=appealId,proto3" json:"appeal_id,omitempty"`
-	Body          string                 `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	AppealId string                 `protobuf:"bytes,1,opt,name=appeal_id,json=appealId,proto3" json:"appeal_id,omitempty"`
+	Body     string                 `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	// Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+	EvidenceIds   []string `protobuf:"bytes,3,rep,name=evidence_ids,json=evidenceIds,proto3" json:"evidence_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1043,6 +1073,13 @@ func (x *SubmitResponseRequest) GetBody() string {
 		return x.Body
 	}
 	return ""
+}
+
+func (x *SubmitResponseRequest) GetEvidenceIds() []string {
+	if x != nil {
+		return x.EvidenceIds
+	}
+	return nil
 }
 
 type SubmitResponseResponse struct {
@@ -1102,7 +1139,7 @@ type ListAppealsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        *AppealStatus          `protobuf:"varint,1,opt,name=status,proto3,enum=user.appeal.v1.AppealStatus,oneof" json:"status,omitempty"`
 	AppellantId   *string                `protobuf:"bytes,2,opt,name=appellant_id,json=appellantId,proto3,oneof" json:"appellant_id,omitempty"`
-	Pagination    *v1.Pagination         `protobuf:"bytes,3,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.Pagination        `protobuf:"bytes,3,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1151,7 +1188,7 @@ func (x *ListAppealsRequest) GetAppellantId() string {
 	return ""
 }
 
-func (x *ListAppealsRequest) GetPagination() *v1.Pagination {
+func (x *ListAppealsRequest) GetPagination() *v11.Pagination {
 	if x != nil {
 		return x.Pagination
 	}
@@ -1161,7 +1198,7 @@ func (x *ListAppealsRequest) GetPagination() *v1.Pagination {
 type ListAppealsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Appeals       []*Appeal              `protobuf:"bytes,1,rep,name=appeals,proto3" json:"appeals,omitempty"`
-	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.PageInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1203,7 +1240,7 @@ func (x *ListAppealsResponse) GetAppeals() []*Appeal {
 	return nil
 }
 
-func (x *ListAppealsResponse) GetPagination() *v1.PageInfo {
+func (x *ListAppealsResponse) GetPagination() *v11.PageInfo {
 	if x != nil {
 		return x.Pagination
 	}
@@ -1556,11 +1593,189 @@ func (x *CloseAppealResponse) GetAppeal() *Appeal {
 	return nil
 }
 
+type CreateEvidenceUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Upload        *v1.EvidenceUpload     `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEvidenceUploadRequest) Reset() {
+	*x = CreateEvidenceUploadRequest{}
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateEvidenceUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateEvidenceUploadRequest) ProtoMessage() {}
+
+func (x *CreateEvidenceUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateEvidenceUploadRequest.ProtoReflect.Descriptor instead.
+func (*CreateEvidenceUploadRequest) Descriptor() ([]byte, []int) {
+	return file_user_appeal_v1_appeal_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CreateEvidenceUploadRequest) GetUpload() *v1.EvidenceUpload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+type CreateEvidenceUploadResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Grant         *v1.EvidenceUploadGrant `protobuf:"bytes,1,opt,name=grant,proto3" json:"grant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEvidenceUploadResponse) Reset() {
+	*x = CreateEvidenceUploadResponse{}
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateEvidenceUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateEvidenceUploadResponse) ProtoMessage() {}
+
+func (x *CreateEvidenceUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateEvidenceUploadResponse.ProtoReflect.Descriptor instead.
+func (*CreateEvidenceUploadResponse) Descriptor() ([]byte, []int) {
+	return file_user_appeal_v1_appeal_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CreateEvidenceUploadResponse) GetGrant() *v1.EvidenceUploadGrant {
+	if x != nil {
+		return x.Grant
+	}
+	return nil
+}
+
+// Signs a fresh URL for an image on a appeal the caller can read, or on one of
+// its responses.
+type GetEvidenceDownloadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvidenceId    string                 `protobuf:"bytes,1,opt,name=evidence_id,json=evidenceId,proto3" json:"evidence_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEvidenceDownloadRequest) Reset() {
+	*x = GetEvidenceDownloadRequest{}
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEvidenceDownloadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEvidenceDownloadRequest) ProtoMessage() {}
+
+func (x *GetEvidenceDownloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEvidenceDownloadRequest.ProtoReflect.Descriptor instead.
+func (*GetEvidenceDownloadRequest) Descriptor() ([]byte, []int) {
+	return file_user_appeal_v1_appeal_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetEvidenceDownloadRequest) GetEvidenceId() string {
+	if x != nil {
+		return x.EvidenceId
+	}
+	return ""
+}
+
+type GetEvidenceDownloadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Evidence      *v1.Evidence           `protobuf:"bytes,1,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEvidenceDownloadResponse) Reset() {
+	*x = GetEvidenceDownloadResponse{}
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEvidenceDownloadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEvidenceDownloadResponse) ProtoMessage() {}
+
+func (x *GetEvidenceDownloadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_appeal_v1_appeal_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEvidenceDownloadResponse.ProtoReflect.Descriptor instead.
+func (*GetEvidenceDownloadResponse) Descriptor() ([]byte, []int) {
+	return file_user_appeal_v1_appeal_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetEvidenceDownloadResponse) GetEvidence() *v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 var File_user_appeal_v1_appeal_proto protoreflect.FileDescriptor
 
 const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/appeal/v1/appeal.proto\x12\x0euser.appeal.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\"\x9d\x02\n" +
+	"\x1buser/appeal/v1/appeal.proto\x12\x0euser.appeal.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fuser/evidence/v1/evidence.proto\"\x9d\x02\n" +
 	"\x10AppealedDecision\x12'\n" +
 	"\treport_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\breportId\x12)\n" +
 	"\n" +
@@ -1582,7 +1797,7 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\aoutcome\x18\t \x01(\x0e2\x1f.user.appeal.v1.DecisionOutcomeR\aoutcome\x12%\n" +
 	"\x0eoutcome_reason\x18\n" +
 	" \x01(\tR\routcomeReasonB\b\n" +
-	"\x06target\"\xb0\x04\n" +
+	"\x06target\"\xe8\x04\n" +
 	"\x06Appeal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fappellant_id\x18\x02 \x01(\tR\vappellantId\x12%\n" +
@@ -1601,8 +1816,9 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\r\n" +
-	"\v_request_id\"\xd6\x01\n" +
+	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x126\n" +
+	"\bevidence\x18\x0e \x03(\v2\x1a.user.evidence.v1.EvidenceR\bevidenceB\r\n" +
+	"\v_request_id\"\x8e\x02\n" +
 	"\x0eAppealResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tappeal_id\x18\x02 \x01(\tR\bappealId\x12!\n" +
@@ -1610,7 +1826,8 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\x0eresponder_name\x18\x04 \x01(\tR\rresponderName\x12\x12\n" +
 	"\x04body\x18\x05 \x01(\tR\x04body\x129\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xf5\x01\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x126\n" +
+	"\bevidence\x18\a \x03(\v2\x1a.user.evidence.v1.EvidenceR\bevidence\"\xa9\x02\n" +
 	"\x13SubmitAppealRequest\x121\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0eidempotencyKey\x12,\n" +
 	"\n" +
@@ -1619,7 +1836,8 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\x06reason\x12J\n" +
 	"\tdecisions\x18\x04 \x03(\v2 .user.appeal.v1.AppealedDecisionB\n" +
 	"\xbaH\a\x92\x01\x04\b\x01\x10\n" +
-	"R\tdecisionsB\r\n" +
+	"R\tdecisions\x122\n" +
+	"\fevidence_ids\x18\x05 \x03(\tB\x0f\xbaH\f\x92\x01\t\x10\x05\"\x05r\x03\xb0\x01\x01R\vevidenceIdsB\r\n" +
 	"\v_request_id\"F\n" +
 	"\x14SubmitAppealResponse\x12.\n" +
 	"\x06appeal\x18\x01 \x01(\v2\x16.user.appeal.v1.AppealR\x06appeal\"Q\n" +
@@ -1636,11 +1854,12 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x81\x01\n" +
 	"\x11GetAppealResponse\x12.\n" +
 	"\x06appeal\x18\x01 \x01(\v2\x16.user.appeal.v1.AppealR\x06appeal\x12<\n" +
-	"\tresponses\x18\x02 \x03(\v2\x1e.user.appeal.v1.AppealResponseR\tresponses\"^\n" +
+	"\tresponses\x18\x02 \x03(\v2\x1e.user.appeal.v1.AppealResponseR\tresponses\"\x92\x01\n" +
 	"\x15SubmitResponseRequest\x12%\n" +
 	"\tappeal_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\bappealId\x12\x1e\n" +
 	"\x04body\x18\x02 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\x04body\"\x84\x01\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\x04body\x122\n" +
+	"\fevidence_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x10\x05\"\x05r\x03\xb0\x01\x01R\vevidenceIds\"\x84\x01\n" +
 	"\x16SubmitResponseResponse\x12.\n" +
 	"\x06appeal\x18\x01 \x01(\v2\x16.user.appeal.v1.AppealR\x06appeal\x12:\n" +
 	"\bresponse\x18\x02 \x01(\v2\x1e.user.appeal.v1.AppealResponseR\bresponse\"\xe4\x01\n" +
@@ -1680,7 +1899,16 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\xbaH\a\x92\x01\x04\b\x01\x10\n" +
 	"R\vresolutions\"E\n" +
 	"\x13CloseAppealResponse\x12.\n" +
-	"\x06appeal\x18\x01 \x01(\v2\x16.user.appeal.v1.AppealR\x06appeal*\xa4\x01\n" +
+	"\x06appeal\x18\x01 \x01(\v2\x16.user.appeal.v1.AppealR\x06appeal\"_\n" +
+	"\x1bCreateEvidenceUploadRequest\x12@\n" +
+	"\x06upload\x18\x01 \x01(\v2 .user.evidence.v1.EvidenceUploadB\x06\xbaH\x03\xc8\x01\x01R\x06upload\"[\n" +
+	"\x1cCreateEvidenceUploadResponse\x12;\n" +
+	"\x05grant\x18\x01 \x01(\v2%.user.evidence.v1.EvidenceUploadGrantR\x05grant\"G\n" +
+	"\x1aGetEvidenceDownloadRequest\x12)\n" +
+	"\vevidence_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
+	"evidenceId\"U\n" +
+	"\x1bGetEvidenceDownloadResponse\x126\n" +
+	"\bevidence\x18\x01 \x01(\v2\x1a.user.evidence.v1.EvidenceR\bevidence*\xa4\x01\n" +
 	"\fAppealStatus\x12\x1d\n" +
 	"\x19APPEAL_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12APPEAL_STATUS_OPEN\x10\x01\x12\x1e\n" +
@@ -1690,12 +1918,14 @@ const file_user_appeal_v1_appeal_proto_rawDesc = "" +
 	"\x0fDecisionOutcome\x12 \n" +
 	"\x1cDECISION_OUTCOME_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17DECISION_OUTCOME_UPHELD\x10\x01\x12\x1f\n" +
-	"\x1bDECISION_OUTCOME_OVERTURNED\x10\x022\xf7\x05\n" +
+	"\x1bDECISION_OUTCOME_OVERTURNED\x10\x022\xde\a\n" +
 	"\rAppealService\x12[\n" +
 	"\fSubmitAppeal\x12#.user.appeal.v1.SubmitAppealRequest\x1a$.user.appeal.v1.SubmitAppealResponse\"\x00\x12^\n" +
 	"\rListMyAppeals\x12$.user.appeal.v1.ListMyAppealsRequest\x1a%.user.appeal.v1.ListMyAppealsResponse\"\x00\x12R\n" +
 	"\tGetAppeal\x12 .user.appeal.v1.GetAppealRequest\x1a!.user.appeal.v1.GetAppealResponse\"\x00\x12a\n" +
-	"\x0eSubmitResponse\x12%.user.appeal.v1.SubmitResponseRequest\x1a&.user.appeal.v1.SubmitResponseResponse\"\x00\x12X\n" +
+	"\x0eSubmitResponse\x12%.user.appeal.v1.SubmitResponseRequest\x1a&.user.appeal.v1.SubmitResponseResponse\"\x00\x12s\n" +
+	"\x14CreateEvidenceUpload\x12+.user.appeal.v1.CreateEvidenceUploadRequest\x1a,.user.appeal.v1.CreateEvidenceUploadResponse\"\x00\x12p\n" +
+	"\x13GetEvidenceDownload\x12*.user.appeal.v1.GetEvidenceDownloadRequest\x1a+.user.appeal.v1.GetEvidenceDownloadResponse\"\x00\x12X\n" +
 	"\vListAppeals\x12\".user.appeal.v1.ListAppealsRequest\x1a#.user.appeal.v1.ListAppealsResponse\"\x00\x12X\n" +
 	"\vBeginReview\x12\".user.appeal.v1.BeginReviewRequest\x1a#.user.appeal.v1.BeginReviewResponse\"\x00\x12d\n" +
 	"\x0fRequestResponse\x12&.user.appeal.v1.RequestResponseRequest\x1a'.user.appeal.v1.RequestResponseResponse\"\x00\x12X\n" +
@@ -1715,82 +1945,98 @@ func file_user_appeal_v1_appeal_proto_rawDescGZIP() []byte {
 }
 
 var file_user_appeal_v1_appeal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_user_appeal_v1_appeal_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_user_appeal_v1_appeal_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_user_appeal_v1_appeal_proto_goTypes = []any{
-	(AppealStatus)(0),               // 0: user.appeal.v1.AppealStatus
-	(DecisionOutcome)(0),            // 1: user.appeal.v1.DecisionOutcome
-	(*AppealedDecision)(nil),        // 2: user.appeal.v1.AppealedDecision
-	(*Decision)(nil),                // 3: user.appeal.v1.Decision
-	(*Appeal)(nil),                  // 4: user.appeal.v1.Appeal
-	(*AppealResponse)(nil),          // 5: user.appeal.v1.AppealResponse
-	(*SubmitAppealRequest)(nil),     // 6: user.appeal.v1.SubmitAppealRequest
-	(*SubmitAppealResponse)(nil),    // 7: user.appeal.v1.SubmitAppealResponse
-	(*ListMyAppealsRequest)(nil),    // 8: user.appeal.v1.ListMyAppealsRequest
-	(*ListMyAppealsResponse)(nil),   // 9: user.appeal.v1.ListMyAppealsResponse
-	(*GetAppealRequest)(nil),        // 10: user.appeal.v1.GetAppealRequest
-	(*GetAppealResponse)(nil),       // 11: user.appeal.v1.GetAppealResponse
-	(*SubmitResponseRequest)(nil),   // 12: user.appeal.v1.SubmitResponseRequest
-	(*SubmitResponseResponse)(nil),  // 13: user.appeal.v1.SubmitResponseResponse
-	(*ListAppealsRequest)(nil),      // 14: user.appeal.v1.ListAppealsRequest
-	(*ListAppealsResponse)(nil),     // 15: user.appeal.v1.ListAppealsResponse
-	(*BeginReviewRequest)(nil),      // 16: user.appeal.v1.BeginReviewRequest
-	(*BeginReviewResponse)(nil),     // 17: user.appeal.v1.BeginReviewResponse
-	(*RequestResponseRequest)(nil),  // 18: user.appeal.v1.RequestResponseRequest
-	(*RequestResponseResponse)(nil), // 19: user.appeal.v1.RequestResponseResponse
-	(*DecisionResolution)(nil),      // 20: user.appeal.v1.DecisionResolution
-	(*CloseAppealRequest)(nil),      // 21: user.appeal.v1.CloseAppealRequest
-	(*CloseAppealResponse)(nil),     // 22: user.appeal.v1.CloseAppealResponse
-	(*timestamppb.Timestamp)(nil),   // 23: google.protobuf.Timestamp
-	(*v1.Pagination)(nil),           // 24: pagination.v1.Pagination
-	(*v1.PageInfo)(nil),             // 25: pagination.v1.PageInfo
+	(AppealStatus)(0),                    // 0: user.appeal.v1.AppealStatus
+	(DecisionOutcome)(0),                 // 1: user.appeal.v1.DecisionOutcome
+	(*AppealedDecision)(nil),             // 2: user.appeal.v1.AppealedDecision
+	(*Decision)(nil),                     // 3: user.appeal.v1.Decision
+	(*Appeal)(nil),                       // 4: user.appeal.v1.Appeal
+	(*AppealResponse)(nil),               // 5: user.appeal.v1.AppealResponse
+	(*SubmitAppealRequest)(nil),          // 6: user.appeal.v1.SubmitAppealRequest
+	(*SubmitAppealResponse)(nil),         // 7: user.appeal.v1.SubmitAppealResponse
+	(*ListMyAppealsRequest)(nil),         // 8: user.appeal.v1.ListMyAppealsRequest
+	(*ListMyAppealsResponse)(nil),        // 9: user.appeal.v1.ListMyAppealsResponse
+	(*GetAppealRequest)(nil),             // 10: user.appeal.v1.GetAppealRequest
+	(*GetAppealResponse)(nil),            // 11: user.appeal.v1.GetAppealResponse
+	(*SubmitResponseRequest)(nil),        // 12: user.appeal.v1.SubmitResponseRequest
+	(*SubmitResponseResponse)(nil),       // 13: user.appeal.v1.SubmitResponseResponse
+	(*ListAppealsRequest)(nil),           // 14: user.appeal.v1.ListAppealsRequest
+	(*ListAppealsResponse)(nil),          // 15: user.appeal.v1.ListAppealsResponse
+	(*BeginReviewRequest)(nil),           // 16: user.appeal.v1.BeginReviewRequest
+	(*BeginReviewResponse)(nil),          // 17: user.appeal.v1.BeginReviewResponse
+	(*RequestResponseRequest)(nil),       // 18: user.appeal.v1.RequestResponseRequest
+	(*RequestResponseResponse)(nil),      // 19: user.appeal.v1.RequestResponseResponse
+	(*DecisionResolution)(nil),           // 20: user.appeal.v1.DecisionResolution
+	(*CloseAppealRequest)(nil),           // 21: user.appeal.v1.CloseAppealRequest
+	(*CloseAppealResponse)(nil),          // 22: user.appeal.v1.CloseAppealResponse
+	(*CreateEvidenceUploadRequest)(nil),  // 23: user.appeal.v1.CreateEvidenceUploadRequest
+	(*CreateEvidenceUploadResponse)(nil), // 24: user.appeal.v1.CreateEvidenceUploadResponse
+	(*GetEvidenceDownloadRequest)(nil),   // 25: user.appeal.v1.GetEvidenceDownloadRequest
+	(*GetEvidenceDownloadResponse)(nil),  // 26: user.appeal.v1.GetEvidenceDownloadResponse
+	(*timestamppb.Timestamp)(nil),        // 27: google.protobuf.Timestamp
+	(*v1.Evidence)(nil),                  // 28: user.evidence.v1.Evidence
+	(*v11.Pagination)(nil),               // 29: pagination.v1.Pagination
+	(*v11.PageInfo)(nil),                 // 30: pagination.v1.PageInfo
+	(*v1.EvidenceUpload)(nil),            // 31: user.evidence.v1.EvidenceUpload
+	(*v1.EvidenceUploadGrant)(nil),       // 32: user.evidence.v1.EvidenceUploadGrant
 }
 var file_user_appeal_v1_appeal_proto_depIdxs = []int32{
 	1,  // 0: user.appeal.v1.Decision.outcome:type_name -> user.appeal.v1.DecisionOutcome
 	0,  // 1: user.appeal.v1.Appeal.status:type_name -> user.appeal.v1.AppealStatus
 	3,  // 2: user.appeal.v1.Appeal.decisions:type_name -> user.appeal.v1.Decision
-	23, // 3: user.appeal.v1.Appeal.closed_at:type_name -> google.protobuf.Timestamp
-	23, // 4: user.appeal.v1.Appeal.created_at:type_name -> google.protobuf.Timestamp
-	23, // 5: user.appeal.v1.Appeal.updated_at:type_name -> google.protobuf.Timestamp
-	23, // 6: user.appeal.v1.AppealResponse.created_at:type_name -> google.protobuf.Timestamp
-	2,  // 7: user.appeal.v1.SubmitAppealRequest.decisions:type_name -> user.appeal.v1.AppealedDecision
-	4,  // 8: user.appeal.v1.SubmitAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
-	24, // 9: user.appeal.v1.ListMyAppealsRequest.pagination:type_name -> pagination.v1.Pagination
-	4,  // 10: user.appeal.v1.ListMyAppealsResponse.appeals:type_name -> user.appeal.v1.Appeal
-	25, // 11: user.appeal.v1.ListMyAppealsResponse.pagination:type_name -> pagination.v1.PageInfo
-	4,  // 12: user.appeal.v1.GetAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
-	5,  // 13: user.appeal.v1.GetAppealResponse.responses:type_name -> user.appeal.v1.AppealResponse
-	4,  // 14: user.appeal.v1.SubmitResponseResponse.appeal:type_name -> user.appeal.v1.Appeal
-	5,  // 15: user.appeal.v1.SubmitResponseResponse.response:type_name -> user.appeal.v1.AppealResponse
-	0,  // 16: user.appeal.v1.ListAppealsRequest.status:type_name -> user.appeal.v1.AppealStatus
-	24, // 17: user.appeal.v1.ListAppealsRequest.pagination:type_name -> pagination.v1.Pagination
-	4,  // 18: user.appeal.v1.ListAppealsResponse.appeals:type_name -> user.appeal.v1.Appeal
-	25, // 19: user.appeal.v1.ListAppealsResponse.pagination:type_name -> pagination.v1.PageInfo
-	4,  // 20: user.appeal.v1.BeginReviewResponse.appeal:type_name -> user.appeal.v1.Appeal
-	4,  // 21: user.appeal.v1.RequestResponseResponse.appeal:type_name -> user.appeal.v1.Appeal
-	1,  // 22: user.appeal.v1.DecisionResolution.outcome:type_name -> user.appeal.v1.DecisionOutcome
-	20, // 23: user.appeal.v1.CloseAppealRequest.resolutions:type_name -> user.appeal.v1.DecisionResolution
-	4,  // 24: user.appeal.v1.CloseAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
-	6,  // 25: user.appeal.v1.AppealService.SubmitAppeal:input_type -> user.appeal.v1.SubmitAppealRequest
-	8,  // 26: user.appeal.v1.AppealService.ListMyAppeals:input_type -> user.appeal.v1.ListMyAppealsRequest
-	10, // 27: user.appeal.v1.AppealService.GetAppeal:input_type -> user.appeal.v1.GetAppealRequest
-	12, // 28: user.appeal.v1.AppealService.SubmitResponse:input_type -> user.appeal.v1.SubmitResponseRequest
-	14, // 29: user.appeal.v1.AppealService.ListAppeals:input_type -> user.appeal.v1.ListAppealsRequest
-	16, // 30: user.appeal.v1.AppealService.BeginReview:input_type -> user.appeal.v1.BeginReviewRequest
-	18, // 31: user.appeal.v1.AppealService.RequestResponse:input_type -> user.appeal.v1.RequestResponseRequest
-	21, // 32: user.appeal.v1.AppealService.CloseAppeal:input_type -> user.appeal.v1.CloseAppealRequest
-	7,  // 33: user.appeal.v1.AppealService.SubmitAppeal:output_type -> user.appeal.v1.SubmitAppealResponse
-	9,  // 34: user.appeal.v1.AppealService.ListMyAppeals:output_type -> user.appeal.v1.ListMyAppealsResponse
-	11, // 35: user.appeal.v1.AppealService.GetAppeal:output_type -> user.appeal.v1.GetAppealResponse
-	13, // 36: user.appeal.v1.AppealService.SubmitResponse:output_type -> user.appeal.v1.SubmitResponseResponse
-	15, // 37: user.appeal.v1.AppealService.ListAppeals:output_type -> user.appeal.v1.ListAppealsResponse
-	17, // 38: user.appeal.v1.AppealService.BeginReview:output_type -> user.appeal.v1.BeginReviewResponse
-	19, // 39: user.appeal.v1.AppealService.RequestResponse:output_type -> user.appeal.v1.RequestResponseResponse
-	22, // 40: user.appeal.v1.AppealService.CloseAppeal:output_type -> user.appeal.v1.CloseAppealResponse
-	33, // [33:41] is the sub-list for method output_type
-	25, // [25:33] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	27, // 3: user.appeal.v1.Appeal.closed_at:type_name -> google.protobuf.Timestamp
+	27, // 4: user.appeal.v1.Appeal.created_at:type_name -> google.protobuf.Timestamp
+	27, // 5: user.appeal.v1.Appeal.updated_at:type_name -> google.protobuf.Timestamp
+	28, // 6: user.appeal.v1.Appeal.evidence:type_name -> user.evidence.v1.Evidence
+	27, // 7: user.appeal.v1.AppealResponse.created_at:type_name -> google.protobuf.Timestamp
+	28, // 8: user.appeal.v1.AppealResponse.evidence:type_name -> user.evidence.v1.Evidence
+	2,  // 9: user.appeal.v1.SubmitAppealRequest.decisions:type_name -> user.appeal.v1.AppealedDecision
+	4,  // 10: user.appeal.v1.SubmitAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
+	29, // 11: user.appeal.v1.ListMyAppealsRequest.pagination:type_name -> pagination.v1.Pagination
+	4,  // 12: user.appeal.v1.ListMyAppealsResponse.appeals:type_name -> user.appeal.v1.Appeal
+	30, // 13: user.appeal.v1.ListMyAppealsResponse.pagination:type_name -> pagination.v1.PageInfo
+	4,  // 14: user.appeal.v1.GetAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
+	5,  // 15: user.appeal.v1.GetAppealResponse.responses:type_name -> user.appeal.v1.AppealResponse
+	4,  // 16: user.appeal.v1.SubmitResponseResponse.appeal:type_name -> user.appeal.v1.Appeal
+	5,  // 17: user.appeal.v1.SubmitResponseResponse.response:type_name -> user.appeal.v1.AppealResponse
+	0,  // 18: user.appeal.v1.ListAppealsRequest.status:type_name -> user.appeal.v1.AppealStatus
+	29, // 19: user.appeal.v1.ListAppealsRequest.pagination:type_name -> pagination.v1.Pagination
+	4,  // 20: user.appeal.v1.ListAppealsResponse.appeals:type_name -> user.appeal.v1.Appeal
+	30, // 21: user.appeal.v1.ListAppealsResponse.pagination:type_name -> pagination.v1.PageInfo
+	4,  // 22: user.appeal.v1.BeginReviewResponse.appeal:type_name -> user.appeal.v1.Appeal
+	4,  // 23: user.appeal.v1.RequestResponseResponse.appeal:type_name -> user.appeal.v1.Appeal
+	1,  // 24: user.appeal.v1.DecisionResolution.outcome:type_name -> user.appeal.v1.DecisionOutcome
+	20, // 25: user.appeal.v1.CloseAppealRequest.resolutions:type_name -> user.appeal.v1.DecisionResolution
+	4,  // 26: user.appeal.v1.CloseAppealResponse.appeal:type_name -> user.appeal.v1.Appeal
+	31, // 27: user.appeal.v1.CreateEvidenceUploadRequest.upload:type_name -> user.evidence.v1.EvidenceUpload
+	32, // 28: user.appeal.v1.CreateEvidenceUploadResponse.grant:type_name -> user.evidence.v1.EvidenceUploadGrant
+	28, // 29: user.appeal.v1.GetEvidenceDownloadResponse.evidence:type_name -> user.evidence.v1.Evidence
+	6,  // 30: user.appeal.v1.AppealService.SubmitAppeal:input_type -> user.appeal.v1.SubmitAppealRequest
+	8,  // 31: user.appeal.v1.AppealService.ListMyAppeals:input_type -> user.appeal.v1.ListMyAppealsRequest
+	10, // 32: user.appeal.v1.AppealService.GetAppeal:input_type -> user.appeal.v1.GetAppealRequest
+	12, // 33: user.appeal.v1.AppealService.SubmitResponse:input_type -> user.appeal.v1.SubmitResponseRequest
+	23, // 34: user.appeal.v1.AppealService.CreateEvidenceUpload:input_type -> user.appeal.v1.CreateEvidenceUploadRequest
+	25, // 35: user.appeal.v1.AppealService.GetEvidenceDownload:input_type -> user.appeal.v1.GetEvidenceDownloadRequest
+	14, // 36: user.appeal.v1.AppealService.ListAppeals:input_type -> user.appeal.v1.ListAppealsRequest
+	16, // 37: user.appeal.v1.AppealService.BeginReview:input_type -> user.appeal.v1.BeginReviewRequest
+	18, // 38: user.appeal.v1.AppealService.RequestResponse:input_type -> user.appeal.v1.RequestResponseRequest
+	21, // 39: user.appeal.v1.AppealService.CloseAppeal:input_type -> user.appeal.v1.CloseAppealRequest
+	7,  // 40: user.appeal.v1.AppealService.SubmitAppeal:output_type -> user.appeal.v1.SubmitAppealResponse
+	9,  // 41: user.appeal.v1.AppealService.ListMyAppeals:output_type -> user.appeal.v1.ListMyAppealsResponse
+	11, // 42: user.appeal.v1.AppealService.GetAppeal:output_type -> user.appeal.v1.GetAppealResponse
+	13, // 43: user.appeal.v1.AppealService.SubmitResponse:output_type -> user.appeal.v1.SubmitResponseResponse
+	24, // 44: user.appeal.v1.AppealService.CreateEvidenceUpload:output_type -> user.appeal.v1.CreateEvidenceUploadResponse
+	26, // 45: user.appeal.v1.AppealService.GetEvidenceDownload:output_type -> user.appeal.v1.GetEvidenceDownloadResponse
+	15, // 46: user.appeal.v1.AppealService.ListAppeals:output_type -> user.appeal.v1.ListAppealsResponse
+	17, // 47: user.appeal.v1.AppealService.BeginReview:output_type -> user.appeal.v1.BeginReviewResponse
+	19, // 48: user.appeal.v1.AppealService.RequestResponse:output_type -> user.appeal.v1.RequestResponseResponse
+	22, // 49: user.appeal.v1.AppealService.CloseAppeal:output_type -> user.appeal.v1.CloseAppealResponse
+	40, // [40:50] is the sub-list for method output_type
+	30, // [30:40] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_user_appeal_v1_appeal_proto_init() }
@@ -1821,7 +2067,7 @@ func file_user_appeal_v1_appeal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_appeal_v1_appeal_proto_rawDesc), len(file_user_appeal_v1_appeal_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   21,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -13,6 +13,7 @@ package user.report.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "pagination/v1/pagination.proto";
+import "user/evidence/v1/evidence.proto";
 
 service ReportService {
   // Participants.
@@ -20,6 +21,11 @@ service ReportService {
   rpc ListMyReports(ListMyReportsRequest) returns (ListMyReportsResponse) {}
   rpc GetReport(GetReportRequest) returns (GetReportResponse) {}
   rpc SubmitResponse(SubmitResponseRequest) returns (SubmitResponseResponse) {}
+
+  // Evidence images, for participants and administrators who can read the
+  // owning report.
+  rpc CreateEvidenceUpload(CreateEvidenceUploadRequest) returns (CreateEvidenceUploadResponse) {}
+  rpc GetEvidenceDownload(GetEvidenceDownloadRequest) returns (GetEvidenceDownloadResponse) {}
 
   // Administrators.
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {}
@@ -90,6 +96,8 @@ message Report {
   string reporter_name = 15;
   string subject_name = 16;
   string closer_name = 17;
+  // Images the reporter attached (RP1.6), in order.
+  repeated user.evidence.v1.Evidence evidence = 18;
 }
 
 // A reply from the reported participant.
@@ -100,6 +108,8 @@ message ReportResponse {
   string responder_name = 4;
   string body = 5;
   google.protobuf.Timestamp created_at = 6;
+  // Images the reported participant attached (RP2.2), in order.
+  repeated user.evidence.v1.Evidence evidence = 7;
 }
 
 message SubmitReportRequest {
@@ -116,6 +126,11 @@ message SubmitReportRequest {
   string description = 4 [(buf.validate.field).string = {
     min_len: 1
     max_len: 4000
+  }];
+  // Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+  repeated string evidence_ids = 5 [(buf.validate.field).repeated = {
+    max_items: 5
+    items: {string: {uuid: true}}
   }];
 }
 
@@ -152,6 +167,11 @@ message SubmitResponseRequest {
   string body = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 4000
+  }];
+  // Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+  repeated string evidence_ids = 3 [(buf.validate.field).repeated = {
+    max_items: 5
+    items: {string: {uuid: true}}
   }];
 }
 
@@ -214,4 +234,22 @@ message CloseReportRequest {
 
 message CloseReportResponse {
   Report report = 1;
+}
+
+message CreateEvidenceUploadRequest {
+  user.evidence.v1.EvidenceUpload upload = 1 [(buf.validate.field).required = true];
+}
+
+message CreateEvidenceUploadResponse {
+  user.evidence.v1.EvidenceUploadGrant grant = 1;
+}
+
+// Signs a fresh URL for an image on a report the caller can read, or on one of
+// its responses.
+message GetEvidenceDownloadRequest {
+  string evidence_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetEvidenceDownloadResponse {
+  user.evidence.v1.Evidence evidence = 1;
 }

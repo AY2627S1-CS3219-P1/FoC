@@ -17,7 +17,8 @@ package reportv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	v1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
+	v11 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/pagination/v1"
+	v1 "github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/evidence/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -284,9 +285,11 @@ type Report struct {
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// display_name values joined at read time. closer_name is empty until closed.
-	ReporterName  string `protobuf:"bytes,15,opt,name=reporter_name,json=reporterName,proto3" json:"reporter_name,omitempty"`
-	SubjectName   string `protobuf:"bytes,16,opt,name=subject_name,json=subjectName,proto3" json:"subject_name,omitempty"`
-	CloserName    string `protobuf:"bytes,17,opt,name=closer_name,json=closerName,proto3" json:"closer_name,omitempty"`
+	ReporterName string `protobuf:"bytes,15,opt,name=reporter_name,json=reporterName,proto3" json:"reporter_name,omitempty"`
+	SubjectName  string `protobuf:"bytes,16,opt,name=subject_name,json=subjectName,proto3" json:"subject_name,omitempty"`
+	CloserName   string `protobuf:"bytes,17,opt,name=closer_name,json=closerName,proto3" json:"closer_name,omitempty"`
+	// Images the reporter attached (RP1.6), in order.
+	Evidence      []*v1.Evidence `protobuf:"bytes,18,rep,name=evidence,proto3" json:"evidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -451,6 +454,13 @@ func (x *Report) GetCloserName() string {
 	return ""
 }
 
+func (x *Report) GetEvidence() []*v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 type isReport_Target interface {
 	isReport_Target()
 }
@@ -476,6 +486,8 @@ type ReportResponse struct {
 	ResponderName string                 `protobuf:"bytes,4,opt,name=responder_name,json=responderName,proto3" json:"responder_name,omitempty"`
 	Body          string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Images the reported participant attached (RP2.2), in order.
+	Evidence      []*v1.Evidence `protobuf:"bytes,7,rep,name=evidence,proto3" json:"evidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -552,15 +564,24 @@ func (x *ReportResponse) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ReportResponse) GetEvidence() []*v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 type SubmitReportRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Target:
 	//
 	//	*SubmitReportRequest_ReviewId
 	//	*SubmitReportRequest_Order
-	Target        isSubmitReportRequest_Target `protobuf_oneof:"target"`
-	Category      ReportCategory               `protobuf:"varint,3,opt,name=category,proto3,enum=user.report.v1.ReportCategory" json:"category,omitempty"`
-	Description   string                       `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	Target      isSubmitReportRequest_Target `protobuf_oneof:"target"`
+	Category    ReportCategory               `protobuf:"varint,3,opt,name=category,proto3,enum=user.report.v1.ReportCategory" json:"category,omitempty"`
+	Description string                       `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+	EvidenceIds   []string `protobuf:"bytes,5,rep,name=evidence_ids,json=evidenceIds,proto3" json:"evidence_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -634,6 +655,13 @@ func (x *SubmitReportRequest) GetDescription() string {
 	return ""
 }
 
+func (x *SubmitReportRequest) GetEvidenceIds() []string {
+	if x != nil {
+		return x.EvidenceIds
+	}
+	return nil
+}
+
 type isSubmitReportRequest_Target interface {
 	isSubmitReportRequest_Target()
 }
@@ -698,7 +726,7 @@ func (x *SubmitReportResponse) GetReport() *Report {
 // Reports the caller filed or is the subject of. Open to suspended users.
 type ListMyReportsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Pagination    *v1.Pagination         `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.Pagination        `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -733,7 +761,7 @@ func (*ListMyReportsRequest) Descriptor() ([]byte, []int) {
 	return file_user_report_v1_report_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ListMyReportsRequest) GetPagination() *v1.Pagination {
+func (x *ListMyReportsRequest) GetPagination() *v11.Pagination {
 	if x != nil {
 		return x.Pagination
 	}
@@ -743,7 +771,7 @@ func (x *ListMyReportsRequest) GetPagination() *v1.Pagination {
 type ListMyReportsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reports       []*Report              `protobuf:"bytes,1,rep,name=reports,proto3" json:"reports,omitempty"`
-	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.PageInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -785,7 +813,7 @@ func (x *ListMyReportsResponse) GetReports() []*Report {
 	return nil
 }
 
-func (x *ListMyReportsResponse) GetPagination() *v1.PageInfo {
+func (x *ListMyReportsResponse) GetPagination() *v11.PageInfo {
 	if x != nil {
 		return x.Pagination
 	}
@@ -894,9 +922,11 @@ func (x *GetReportResponse) GetResponses() []*ReportResponse {
 // Only the reported participant may respond, until the report is closed.
 // Responding to a requested response moves AWAITING_RESPONSE to UNDER_REVIEW.
 type SubmitResponseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ReportId      string                 `protobuf:"bytes,1,opt,name=report_id,json=reportId,proto3" json:"report_id,omitempty"`
-	Body          string                 `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ReportId string                 `protobuf:"bytes,1,opt,name=report_id,json=reportId,proto3" json:"report_id,omitempty"`
+	Body     string                 `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	// Ordered evidence IDs from CreateEvidenceUpload, attached on submission.
+	EvidenceIds   []string `protobuf:"bytes,3,rep,name=evidence_ids,json=evidenceIds,proto3" json:"evidence_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -943,6 +973,13 @@ func (x *SubmitResponseRequest) GetBody() string {
 		return x.Body
 	}
 	return ""
+}
+
+func (x *SubmitResponseRequest) GetEvidenceIds() []string {
+	if x != nil {
+		return x.EvidenceIds
+	}
+	return nil
 }
 
 type SubmitResponseResponse struct {
@@ -1004,7 +1041,7 @@ type ListReportsRequest struct {
 	SubjectId     *string                `protobuf:"bytes,2,opt,name=subject_id,json=subjectId,proto3,oneof" json:"subject_id,omitempty"`
 	ReviewId      *string                `protobuf:"bytes,3,opt,name=review_id,json=reviewId,proto3,oneof" json:"review_id,omitempty"`
 	OrderId       *string                `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3,oneof" json:"order_id,omitempty"`
-	Pagination    *v1.Pagination         `protobuf:"bytes,5,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.Pagination        `protobuf:"bytes,5,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1067,7 +1104,7 @@ func (x *ListReportsRequest) GetOrderId() string {
 	return ""
 }
 
-func (x *ListReportsRequest) GetPagination() *v1.Pagination {
+func (x *ListReportsRequest) GetPagination() *v11.Pagination {
 	if x != nil {
 		return x.Pagination
 	}
@@ -1077,7 +1114,7 @@ func (x *ListReportsRequest) GetPagination() *v1.Pagination {
 type ListReportsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reports       []*Report              `protobuf:"bytes,1,rep,name=reports,proto3" json:"reports,omitempty"`
-	Pagination    *v1.PageInfo           `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	Pagination    *v11.PageInfo          `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1119,7 +1156,7 @@ func (x *ListReportsResponse) GetReports() []*Report {
 	return nil
 }
 
-func (x *ListReportsResponse) GetPagination() *v1.PageInfo {
+func (x *ListReportsResponse) GetPagination() *v11.PageInfo {
 	if x != nil {
 		return x.Pagination
 	}
@@ -1413,15 +1450,193 @@ func (x *CloseReportResponse) GetReport() *Report {
 	return nil
 }
 
+type CreateEvidenceUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Upload        *v1.EvidenceUpload     `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEvidenceUploadRequest) Reset() {
+	*x = CreateEvidenceUploadRequest{}
+	mi := &file_user_report_v1_report_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateEvidenceUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateEvidenceUploadRequest) ProtoMessage() {}
+
+func (x *CreateEvidenceUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_report_v1_report_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateEvidenceUploadRequest.ProtoReflect.Descriptor instead.
+func (*CreateEvidenceUploadRequest) Descriptor() ([]byte, []int) {
+	return file_user_report_v1_report_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *CreateEvidenceUploadRequest) GetUpload() *v1.EvidenceUpload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+type CreateEvidenceUploadResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Grant         *v1.EvidenceUploadGrant `protobuf:"bytes,1,opt,name=grant,proto3" json:"grant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEvidenceUploadResponse) Reset() {
+	*x = CreateEvidenceUploadResponse{}
+	mi := &file_user_report_v1_report_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateEvidenceUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateEvidenceUploadResponse) ProtoMessage() {}
+
+func (x *CreateEvidenceUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_report_v1_report_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateEvidenceUploadResponse.ProtoReflect.Descriptor instead.
+func (*CreateEvidenceUploadResponse) Descriptor() ([]byte, []int) {
+	return file_user_report_v1_report_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *CreateEvidenceUploadResponse) GetGrant() *v1.EvidenceUploadGrant {
+	if x != nil {
+		return x.Grant
+	}
+	return nil
+}
+
+// Signs a fresh URL for an image on a report the caller can read, or on one of
+// its responses.
+type GetEvidenceDownloadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvidenceId    string                 `protobuf:"bytes,1,opt,name=evidence_id,json=evidenceId,proto3" json:"evidence_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEvidenceDownloadRequest) Reset() {
+	*x = GetEvidenceDownloadRequest{}
+	mi := &file_user_report_v1_report_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEvidenceDownloadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEvidenceDownloadRequest) ProtoMessage() {}
+
+func (x *GetEvidenceDownloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_report_v1_report_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEvidenceDownloadRequest.ProtoReflect.Descriptor instead.
+func (*GetEvidenceDownloadRequest) Descriptor() ([]byte, []int) {
+	return file_user_report_v1_report_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetEvidenceDownloadRequest) GetEvidenceId() string {
+	if x != nil {
+		return x.EvidenceId
+	}
+	return ""
+}
+
+type GetEvidenceDownloadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Evidence      *v1.Evidence           `protobuf:"bytes,1,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEvidenceDownloadResponse) Reset() {
+	*x = GetEvidenceDownloadResponse{}
+	mi := &file_user_report_v1_report_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEvidenceDownloadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEvidenceDownloadResponse) ProtoMessage() {}
+
+func (x *GetEvidenceDownloadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_report_v1_report_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEvidenceDownloadResponse.ProtoReflect.Descriptor instead.
+func (*GetEvidenceDownloadResponse) Descriptor() ([]byte, []int) {
+	return file_user_report_v1_report_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetEvidenceDownloadResponse) GetEvidence() *v1.Evidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
 var File_user_report_v1_report_proto protoreflect.FileDescriptor
 
 const file_user_report_v1_report_proto_rawDesc = "" +
 	"\n" +
-	"\x1buser/report/v1/report.proto\x12\x0euser.report.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\"[\n" +
+	"\x1buser/report/v1/report.proto\x12\x0euser.report.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1epagination/v1/pagination.proto\x1a\x1fuser/evidence/v1/evidence.proto\"[\n" +
 	"\vOrderTarget\x12#\n" +
 	"\border_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\aorderId\x12'\n" +
 	"\n" +
-	"subject_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tsubjectId\"\xc7\x05\n" +
+	"subject_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\tsubjectId\"\xff\x05\n" +
 	"\x06Report\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vreporter_id\x18\x02 \x01(\tR\n" +
@@ -1445,8 +1660,9 @@ const file_user_report_v1_report_proto_rawDesc = "" +
 	"\rreporter_name\x18\x0f \x01(\tR\freporterName\x12!\n" +
 	"\fsubject_name\x18\x10 \x01(\tR\vsubjectName\x12\x1f\n" +
 	"\vcloser_name\x18\x11 \x01(\tR\n" +
-	"closerNameB\b\n" +
-	"\x06target\"\xd6\x01\n" +
+	"closerName\x126\n" +
+	"\bevidence\x18\x12 \x03(\v2\x1a.user.evidence.v1.EvidenceR\bevidenceB\b\n" +
+	"\x06target\"\x8e\x02\n" +
 	"\x0eReportResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\treport_id\x18\x02 \x01(\tR\breportId\x12!\n" +
@@ -1454,14 +1670,16 @@ const file_user_report_v1_report_proto_rawDesc = "" +
 	"\x0eresponder_name\x18\x04 \x01(\tR\rresponderName\x12\x12\n" +
 	"\x04body\x18\x05 \x01(\tR\x04body\x129\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xfa\x01\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x126\n" +
+	"\bevidence\x18\a \x03(\v2\x1a.user.evidence.v1.EvidenceR\bevidence\"\xae\x02\n" +
 	"\x13SubmitReportRequest\x12'\n" +
 	"\treview_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01H\x00R\breviewId\x123\n" +
 	"\x05order\x18\x02 \x01(\v2\x1b.user.report.v1.OrderTargetH\x00R\x05order\x12F\n" +
 	"\bcategory\x18\x03 \x01(\x0e2\x1e.user.report.v1.ReportCategoryB\n" +
 	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bcategory\x12,\n" +
 	"\vdescription\x18\x04 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\vdescriptionB\x0f\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\vdescription\x122\n" +
+	"\fevidence_ids\x18\x05 \x03(\tB\x0f\xbaH\f\x92\x01\t\x10\x05\"\x05r\x03\xb0\x01\x01R\vevidenceIdsB\x0f\n" +
 	"\x06target\x12\x05\xbaH\x02\b\x01\"F\n" +
 	"\x14SubmitReportResponse\x12.\n" +
 	"\x06report\x18\x01 \x01(\v2\x16.user.report.v1.ReportR\x06report\"Q\n" +
@@ -1478,11 +1696,12 @@ const file_user_report_v1_report_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x81\x01\n" +
 	"\x11GetReportResponse\x12.\n" +
 	"\x06report\x18\x01 \x01(\v2\x16.user.report.v1.ReportR\x06report\x12<\n" +
-	"\tresponses\x18\x02 \x03(\v2\x1e.user.report.v1.ReportResponseR\tresponses\"^\n" +
+	"\tresponses\x18\x02 \x03(\v2\x1e.user.report.v1.ReportResponseR\tresponses\"\x92\x01\n" +
 	"\x15SubmitResponseRequest\x12%\n" +
 	"\treport_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\breportId\x12\x1e\n" +
 	"\x04body\x18\x02 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\x04body\"\x84\x01\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xa0\x1fR\x04body\x122\n" +
+	"\fevidence_ids\x18\x03 \x03(\tB\x0f\xbaH\f\x92\x01\t\x10\x05\"\x05r\x03\xb0\x01\x01R\vevidenceIds\"\x84\x01\n" +
 	"\x16SubmitResponseResponse\x12.\n" +
 	"\x06report\x18\x01 \x01(\v2\x16.user.report.v1.ReportR\x06report\x12:\n" +
 	"\bresponse\x18\x02 \x01(\v2\x1e.user.report.v1.ReportResponseR\bresponse\"\xcf\x02\n" +
@@ -1521,7 +1740,16 @@ const file_user_report_v1_report_proto_rawDesc = "" +
 	"\x06reason\x18\x03 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\xd0\x0fR\x06reason\"E\n" +
 	"\x13CloseReportResponse\x12.\n" +
-	"\x06report\x18\x01 \x01(\v2\x16.user.report.v1.ReportR\x06report*\xcf\x01\n" +
+	"\x06report\x18\x01 \x01(\v2\x16.user.report.v1.ReportR\x06report\"_\n" +
+	"\x1bCreateEvidenceUploadRequest\x12@\n" +
+	"\x06upload\x18\x01 \x01(\v2 .user.evidence.v1.EvidenceUploadB\x06\xbaH\x03\xc8\x01\x01R\x06upload\"[\n" +
+	"\x1cCreateEvidenceUploadResponse\x12;\n" +
+	"\x05grant\x18\x01 \x01(\v2%.user.evidence.v1.EvidenceUploadGrantR\x05grant\"G\n" +
+	"\x1aGetEvidenceDownloadRequest\x12)\n" +
+	"\vevidence_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\n" +
+	"evidenceId\"U\n" +
+	"\x1bGetEvidenceDownloadResponse\x126\n" +
+	"\bevidence\x18\x01 \x01(\v2\x1a.user.evidence.v1.EvidenceR\bevidence*\xcf\x01\n" +
 	"\x0eReportCategory\x12\x1f\n" +
 	"\x1bREPORT_CATEGORY_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREPORT_CATEGORY_HARASSMENT\x10\x01\x12\x19\n" +
@@ -1540,12 +1768,14 @@ const file_user_report_v1_report_proto_rawDesc = "" +
 	"\x18REPORT_OUTCOME_NO_ACTION\x10\x01\x12\x1a\n" +
 	"\x16REPORT_OUTCOME_WARNING\x10\x02\x12\x1d\n" +
 	"\x19REPORT_OUTCOME_SUSPENSION\x10\x03\x12!\n" +
-	"\x1dREPORT_OUTCOME_REVIEW_REMOVAL\x10\x042\xf7\x05\n" +
+	"\x1dREPORT_OUTCOME_REVIEW_REMOVAL\x10\x042\xde\a\n" +
 	"\rReportService\x12[\n" +
 	"\fSubmitReport\x12#.user.report.v1.SubmitReportRequest\x1a$.user.report.v1.SubmitReportResponse\"\x00\x12^\n" +
 	"\rListMyReports\x12$.user.report.v1.ListMyReportsRequest\x1a%.user.report.v1.ListMyReportsResponse\"\x00\x12R\n" +
 	"\tGetReport\x12 .user.report.v1.GetReportRequest\x1a!.user.report.v1.GetReportResponse\"\x00\x12a\n" +
-	"\x0eSubmitResponse\x12%.user.report.v1.SubmitResponseRequest\x1a&.user.report.v1.SubmitResponseResponse\"\x00\x12X\n" +
+	"\x0eSubmitResponse\x12%.user.report.v1.SubmitResponseRequest\x1a&.user.report.v1.SubmitResponseResponse\"\x00\x12s\n" +
+	"\x14CreateEvidenceUpload\x12+.user.report.v1.CreateEvidenceUploadRequest\x1a,.user.report.v1.CreateEvidenceUploadResponse\"\x00\x12p\n" +
+	"\x13GetEvidenceDownload\x12*.user.report.v1.GetEvidenceDownloadRequest\x1a+.user.report.v1.GetEvidenceDownloadResponse\"\x00\x12X\n" +
 	"\vListReports\x12\".user.report.v1.ListReportsRequest\x1a#.user.report.v1.ListReportsResponse\"\x00\x12X\n" +
 	"\vBeginReview\x12\".user.report.v1.BeginReviewRequest\x1a#.user.report.v1.BeginReviewResponse\"\x00\x12d\n" +
 	"\x0fRequestResponse\x12&.user.report.v1.RequestResponseRequest\x1a'.user.report.v1.RequestResponseResponse\"\x00\x12X\n" +
@@ -1565,81 +1795,97 @@ func file_user_report_v1_report_proto_rawDescGZIP() []byte {
 }
 
 var file_user_report_v1_report_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_user_report_v1_report_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_user_report_v1_report_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_user_report_v1_report_proto_goTypes = []any{
-	(ReportCategory)(0),             // 0: user.report.v1.ReportCategory
-	(ReportStatus)(0),               // 1: user.report.v1.ReportStatus
-	(ReportOutcome)(0),              // 2: user.report.v1.ReportOutcome
-	(*OrderTarget)(nil),             // 3: user.report.v1.OrderTarget
-	(*Report)(nil),                  // 4: user.report.v1.Report
-	(*ReportResponse)(nil),          // 5: user.report.v1.ReportResponse
-	(*SubmitReportRequest)(nil),     // 6: user.report.v1.SubmitReportRequest
-	(*SubmitReportResponse)(nil),    // 7: user.report.v1.SubmitReportResponse
-	(*ListMyReportsRequest)(nil),    // 8: user.report.v1.ListMyReportsRequest
-	(*ListMyReportsResponse)(nil),   // 9: user.report.v1.ListMyReportsResponse
-	(*GetReportRequest)(nil),        // 10: user.report.v1.GetReportRequest
-	(*GetReportResponse)(nil),       // 11: user.report.v1.GetReportResponse
-	(*SubmitResponseRequest)(nil),   // 12: user.report.v1.SubmitResponseRequest
-	(*SubmitResponseResponse)(nil),  // 13: user.report.v1.SubmitResponseResponse
-	(*ListReportsRequest)(nil),      // 14: user.report.v1.ListReportsRequest
-	(*ListReportsResponse)(nil),     // 15: user.report.v1.ListReportsResponse
-	(*BeginReviewRequest)(nil),      // 16: user.report.v1.BeginReviewRequest
-	(*BeginReviewResponse)(nil),     // 17: user.report.v1.BeginReviewResponse
-	(*RequestResponseRequest)(nil),  // 18: user.report.v1.RequestResponseRequest
-	(*RequestResponseResponse)(nil), // 19: user.report.v1.RequestResponseResponse
-	(*CloseReportRequest)(nil),      // 20: user.report.v1.CloseReportRequest
-	(*CloseReportResponse)(nil),     // 21: user.report.v1.CloseReportResponse
-	(*timestamppb.Timestamp)(nil),   // 22: google.protobuf.Timestamp
-	(*v1.Pagination)(nil),           // 23: pagination.v1.Pagination
-	(*v1.PageInfo)(nil),             // 24: pagination.v1.PageInfo
+	(ReportCategory)(0),                  // 0: user.report.v1.ReportCategory
+	(ReportStatus)(0),                    // 1: user.report.v1.ReportStatus
+	(ReportOutcome)(0),                   // 2: user.report.v1.ReportOutcome
+	(*OrderTarget)(nil),                  // 3: user.report.v1.OrderTarget
+	(*Report)(nil),                       // 4: user.report.v1.Report
+	(*ReportResponse)(nil),               // 5: user.report.v1.ReportResponse
+	(*SubmitReportRequest)(nil),          // 6: user.report.v1.SubmitReportRequest
+	(*SubmitReportResponse)(nil),         // 7: user.report.v1.SubmitReportResponse
+	(*ListMyReportsRequest)(nil),         // 8: user.report.v1.ListMyReportsRequest
+	(*ListMyReportsResponse)(nil),        // 9: user.report.v1.ListMyReportsResponse
+	(*GetReportRequest)(nil),             // 10: user.report.v1.GetReportRequest
+	(*GetReportResponse)(nil),            // 11: user.report.v1.GetReportResponse
+	(*SubmitResponseRequest)(nil),        // 12: user.report.v1.SubmitResponseRequest
+	(*SubmitResponseResponse)(nil),       // 13: user.report.v1.SubmitResponseResponse
+	(*ListReportsRequest)(nil),           // 14: user.report.v1.ListReportsRequest
+	(*ListReportsResponse)(nil),          // 15: user.report.v1.ListReportsResponse
+	(*BeginReviewRequest)(nil),           // 16: user.report.v1.BeginReviewRequest
+	(*BeginReviewResponse)(nil),          // 17: user.report.v1.BeginReviewResponse
+	(*RequestResponseRequest)(nil),       // 18: user.report.v1.RequestResponseRequest
+	(*RequestResponseResponse)(nil),      // 19: user.report.v1.RequestResponseResponse
+	(*CloseReportRequest)(nil),           // 20: user.report.v1.CloseReportRequest
+	(*CloseReportResponse)(nil),          // 21: user.report.v1.CloseReportResponse
+	(*CreateEvidenceUploadRequest)(nil),  // 22: user.report.v1.CreateEvidenceUploadRequest
+	(*CreateEvidenceUploadResponse)(nil), // 23: user.report.v1.CreateEvidenceUploadResponse
+	(*GetEvidenceDownloadRequest)(nil),   // 24: user.report.v1.GetEvidenceDownloadRequest
+	(*GetEvidenceDownloadResponse)(nil),  // 25: user.report.v1.GetEvidenceDownloadResponse
+	(*timestamppb.Timestamp)(nil),        // 26: google.protobuf.Timestamp
+	(*v1.Evidence)(nil),                  // 27: user.evidence.v1.Evidence
+	(*v11.Pagination)(nil),               // 28: pagination.v1.Pagination
+	(*v11.PageInfo)(nil),                 // 29: pagination.v1.PageInfo
+	(*v1.EvidenceUpload)(nil),            // 30: user.evidence.v1.EvidenceUpload
+	(*v1.EvidenceUploadGrant)(nil),       // 31: user.evidence.v1.EvidenceUploadGrant
 }
 var file_user_report_v1_report_proto_depIdxs = []int32{
 	0,  // 0: user.report.v1.Report.category:type_name -> user.report.v1.ReportCategory
 	1,  // 1: user.report.v1.Report.status:type_name -> user.report.v1.ReportStatus
 	2,  // 2: user.report.v1.Report.outcome:type_name -> user.report.v1.ReportOutcome
-	22, // 3: user.report.v1.Report.closed_at:type_name -> google.protobuf.Timestamp
-	22, // 4: user.report.v1.Report.created_at:type_name -> google.protobuf.Timestamp
-	22, // 5: user.report.v1.Report.updated_at:type_name -> google.protobuf.Timestamp
-	22, // 6: user.report.v1.ReportResponse.created_at:type_name -> google.protobuf.Timestamp
-	3,  // 7: user.report.v1.SubmitReportRequest.order:type_name -> user.report.v1.OrderTarget
-	0,  // 8: user.report.v1.SubmitReportRequest.category:type_name -> user.report.v1.ReportCategory
-	4,  // 9: user.report.v1.SubmitReportResponse.report:type_name -> user.report.v1.Report
-	23, // 10: user.report.v1.ListMyReportsRequest.pagination:type_name -> pagination.v1.Pagination
-	4,  // 11: user.report.v1.ListMyReportsResponse.reports:type_name -> user.report.v1.Report
-	24, // 12: user.report.v1.ListMyReportsResponse.pagination:type_name -> pagination.v1.PageInfo
-	4,  // 13: user.report.v1.GetReportResponse.report:type_name -> user.report.v1.Report
-	5,  // 14: user.report.v1.GetReportResponse.responses:type_name -> user.report.v1.ReportResponse
-	4,  // 15: user.report.v1.SubmitResponseResponse.report:type_name -> user.report.v1.Report
-	5,  // 16: user.report.v1.SubmitResponseResponse.response:type_name -> user.report.v1.ReportResponse
-	1,  // 17: user.report.v1.ListReportsRequest.status:type_name -> user.report.v1.ReportStatus
-	23, // 18: user.report.v1.ListReportsRequest.pagination:type_name -> pagination.v1.Pagination
-	4,  // 19: user.report.v1.ListReportsResponse.reports:type_name -> user.report.v1.Report
-	24, // 20: user.report.v1.ListReportsResponse.pagination:type_name -> pagination.v1.PageInfo
-	4,  // 21: user.report.v1.BeginReviewResponse.report:type_name -> user.report.v1.Report
-	4,  // 22: user.report.v1.RequestResponseResponse.report:type_name -> user.report.v1.Report
-	2,  // 23: user.report.v1.CloseReportRequest.outcome:type_name -> user.report.v1.ReportOutcome
-	4,  // 24: user.report.v1.CloseReportResponse.report:type_name -> user.report.v1.Report
-	6,  // 25: user.report.v1.ReportService.SubmitReport:input_type -> user.report.v1.SubmitReportRequest
-	8,  // 26: user.report.v1.ReportService.ListMyReports:input_type -> user.report.v1.ListMyReportsRequest
-	10, // 27: user.report.v1.ReportService.GetReport:input_type -> user.report.v1.GetReportRequest
-	12, // 28: user.report.v1.ReportService.SubmitResponse:input_type -> user.report.v1.SubmitResponseRequest
-	14, // 29: user.report.v1.ReportService.ListReports:input_type -> user.report.v1.ListReportsRequest
-	16, // 30: user.report.v1.ReportService.BeginReview:input_type -> user.report.v1.BeginReviewRequest
-	18, // 31: user.report.v1.ReportService.RequestResponse:input_type -> user.report.v1.RequestResponseRequest
-	20, // 32: user.report.v1.ReportService.CloseReport:input_type -> user.report.v1.CloseReportRequest
-	7,  // 33: user.report.v1.ReportService.SubmitReport:output_type -> user.report.v1.SubmitReportResponse
-	9,  // 34: user.report.v1.ReportService.ListMyReports:output_type -> user.report.v1.ListMyReportsResponse
-	11, // 35: user.report.v1.ReportService.GetReport:output_type -> user.report.v1.GetReportResponse
-	13, // 36: user.report.v1.ReportService.SubmitResponse:output_type -> user.report.v1.SubmitResponseResponse
-	15, // 37: user.report.v1.ReportService.ListReports:output_type -> user.report.v1.ListReportsResponse
-	17, // 38: user.report.v1.ReportService.BeginReview:output_type -> user.report.v1.BeginReviewResponse
-	19, // 39: user.report.v1.ReportService.RequestResponse:output_type -> user.report.v1.RequestResponseResponse
-	21, // 40: user.report.v1.ReportService.CloseReport:output_type -> user.report.v1.CloseReportResponse
-	33, // [33:41] is the sub-list for method output_type
-	25, // [25:33] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	26, // 3: user.report.v1.Report.closed_at:type_name -> google.protobuf.Timestamp
+	26, // 4: user.report.v1.Report.created_at:type_name -> google.protobuf.Timestamp
+	26, // 5: user.report.v1.Report.updated_at:type_name -> google.protobuf.Timestamp
+	27, // 6: user.report.v1.Report.evidence:type_name -> user.evidence.v1.Evidence
+	26, // 7: user.report.v1.ReportResponse.created_at:type_name -> google.protobuf.Timestamp
+	27, // 8: user.report.v1.ReportResponse.evidence:type_name -> user.evidence.v1.Evidence
+	3,  // 9: user.report.v1.SubmitReportRequest.order:type_name -> user.report.v1.OrderTarget
+	0,  // 10: user.report.v1.SubmitReportRequest.category:type_name -> user.report.v1.ReportCategory
+	4,  // 11: user.report.v1.SubmitReportResponse.report:type_name -> user.report.v1.Report
+	28, // 12: user.report.v1.ListMyReportsRequest.pagination:type_name -> pagination.v1.Pagination
+	4,  // 13: user.report.v1.ListMyReportsResponse.reports:type_name -> user.report.v1.Report
+	29, // 14: user.report.v1.ListMyReportsResponse.pagination:type_name -> pagination.v1.PageInfo
+	4,  // 15: user.report.v1.GetReportResponse.report:type_name -> user.report.v1.Report
+	5,  // 16: user.report.v1.GetReportResponse.responses:type_name -> user.report.v1.ReportResponse
+	4,  // 17: user.report.v1.SubmitResponseResponse.report:type_name -> user.report.v1.Report
+	5,  // 18: user.report.v1.SubmitResponseResponse.response:type_name -> user.report.v1.ReportResponse
+	1,  // 19: user.report.v1.ListReportsRequest.status:type_name -> user.report.v1.ReportStatus
+	28, // 20: user.report.v1.ListReportsRequest.pagination:type_name -> pagination.v1.Pagination
+	4,  // 21: user.report.v1.ListReportsResponse.reports:type_name -> user.report.v1.Report
+	29, // 22: user.report.v1.ListReportsResponse.pagination:type_name -> pagination.v1.PageInfo
+	4,  // 23: user.report.v1.BeginReviewResponse.report:type_name -> user.report.v1.Report
+	4,  // 24: user.report.v1.RequestResponseResponse.report:type_name -> user.report.v1.Report
+	2,  // 25: user.report.v1.CloseReportRequest.outcome:type_name -> user.report.v1.ReportOutcome
+	4,  // 26: user.report.v1.CloseReportResponse.report:type_name -> user.report.v1.Report
+	30, // 27: user.report.v1.CreateEvidenceUploadRequest.upload:type_name -> user.evidence.v1.EvidenceUpload
+	31, // 28: user.report.v1.CreateEvidenceUploadResponse.grant:type_name -> user.evidence.v1.EvidenceUploadGrant
+	27, // 29: user.report.v1.GetEvidenceDownloadResponse.evidence:type_name -> user.evidence.v1.Evidence
+	6,  // 30: user.report.v1.ReportService.SubmitReport:input_type -> user.report.v1.SubmitReportRequest
+	8,  // 31: user.report.v1.ReportService.ListMyReports:input_type -> user.report.v1.ListMyReportsRequest
+	10, // 32: user.report.v1.ReportService.GetReport:input_type -> user.report.v1.GetReportRequest
+	12, // 33: user.report.v1.ReportService.SubmitResponse:input_type -> user.report.v1.SubmitResponseRequest
+	22, // 34: user.report.v1.ReportService.CreateEvidenceUpload:input_type -> user.report.v1.CreateEvidenceUploadRequest
+	24, // 35: user.report.v1.ReportService.GetEvidenceDownload:input_type -> user.report.v1.GetEvidenceDownloadRequest
+	14, // 36: user.report.v1.ReportService.ListReports:input_type -> user.report.v1.ListReportsRequest
+	16, // 37: user.report.v1.ReportService.BeginReview:input_type -> user.report.v1.BeginReviewRequest
+	18, // 38: user.report.v1.ReportService.RequestResponse:input_type -> user.report.v1.RequestResponseRequest
+	20, // 39: user.report.v1.ReportService.CloseReport:input_type -> user.report.v1.CloseReportRequest
+	7,  // 40: user.report.v1.ReportService.SubmitReport:output_type -> user.report.v1.SubmitReportResponse
+	9,  // 41: user.report.v1.ReportService.ListMyReports:output_type -> user.report.v1.ListMyReportsResponse
+	11, // 42: user.report.v1.ReportService.GetReport:output_type -> user.report.v1.GetReportResponse
+	13, // 43: user.report.v1.ReportService.SubmitResponse:output_type -> user.report.v1.SubmitResponseResponse
+	23, // 44: user.report.v1.ReportService.CreateEvidenceUpload:output_type -> user.report.v1.CreateEvidenceUploadResponse
+	25, // 45: user.report.v1.ReportService.GetEvidenceDownload:output_type -> user.report.v1.GetEvidenceDownloadResponse
+	15, // 46: user.report.v1.ReportService.ListReports:output_type -> user.report.v1.ListReportsResponse
+	17, // 47: user.report.v1.ReportService.BeginReview:output_type -> user.report.v1.BeginReviewResponse
+	19, // 48: user.report.v1.ReportService.RequestResponse:output_type -> user.report.v1.RequestResponseResponse
+	21, // 49: user.report.v1.ReportService.CloseReport:output_type -> user.report.v1.CloseReportResponse
+	40, // [40:50] is the sub-list for method output_type
+	30, // [30:40] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_user_report_v1_report_proto_init() }
@@ -1662,7 +1908,7 @@ func file_user_report_v1_report_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_report_v1_report_proto_rawDesc), len(file_user_report_v1_report_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   19,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
