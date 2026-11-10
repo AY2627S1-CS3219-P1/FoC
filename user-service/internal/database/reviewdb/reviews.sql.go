@@ -74,6 +74,48 @@ func (q *Queries) CountReviewsFromUser(ctx context.Context, userID uuid.UUID) (i
 	return count, err
 }
 
+const getReviewByID = `-- name: GetReviewByID :one
+SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
+       reviewer.display_name AS reviewer_name,
+       reviewee.display_name AS reviewee_name
+FROM reviews r
+JOIN users reviewer ON reviewer.id = r.reviewer_id
+JOIN users reviewee ON reviewee.id = r.reviewee_id
+WHERE r.id = $1::UUID
+`
+
+type GetReviewByIDRow struct {
+	ID           uuid.UUID
+	DeletedAt    sql.NullTime
+	ReviewerID   uuid.UUID
+	RevieweeID   uuid.UUID
+	OrderID      uuid.UUID
+	Rating       int32
+	Comment      string
+	CreatedAt    time.Time
+	ReviewerName string
+	RevieweeName string
+}
+
+// Includes a removed review; the service decides who may see it.
+func (q *Queries) GetReviewByID(ctx context.Context, id uuid.UUID) (GetReviewByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getReviewByID, id)
+	var i GetReviewByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.DeletedAt,
+		&i.ReviewerID,
+		&i.RevieweeID,
+		&i.OrderID,
+		&i.Rating,
+		&i.Comment,
+		&i.CreatedAt,
+		&i.ReviewerName,
+		&i.RevieweeName,
+	)
+	return i, err
+}
+
 const getReviewByReviewerAndOrder = `-- name: GetReviewByReviewerAndOrder :one
 SELECT r.id, r.deleted_at, r.reviewer_id, r.reviewee_id, r.order_id, r.rating, r.comment, r.created_at,
        reviewer.display_name AS reviewer_name,

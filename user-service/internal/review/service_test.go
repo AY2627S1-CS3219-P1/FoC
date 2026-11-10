@@ -21,6 +21,9 @@ import (
 type fakeRepository struct {
 	exists map[uuid.UUID]bool
 
+	byID       map[uuid.UUID]Review
+	removedIDs map[uuid.UUID]bool
+
 	listForUser     []Review
 	listFromUser    []Review
 	countForUser    int64
@@ -189,6 +192,14 @@ func (f *fakeRepository) ListMyReviewRemovals(
 
 func (f *fakeRepository) CountMyReviewRemovals(_ context.Context, _ uuid.UUID) (int64, error) {
 	return f.countRemovals, f.countErr
+}
+
+func (f *fakeRepository) ReviewByID(_ context.Context, id uuid.UUID) (Review, bool, error) {
+	review, ok := f.byID[id]
+	if !ok {
+		return Review{}, false, errReviewNotFound
+	}
+	return review, f.removedIDs[id], nil
 }
 
 func (f *fakeRepository) ReviewFacts(_ context.Context, _ uuid.UUID) (Facts, error) {
@@ -649,4 +660,48 @@ func TestSubmitReviewChecksOrderParticipants(t *testing.T) {
 			t.Fatal("a committed retry looked up the order")
 		}
 	})
+}
+
+func TestGetReviewAccess(t *testing.T) {
+	reviewer, reviewee, admin, stranger := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	live, removed := uuid.New(), uuid.New()
+	repo := &fakeRepository{
+		byID: map[uuid.UUID]Review{
+			live:    {ID: live, ReviewerID: reviewer, RevieweeID: reviewee, Rating: 4},
+			removed: {ID: removed, ReviewerID: reviewer, RevieweeID: reviewee, Rating: 1},
+		},
+		removedIDs: map[uuid.UUID]bool{removed: true},
+	}
+	service := newTestService(repo)
+	ctx := context.Background()
+
+	for name, tc := range map[string]struct {
+		caller      uuid.UUID
+		admin       bool
+		id          uuid.UUID
+		wantRemoved bool
+		wantFound   bool
+	}{
+		"reviewer reads live":       {caller: reviewer, id: live, wantFound: true},
+		"reviewee reads live":       {caller: reviewee, id: live, wantFound: true},
+		"stranger cannot read":      {caller: stranger, id: live},
+		"admin reads live":          {caller: admin, admin: true, id: live, wantFound: true},
+		"admin reads removed":       {caller: admin, admin: true, id: removed, wantFound: true, wantRemoved: true},
+		"reviewer cannot read gone": {caller: reviewer, id: removed},
+		"unknown review":            {caller: admin, admin: true, id: uuid.New()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, isRemoved, err := service.GetReview(ctx, tc.caller, tc.admin, tc.id)
+			if !tc.wantFound {
+				var external api.ExternalError
+				if !errors.As(err, &external) || external.Code() != http.StatusNotFound {
+					t.Fatalf("error = %v, want not found", err)
+				}
+				return
+			}
+			if err != nil || got.ID != tc.id || isRemoved != tc.wantRemoved {
+				t.Fatalf("review = %+v removed = %v err = %v", got, isRemoved, err)
+			}
+		})
+	}
 }

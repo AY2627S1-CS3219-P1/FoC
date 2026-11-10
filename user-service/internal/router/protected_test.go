@@ -111,6 +111,10 @@ func (reviewStub) ListReviewRemovals(context.Context, pagination.Pagination) (re
 	return review.RemovalPage{}, nil
 }
 
+func (reviewStub) GetReview(context.Context, uuid.UUID, bool, uuid.UUID) (review.Review, bool, error) {
+	return review.Review{}, false, nil
+}
+
 func (reviewStub) ListMyReviewRemovals(context.Context, uuid.UUID, pagination.Pagination) (review.RemovalPage, error) {
 	return review.RemovalPage{}, nil
 }

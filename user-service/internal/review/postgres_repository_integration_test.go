@@ -1057,6 +1057,20 @@ func TestListMyReviewRemovalsIntegration(t *testing.T) {
 		t.Fatalf("facts of a restored review = %+v err=%v", facts, err)
 	}
 
+	// Moderation reads one review: administrators see removed ones, the
+	// reviewee sees only live ones.
+	got, isRemoved, err := service.GetReview(ctx, admin, true, byReport)
+	if err != nil || got.ID != byReport || !isRemoved || got.ReviewerName == "" {
+		t.Fatalf("admin read of a removed review = %+v removed=%v err=%v", got, isRemoved, err)
+	}
+	if _, _, err := service.GetReview(ctx, reviewee, false, byReport); err == nil {
+		t.Fatal("reviewee read a removed review")
+	}
+	got, isRemoved, err = service.GetReview(ctx, reviewee, false, restored)
+	if err != nil || isRemoved || got.ID != restored {
+		t.Fatalf("reviewee read of a live review = %+v removed=%v err=%v", got, isRemoved, err)
+	}
+
 	// A live review: not listed.
 	submit("live")
 

@@ -17,6 +17,7 @@ service ReviewService {
   rpc RemoveReview(RemoveReviewRequest) returns (RemoveReviewResponse) {}
   rpc ListReviewRemovals(ListReviewRemovalsRequest) returns (ListReviewRemovalsResponse) {}
   rpc ListMyReviewRemovals(ListMyReviewRemovalsRequest) returns (ListMyReviewRemovalsResponse) {}
+  rpc GetReview(GetReviewRequest) returns (GetReviewResponse) {}
 }
 
 message Review {
@@ -183,4 +184,18 @@ message ListMyReviewRemovalsRequest {
 message ListMyReviewRemovalsResponse {
   repeated ReviewRemoval removals = 1;
   pagination.v1.PageInfo pagination = 2;
+}
+
+// One review, for moderation. Administrators may read any review, including a
+// removed one; its reviewer and reviewee may read it while it is live. Anyone
+// else gets NOT_FOUND. Responses carry pre-signed photo URLs and are not
+// cacheable.
+message GetReviewRequest {
+  string review_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetReviewResponse {
+  Review review = 1;
+  // The review is currently removed; only administrators see removed reviews.
+  bool removed = 2;
 }

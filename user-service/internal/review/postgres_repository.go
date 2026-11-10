@@ -234,6 +234,17 @@ func (r *PostgresRepository) ReviewForOrder(ctx context.Context, reviewerID, ord
 	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), nil
 }
 
+func (r *PostgresRepository) ReviewByID(ctx context.Context, id uuid.UUID) (Review, bool, error) {
+	row, err := r.queries.GetReviewByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Review{}, false, errReviewNotFound
+	}
+	if err != nil {
+		return Review{}, false, fmt.Errorf("get review: %w", err)
+	}
+	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), row.DeletedAt.Valid, nil
+}
+
 func (r *PostgresRepository) ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error) {
 	rows, err := r.queries.ListReviewRemovals(ctx, reviewdb.ListReviewRemovalsParams{
 		PageOffset: offset,

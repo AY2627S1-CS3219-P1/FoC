@@ -58,6 +58,12 @@ type handlerLogicStub struct {
 	reviewedErr      error
 	myReview         Review
 	myReviewErr      error
+
+	review          Review
+	reviewRemoved   bool
+	reviewErr       error
+	getReviewCaller uuid.UUID
+	getReviewAdmin  bool
 }
 
 func (s *handlerLogicStub) SubmitReview(
@@ -119,6 +125,16 @@ func (s *handlerLogicStub) ListMyReviewsForOrders(
 	s.reviewedFor = reviewerID
 	s.reviewedOrderIDs = orderIDs
 	return s.reviewedResult, s.reviewedErr
+}
+
+func (s *handlerLogicStub) GetReview(
+	_ context.Context,
+	callerID uuid.UUID,
+	isAdmin bool,
+	_ uuid.UUID,
+) (Review, bool, error) {
+	s.getReviewCaller, s.getReviewAdmin = callerID, isAdmin
+	return s.review, s.reviewRemoved, s.reviewErr
 }
 
 func (s *handlerLogicStub) GetMyReviewForOrder(
@@ -692,5 +708,33 @@ func TestReviewRPCErrorMapping(t *testing.T) {
 				t.Fatal("internal error details leaked to the client")
 			}
 		})
+	}
+}
+
+func TestGetReviewRPC(t *testing.T) {
+	admin, reviewID := uuid.New(), uuid.New()
+	stub := &handlerLogicStub{review: Review{ID: reviewID, Rating: 2, Comment: "rude"}, reviewRemoved: true}
+	client := reviewClient(t, stub, auth.Caller{ID: admin.String(), Admin: true})
+
+	resp, err := client.GetReview(
+		context.Background(),
+		connect.NewRequest(&reviewv1.GetReviewRequest{ReviewId: reviewID.String()}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetReview().GetId() != reviewID.String() || !resp.Msg.GetRemoved() {
+		t.Fatalf("response = %+v", resp.Msg)
+	}
+	if stub.getReviewCaller != admin || !stub.getReviewAdmin {
+		t.Fatalf("caller = %v admin = %v", stub.getReviewCaller, stub.getReviewAdmin)
+	}
+	if resp.Header().Get("Cache-Control") == "" {
+		t.Fatal("review with signed photo URLs must not be cacheable")
+	}
+
+	_, err = client.GetReview(context.Background(), connect.NewRequest(&reviewv1.GetReviewRequest{ReviewId: "bad"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid id: %v", err)
 	}
 }

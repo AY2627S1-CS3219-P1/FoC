@@ -63,6 +63,8 @@ const (
 	// ReviewServiceListMyReviewRemovalsProcedure is the fully-qualified name of the ReviewService's
 	// ListMyReviewRemovals RPC.
 	ReviewServiceListMyReviewRemovalsProcedure = "/user.review.v1.ReviewService/ListMyReviewRemovals"
+	// ReviewServiceGetReviewProcedure is the fully-qualified name of the ReviewService's GetReview RPC.
+	ReviewServiceGetReviewProcedure = "/user.review.v1.ReviewService/GetReview"
 )
 
 // ReviewServiceClient is a client for the user.review.v1.ReviewService service.
@@ -77,6 +79,7 @@ type ReviewServiceClient interface {
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
 	ListReviewRemovals(context.Context, *connect.Request[v1.ListReviewRemovalsRequest]) (*connect.Response[v1.ListReviewRemovalsResponse], error)
 	ListMyReviewRemovals(context.Context, *connect.Request[v1.ListMyReviewRemovalsRequest]) (*connect.Response[v1.ListMyReviewRemovalsResponse], error)
+	GetReview(context.Context, *connect.Request[v1.GetReviewRequest]) (*connect.Response[v1.GetReviewResponse], error)
 }
 
 // NewReviewServiceClient constructs a client for the user.review.v1.ReviewService service. By
@@ -150,6 +153,12 @@ func NewReviewServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(reviewServiceMethods.ByName("ListMyReviewRemovals")),
 			connect.WithClientOptions(opts...),
 		),
+		getReview: connect.NewClient[v1.GetReviewRequest, v1.GetReviewResponse](
+			httpClient,
+			baseURL+ReviewServiceGetReviewProcedure,
+			connect.WithSchema(reviewServiceMethods.ByName("GetReview")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -165,6 +174,7 @@ type reviewServiceClient struct {
 	removeReview            *connect.Client[v1.RemoveReviewRequest, v1.RemoveReviewResponse]
 	listReviewRemovals      *connect.Client[v1.ListReviewRemovalsRequest, v1.ListReviewRemovalsResponse]
 	listMyReviewRemovals    *connect.Client[v1.ListMyReviewRemovalsRequest, v1.ListMyReviewRemovalsResponse]
+	getReview               *connect.Client[v1.GetReviewRequest, v1.GetReviewResponse]
 }
 
 // SubmitReview calls user.review.v1.ReviewService.SubmitReview.
@@ -217,6 +227,11 @@ func (c *reviewServiceClient) ListMyReviewRemovals(ctx context.Context, req *con
 	return c.listMyReviewRemovals.CallUnary(ctx, req)
 }
 
+// GetReview calls user.review.v1.ReviewService.GetReview.
+func (c *reviewServiceClient) GetReview(ctx context.Context, req *connect.Request[v1.GetReviewRequest]) (*connect.Response[v1.GetReviewResponse], error) {
+	return c.getReview.CallUnary(ctx, req)
+}
+
 // ReviewServiceHandler is an implementation of the user.review.v1.ReviewService service.
 type ReviewServiceHandler interface {
 	SubmitReview(context.Context, *connect.Request[v1.SubmitReviewRequest]) (*connect.Response[v1.SubmitReviewResponse], error)
@@ -229,6 +244,7 @@ type ReviewServiceHandler interface {
 	RemoveReview(context.Context, *connect.Request[v1.RemoveReviewRequest]) (*connect.Response[v1.RemoveReviewResponse], error)
 	ListReviewRemovals(context.Context, *connect.Request[v1.ListReviewRemovalsRequest]) (*connect.Response[v1.ListReviewRemovalsResponse], error)
 	ListMyReviewRemovals(context.Context, *connect.Request[v1.ListMyReviewRemovalsRequest]) (*connect.Response[v1.ListMyReviewRemovalsResponse], error)
+	GetReview(context.Context, *connect.Request[v1.GetReviewRequest]) (*connect.Response[v1.GetReviewResponse], error)
 }
 
 // NewReviewServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -298,6 +314,12 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(reviewServiceMethods.ByName("ListMyReviewRemovals")),
 		connect.WithHandlerOptions(opts...),
 	)
+	reviewServiceGetReviewHandler := connect.NewUnaryHandler(
+		ReviewServiceGetReviewProcedure,
+		svc.GetReview,
+		connect.WithSchema(reviewServiceMethods.ByName("GetReview")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.review.v1.ReviewService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ReviewServiceSubmitReviewProcedure:
@@ -320,6 +342,8 @@ func NewReviewServiceHandler(svc ReviewServiceHandler, opts ...connect.HandlerOp
 			reviewServiceListReviewRemovalsHandler.ServeHTTP(w, r)
 		case ReviewServiceListMyReviewRemovalsProcedure:
 			reviewServiceListMyReviewRemovalsHandler.ServeHTTP(w, r)
+		case ReviewServiceGetReviewProcedure:
+			reviewServiceGetReviewHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -367,4 +391,8 @@ func (UnimplementedReviewServiceHandler) ListReviewRemovals(context.Context, *co
 
 func (UnimplementedReviewServiceHandler) ListMyReviewRemovals(context.Context, *connect.Request[v1.ListMyReviewRemovalsRequest]) (*connect.Response[v1.ListMyReviewRemovalsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.ListMyReviewRemovals is not implemented"))
+}
+
+func (UnimplementedReviewServiceHandler) GetReview(context.Context, *connect.Request[v1.GetReviewRequest]) (*connect.Response[v1.GetReviewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.review.v1.ReviewService.GetReview is not implemented"))
 }

@@ -36,6 +36,9 @@ type Repository interface {
 	) (ReviewOrderStatuses, error)
 	// ReviewForOrder returns a live review, or errReviewRemoved without removed content.
 	ReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
+	// ReviewByID returns a review, including a removed one, and whether it is
+	// removed, or errReviewNotFound.
+	ReviewByID(ctx context.Context, id uuid.UUID) (Review, bool, error)
 	ListReviewRemovals(ctx context.Context, offset, limit int64) ([]ReviewRemoval, error)
 	CountReviewRemovals(ctx context.Context) (int64, error)
 	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, offset, limit int64) ([]ReviewRemoval, error)

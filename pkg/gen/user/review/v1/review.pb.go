@@ -1371,6 +1371,107 @@ func (x *ListMyReviewRemovalsResponse) GetPagination() *v1.PageInfo {
 	return nil
 }
 
+// One review, for moderation. Administrators may read any review, including a
+// removed one; its reviewer and reviewee may read it while it is live. Anyone
+// else gets NOT_FOUND. Responses carry pre-signed photo URLs and are not
+// cacheable.
+type GetReviewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ReviewId      string                 `protobuf:"bytes,1,opt,name=review_id,json=reviewId,proto3" json:"review_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReviewRequest) Reset() {
+	*x = GetReviewRequest{}
+	mi := &file_user_review_v1_review_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReviewRequest) ProtoMessage() {}
+
+func (x *GetReviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReviewRequest.ProtoReflect.Descriptor instead.
+func (*GetReviewRequest) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetReviewRequest) GetReviewId() string {
+	if x != nil {
+		return x.ReviewId
+	}
+	return ""
+}
+
+type GetReviewResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Review *Review                `protobuf:"bytes,1,opt,name=review,proto3" json:"review,omitempty"`
+	// The review is currently removed; only administrators see removed reviews.
+	Removed       bool `protobuf:"varint,2,opt,name=removed,proto3" json:"removed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReviewResponse) Reset() {
+	*x = GetReviewResponse{}
+	mi := &file_user_review_v1_review_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReviewResponse) ProtoMessage() {}
+
+func (x *GetReviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_review_v1_review_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReviewResponse.ProtoReflect.Descriptor instead.
+func (*GetReviewResponse) Descriptor() ([]byte, []int) {
+	return file_user_review_v1_review_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetReviewResponse) GetReview() *Review {
+	if x != nil {
+		return x.Review
+	}
+	return nil
+}
+
+func (x *GetReviewResponse) GetRemoved() bool {
+	if x != nil {
+		return x.Removed
+	}
+	return false
+}
+
 var File_user_review_v1_review_proto protoreflect.FileDescriptor
 
 const file_user_review_v1_review_proto_rawDesc = "" +
@@ -1499,7 +1600,12 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\bremovals\x18\x01 \x03(\v2\x1d.user.review.v1.ReviewRemovalR\bremovals\x127\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x17.pagination.v1.PageInfoR\n" +
-	"pagination2\xdf\b\n" +
+	"pagination\"9\n" +
+	"\x10GetReviewRequest\x12%\n" +
+	"\treview_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\breviewId\"]\n" +
+	"\x11GetReviewResponse\x12.\n" +
+	"\x06review\x18\x01 \x01(\v2\x16.user.review.v1.ReviewR\x06review\x12\x18\n" +
+	"\aremoved\x18\x02 \x01(\bR\aremoved2\xb3\t\n" +
 	"\rReviewService\x12[\n" +
 	"\fSubmitReview\x12#.user.review.v1.SubmitReviewRequest\x1a$.user.review.v1.SubmitReviewResponse\"\x00\x12|\n" +
 	"\x17CreateReviewPhotoUpload\x12..user.review.v1.CreateReviewPhotoUploadRequest\x1a/.user.review.v1.CreateReviewPhotoUploadResponse\"\x00\x12m\n" +
@@ -1510,7 +1616,8 @@ const file_user_review_v1_review_proto_rawDesc = "" +
 	"\x13GetMyReviewForOrder\x12*.user.review.v1.GetMyReviewForOrderRequest\x1a+.user.review.v1.GetMyReviewForOrderResponse\"\x00\x12[\n" +
 	"\fRemoveReview\x12#.user.review.v1.RemoveReviewRequest\x1a$.user.review.v1.RemoveReviewResponse\"\x00\x12m\n" +
 	"\x12ListReviewRemovals\x12).user.review.v1.ListReviewRemovalsRequest\x1a*.user.review.v1.ListReviewRemovalsResponse\"\x00\x12s\n" +
-	"\x14ListMyReviewRemovals\x12+.user.review.v1.ListMyReviewRemovalsRequest\x1a,.user.review.v1.ListMyReviewRemovalsResponse\"\x00B\xbe\x01\n" +
+	"\x14ListMyReviewRemovals\x12+.user.review.v1.ListMyReviewRemovalsRequest\x1a,.user.review.v1.ListMyReviewRemovalsResponse\"\x00\x12R\n" +
+	"\tGetReview\x12 .user.review.v1.GetReviewRequest\x1a!.user.review.v1.GetReviewResponse\"\x00B\xbe\x01\n" +
 	"\x12com.user.review.v1B\vReviewProtoP\x01ZAgithub.com/AY2627S1-CS3219-P1/FoC/pkg/gen/user/review/v1;reviewv1\xa2\x02\x03URX\xaa\x02\x0eUser.Review.V1\xca\x02\x0eUser\\Review\\V1\xe2\x02\x1aUser\\Review\\V1\\GPBMetadata\xea\x02\x10User::Review::V1b\x06proto3"
 
 var (
@@ -1525,7 +1632,7 @@ func file_user_review_v1_review_proto_rawDescGZIP() []byte {
 	return file_user_review_v1_review_proto_rawDescData
 }
 
-var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_user_review_v1_review_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_user_review_v1_review_proto_goTypes = []any{
 	(*Review)(nil),                          // 0: user.review.v1.Review
 	(*ReviewPhoto)(nil),                     // 1: user.review.v1.ReviewPhoto
@@ -1551,60 +1658,65 @@ var file_user_review_v1_review_proto_goTypes = []any{
 	(*ListReviewRemovalsResponse)(nil),      // 21: user.review.v1.ListReviewRemovalsResponse
 	(*ListMyReviewRemovalsRequest)(nil),     // 22: user.review.v1.ListMyReviewRemovalsRequest
 	(*ListMyReviewRemovalsResponse)(nil),    // 23: user.review.v1.ListMyReviewRemovalsResponse
-	nil,                                     // 24: user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
-	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
-	(*v1.PageInfo)(nil),                     // 26: pagination.v1.PageInfo
-	(*v1.Pagination)(nil),                   // 27: pagination.v1.Pagination
+	(*GetReviewRequest)(nil),                // 24: user.review.v1.GetReviewRequest
+	(*GetReviewResponse)(nil),               // 25: user.review.v1.GetReviewResponse
+	nil,                                     // 26: user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
+	(*timestamppb.Timestamp)(nil),           // 27: google.protobuf.Timestamp
+	(*v1.PageInfo)(nil),                     // 28: pagination.v1.PageInfo
+	(*v1.Pagination)(nil),                   // 29: pagination.v1.Pagination
 }
 var file_user_review_v1_review_proto_depIdxs = []int32{
-	25, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
+	27, // 0: user.review.v1.Review.created_at:type_name -> google.protobuf.Timestamp
 	1,  // 1: user.review.v1.Review.photos:type_name -> user.review.v1.ReviewPhoto
-	25, // 2: user.review.v1.ReviewPhoto.expires_at:type_name -> google.protobuf.Timestamp
+	27, // 2: user.review.v1.ReviewPhoto.expires_at:type_name -> google.protobuf.Timestamp
 	2,  // 3: user.review.v1.SubmitReviewRequest.submission:type_name -> user.review.v1.ReviewSubmission
-	24, // 4: user.review.v1.CreateReviewPhotoUploadResponse.upload_headers:type_name -> user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
-	25, // 5: user.review.v1.CreateReviewPhotoUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 4: user.review.v1.CreateReviewPhotoUploadResponse.upload_headers:type_name -> user.review.v1.CreateReviewPhotoUploadResponse.UploadHeadersEntry
+	27, // 5: user.review.v1.CreateReviewPhotoUploadResponse.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: user.review.v1.ListReviewsForUserResponse.reviews:type_name -> user.review.v1.Review
-	26, // 7: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
+	28, // 7: user.review.v1.ListReviewsForUserResponse.pagination:type_name -> pagination.v1.PageInfo
 	0,  // 8: user.review.v1.ListMyReviewsResponse.reviews:type_name -> user.review.v1.Review
-	26, // 9: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
-	27, // 10: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
-	27, // 11: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
-	27, // 12: user.review.v1.ListMyReviewsReceivedRequest.pagination:type_name -> pagination.v1.Pagination
+	28, // 9: user.review.v1.ListMyReviewsResponse.pagination:type_name -> pagination.v1.PageInfo
+	29, // 10: user.review.v1.ListReviewsForUserRequest.pagination:type_name -> pagination.v1.Pagination
+	29, // 11: user.review.v1.ListMyReviewsRequest.pagination:type_name -> pagination.v1.Pagination
+	29, // 12: user.review.v1.ListMyReviewsReceivedRequest.pagination:type_name -> pagination.v1.Pagination
 	0,  // 13: user.review.v1.ListMyReviewsReceivedResponse.reviews:type_name -> user.review.v1.Review
-	26, // 14: user.review.v1.ListMyReviewsReceivedResponse.pagination:type_name -> pagination.v1.PageInfo
+	28, // 14: user.review.v1.ListMyReviewsReceivedResponse.pagination:type_name -> pagination.v1.PageInfo
 	0,  // 15: user.review.v1.GetMyReviewForOrderResponse.review:type_name -> user.review.v1.Review
-	25, // 16: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
-	27, // 17: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	27, // 16: user.review.v1.ReviewRemoval.created_at:type_name -> google.protobuf.Timestamp
+	29, // 17: user.review.v1.ListReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
 	19, // 18: user.review.v1.ListReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	26, // 19: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
-	27, // 20: user.review.v1.ListMyReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
+	28, // 19: user.review.v1.ListReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	29, // 20: user.review.v1.ListMyReviewRemovalsRequest.pagination:type_name -> pagination.v1.Pagination
 	19, // 21: user.review.v1.ListMyReviewRemovalsResponse.removals:type_name -> user.review.v1.ReviewRemoval
-	26, // 22: user.review.v1.ListMyReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
-	3,  // 23: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
-	5,  // 24: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
-	9,  // 25: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
-	10, // 26: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
-	11, // 27: user.review.v1.ReviewService.ListMyReviewsReceived:input_type -> user.review.v1.ListMyReviewsReceivedRequest
-	13, // 28: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
-	15, // 29: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
-	17, // 30: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
-	20, // 31: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
-	22, // 32: user.review.v1.ReviewService.ListMyReviewRemovals:input_type -> user.review.v1.ListMyReviewRemovalsRequest
-	4,  // 33: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
-	6,  // 34: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
-	7,  // 35: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
-	8,  // 36: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
-	12, // 37: user.review.v1.ReviewService.ListMyReviewsReceived:output_type -> user.review.v1.ListMyReviewsReceivedResponse
-	14, // 38: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
-	16, // 39: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
-	18, // 40: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
-	21, // 41: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
-	23, // 42: user.review.v1.ReviewService.ListMyReviewRemovals:output_type -> user.review.v1.ListMyReviewRemovalsResponse
-	33, // [33:43] is the sub-list for method output_type
-	23, // [23:33] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	28, // 22: user.review.v1.ListMyReviewRemovalsResponse.pagination:type_name -> pagination.v1.PageInfo
+	0,  // 23: user.review.v1.GetReviewResponse.review:type_name -> user.review.v1.Review
+	3,  // 24: user.review.v1.ReviewService.SubmitReview:input_type -> user.review.v1.SubmitReviewRequest
+	5,  // 25: user.review.v1.ReviewService.CreateReviewPhotoUpload:input_type -> user.review.v1.CreateReviewPhotoUploadRequest
+	9,  // 26: user.review.v1.ReviewService.ListReviewsForUser:input_type -> user.review.v1.ListReviewsForUserRequest
+	10, // 27: user.review.v1.ReviewService.ListMyReviews:input_type -> user.review.v1.ListMyReviewsRequest
+	11, // 28: user.review.v1.ReviewService.ListMyReviewsReceived:input_type -> user.review.v1.ListMyReviewsReceivedRequest
+	13, // 29: user.review.v1.ReviewService.ListMyReviewsForOrders:input_type -> user.review.v1.ListMyReviewsForOrdersRequest
+	15, // 30: user.review.v1.ReviewService.GetMyReviewForOrder:input_type -> user.review.v1.GetMyReviewForOrderRequest
+	17, // 31: user.review.v1.ReviewService.RemoveReview:input_type -> user.review.v1.RemoveReviewRequest
+	20, // 32: user.review.v1.ReviewService.ListReviewRemovals:input_type -> user.review.v1.ListReviewRemovalsRequest
+	22, // 33: user.review.v1.ReviewService.ListMyReviewRemovals:input_type -> user.review.v1.ListMyReviewRemovalsRequest
+	24, // 34: user.review.v1.ReviewService.GetReview:input_type -> user.review.v1.GetReviewRequest
+	4,  // 35: user.review.v1.ReviewService.SubmitReview:output_type -> user.review.v1.SubmitReviewResponse
+	6,  // 36: user.review.v1.ReviewService.CreateReviewPhotoUpload:output_type -> user.review.v1.CreateReviewPhotoUploadResponse
+	7,  // 37: user.review.v1.ReviewService.ListReviewsForUser:output_type -> user.review.v1.ListReviewsForUserResponse
+	8,  // 38: user.review.v1.ReviewService.ListMyReviews:output_type -> user.review.v1.ListMyReviewsResponse
+	12, // 39: user.review.v1.ReviewService.ListMyReviewsReceived:output_type -> user.review.v1.ListMyReviewsReceivedResponse
+	14, // 40: user.review.v1.ReviewService.ListMyReviewsForOrders:output_type -> user.review.v1.ListMyReviewsForOrdersResponse
+	16, // 41: user.review.v1.ReviewService.GetMyReviewForOrder:output_type -> user.review.v1.GetMyReviewForOrderResponse
+	18, // 42: user.review.v1.ReviewService.RemoveReview:output_type -> user.review.v1.RemoveReviewResponse
+	21, // 43: user.review.v1.ReviewService.ListReviewRemovals:output_type -> user.review.v1.ListReviewRemovalsResponse
+	23, // 44: user.review.v1.ReviewService.ListMyReviewRemovals:output_type -> user.review.v1.ListMyReviewRemovalsResponse
+	25, // 45: user.review.v1.ReviewService.GetReview:output_type -> user.review.v1.GetReviewResponse
+	35, // [35:46] is the sub-list for method output_type
+	24, // [24:35] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_user_review_v1_review_proto_init() }
@@ -1618,7 +1730,7 @@ func file_user_review_v1_review_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_review_v1_review_proto_rawDesc), len(file_user_review_v1_review_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

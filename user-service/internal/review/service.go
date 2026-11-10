@@ -182,6 +182,30 @@ func (s *Service) GetMyReviewForOrder(ctx context.Context, reviewerID, orderID u
 	return filled[0], nil
 }
 
+// GetReview returns one review for moderation. Administrators may read any
+// review, including a removed one; its reviewer and reviewee may read it while
+// it is live. Everyone else gets not found, so review IDs reveal nothing.
+func (s *Service) GetReview(ctx context.Context, callerID uuid.UUID, isAdmin bool, id uuid.UUID) (Review, bool, error) {
+	review, removed, err := s.repo.ReviewByID(ctx, id)
+	if errors.Is(err, errReviewNotFound) {
+		return Review{}, false, errs.WrapNotFoundError(err, "review not found")
+	}
+	if err != nil {
+		return Review{}, false, err
+	}
+
+	participant := review.ReviewerID == callerID || review.RevieweeID == callerID
+	if !isAdmin && (removed || !participant) {
+		return Review{}, false, errs.WrapNotFoundError(errReviewNotFound, "review not found")
+	}
+
+	filled, err := s.fillPhotos(ctx, []Review{review})
+	if err != nil {
+		return Review{}, false, err
+	}
+	return filled[0], removed, nil
+}
+
 // RemoveReview soft-deletes a review, records the audit row and recomputes stats.
 func (s *Service) RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error {
 	return s.removeReview(ctx, id, reason, uuid.Nil, createdBy)

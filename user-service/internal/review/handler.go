@@ -33,6 +33,7 @@ type Logic interface {
 	ListMyReviewsReceived(ctx context.Context, userID uuid.UUID, page pagination.Pagination) (ReviewPage, error)
 	ListMyReviewsForOrders(ctx context.Context, reviewerID uuid.UUID, orderIDs []uuid.UUID) (ReviewOrderStatuses, error)
 	GetMyReviewForOrder(ctx context.Context, reviewerID, orderID uuid.UUID) (Review, error)
+	GetReview(ctx context.Context, callerID uuid.UUID, isAdmin bool, id uuid.UUID) (Review, bool, error)
 	RemoveReview(ctx context.Context, id uuid.UUID, reason string, createdBy uuid.UUID) error
 	ListReviewRemovals(ctx context.Context, page pagination.Pagination) (RemovalPage, error)
 	ListMyReviewRemovals(ctx context.Context, reviewerID uuid.UUID, page pagination.Pagination) (RemovalPage, error)
@@ -216,6 +217,34 @@ func (h *Handler) ListMyReviewsForOrders(
 		ReviewedOrderIds: uuidStrings(reviewed.ReviewedOrderIDs),
 		RemovedOrderIds:  uuidStrings(reviewed.RemovedOrderIDs),
 	}), nil
+}
+
+// GetReview returns one review for moderation; not cacheable.
+func (h *Handler) GetReview(
+	ctx context.Context,
+	req *connect.Request[reviewv1.GetReviewRequest],
+) (*connect.Response[reviewv1.GetReviewResponse], error) {
+	caller, err := userdto.Actor(ctx)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+	callerID, err := uuid.Parse(caller.ID)
+	if err != nil {
+		return nil, toConnectError(ctx, userdto.ErrMissingActor)
+	}
+	id, parseErr := uuid.Parse(req.Msg.GetReviewId())
+	if parseErr != nil || id == uuid.Nil {
+		return nil, toConnectError(ctx, errs.NewBadRequestError("invalid review ID"))
+	}
+
+	review, removed, err := h.Logic.GetReview(ctx, callerID, caller.Admin, id)
+	if err != nil {
+		return nil, toConnectError(ctx, err)
+	}
+
+	resp := connect.NewResponse(&reviewv1.GetReviewResponse{Review: toReviewProto(review), Removed: removed})
+	noStore(resp)
+	return resp, nil
 }
 
 // GetMyReviewForOrder returns the caller's review, or NotFound when unreviewed; not cacheable.
