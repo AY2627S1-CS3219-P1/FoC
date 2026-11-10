@@ -39,7 +39,12 @@ func (s *LocationServer) ListLocations(
 ) (*connect.Response[locationv1.ListLocationsResponse], error) {
 	caller, _ := auth.CallerFromContext(ctx)
 	msg := req.Msg
+	var origin *location.Coordinates
+	if msg.Origin != nil {
+		origin = &location.Coordinates{Latitude: msg.Origin.Latitude, Longitude: msg.Origin.Longitude}
+	}
 	page, err := s.service.List(ctx, caller, location.ListRequest{
+		Origin:        origin,
 		Search:        msg.GetSearch(),
 		BuildingID:    msg.BuildingId,
 		CategoryID:    msg.CategoryId,
@@ -102,6 +107,7 @@ var archiveFilters = map[locationv1.LocationStatusView]location.ArchiveFilter{
 }
 
 var sortFields = map[locationv1.LocationSortField]location.SortField{
-	locationv1.LocationSortField_LOCATION_SORT_FIELD_NAME:     location.SortByName,
-	locationv1.LocationSortField_LOCATION_SORT_FIELD_BUILDING: location.SortByBuilding,
+	locationv1.LocationSortField_LOCATION_SORT_FIELD_PROXIMITY: location.SortByProximity,
+	locationv1.LocationSortField_LOCATION_SORT_FIELD_NAME:      location.SortByName,
+	locationv1.LocationSortField_LOCATION_SORT_FIELD_BUILDING:  location.SortByBuilding,
 }

@@ -60,6 +60,8 @@ WHERE (@search::TEXT = ''
         OR (@archive_filter::TEXT = 'active' AND l.archived_at IS NULL)
         OR (@archive_filter::TEXT = 'archived' AND l.archived_at IS NOT NULL))
 ORDER BY
+    CASE WHEN @sort_field::TEXT = 'proximity' AND NOT @descending::BOOLEAN THEN ST_Distance(l.coordinates, ST_SetSRID(ST_MakePoint(@origin_longitude::double precision, @origin_latitude::double precision),4326)::geography) END ASC,
+    CASE WHEN @sort_field::TEXT = 'proximity' AND @descending::BOOLEAN THEN ST_Distance(l.coordinates, ST_SetSRID(ST_MakePoint(@origin_longitude::double precision, @origin_latitude::double precision),4326)::geography) END DESC,
     CASE WHEN @sort_field::TEXT = 'building' AND NOT @descending::BOOLEAN THEN lower(b.name) END ASC,
     CASE WHEN @sort_field::TEXT = 'building' AND @descending::BOOLEAN THEN lower(b.name) END DESC,
     CASE WHEN NOT @descending::BOOLEAN THEN lower(l.name) END ASC,

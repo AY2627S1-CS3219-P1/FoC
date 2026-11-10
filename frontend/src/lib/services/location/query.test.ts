@@ -35,3 +35,10 @@ describe('location query params', () => {
 		}
 	);
 });
+
+it('carries proximity sort without putting the viewer origin in the URL', () => {
+	const params = paramsFromQuery({ sort: 'proximity', origin: { latitude: 0, longitude: 103 } });
+	expect(params.toString()).toBe('sort=proximity');
+	expect(queryFromParams(params).sort).toBe('proximity');
+	expect(queryFromParams(new URLSearchParams('sort=proximity&latitude=1&longitude=2')).origin).toBeUndefined();
+});

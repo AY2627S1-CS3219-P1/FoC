@@ -66,6 +66,8 @@ func validateFields(before, after Order, action Action) error {
 func cloneOrder(o Order) Order {
 	o.CourierID = clonePointer(o.CourierID)
 	o.PendingCancellationID = clonePointer(o.PendingCancellationID)
+	o.Pickup.Coordinates = clonePointer(o.Pickup.Coordinates)
+	o.Delivery.Coordinates = clonePointer(o.Delivery.Coordinates)
 	o.Pickup.Floor = clonePointer(o.Pickup.Floor)
 	o.Delivery.Floor = clonePointer(o.Delivery.Floor)
 	o.DeliveryInstructions = clonePointer(o.DeliveryInstructions)

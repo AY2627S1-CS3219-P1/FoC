@@ -1,6 +1,6 @@
 import type { ArchiveView, LocationQuery, SortDirection, SortField } from './locationApi.ts';
 
-const sortFields: SortField[] = ['name', 'building'];
+const sortFields: SortField[] = ['name', 'building', 'proximity'];
 const directions: SortDirection[] = ['asc', 'desc'];
 const archiveViews: ArchiveView[] = ['active', 'archived', 'all'];
 

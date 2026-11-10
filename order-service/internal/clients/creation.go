@@ -45,8 +45,16 @@ func (s *Supplier) GetLocation(ctx context.Context, id string) (app.SelectableLo
 	if err != nil || locationID.String() != id {
 		return app.SelectableLocation{}, app.ErrUnavailable
 	}
+	var coordinates *app.Coordinates
+	if c := loc.GetCoordinates(); c != nil {
+		coordinates = &app.Coordinates{Latitude: c.Latitude, Longitude: c.Longitude}
+		if !coordinates.IsValid() {
+			return app.SelectableLocation{}, app.ErrUnavailable
+		}
+	}
 	return app.SelectableLocation{
 		Snapshot: app.LocationSnapshot{
+			Coordinates:  coordinates,
 			LocationID:   locationID.String(),
 			Name:         loc.GetName(),
 			BuildingName: loc.GetBuilding().GetName(),

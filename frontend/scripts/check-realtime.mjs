@@ -12,6 +12,7 @@ const offerId = '44444444-4444-4444-8444-444444444444';
 const attemptId = '55555555-5555-4555-8555-555555555555';
 const balances = new Map([[alice, '100'], [bob, '100']]);
 const streams = new Map();
+const openQueries = [];
 const runtimeErrors = [];
 let offers = [];
 let available = true;
@@ -72,7 +73,7 @@ async function open(user) {
    case 'ListMyLedgerEntries': value = { entries: [], pageInfo }; break;
    case 'GetOrder': value = { order }; break;
    case 'ListMyOrders': value = { orders: [order], pageInfo }; break;
-   case 'ListOpenOrders': value = { orders: order.status === 'ORDER_STATUS_AWAITING_COURIER' ? [order] : [], pageInfo }; break;
+   case 'ListOpenOrders': openQueries.push(JSON.parse(route.request().postData() || '{}')); value = { orders: order.status === 'ORDER_STATUS_AWAITING_COURIER' ? [order] : [], pageInfo }; break;
    case 'ListOffers': value = { offers: user === alice ? offers : offers.filter((offer) => offer.courierId === user) }; break;
    case 'GetAssignmentAttempt': value = { attempt: { attemptId, status: attemptStatus } }; break;
    case 'AcceptOrder':
@@ -110,7 +111,14 @@ try {
  console.log('PASS offer-only changes arrive without resetting an unsaved proposal');
 
  const c = await open(alice);
- const browsing = c.page; await browsing.goto(base + '/orders');
+ const browsing = c.page;
+ await c.context.addInitScript(() => {
+  window.locationReads = 0;
+  Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
+   getCurrentPosition(success) { window.locationReads++; success({ coords: { latitude: 1.3, longitude: 103.8 } }); }
+  }});
+ });
+ await browsing.goto(base + '/orders?sort=proximity');
  await browsing.locator('.rows .title').filter({ hasText: 'Live update delivery' }).waitFor();
  await b.page.getByRole('button', { name: 'Accept current reward (20 credits)', exact: true }).click();
  await b.page.getByText('Still confirming your acceptance. Try again to check the result.', { exact: true }).waitFor();
@@ -124,7 +132,13 @@ try {
  await browsing.getByText('Nothing matches. Try another destination, or check back soon.').waitFor({ timeout: 5000 });
  await b.page.getByRole('button', { name: 'Confirm pickup', exact: true }).click();
  await a.page.locator('.title .status').filter({ hasText: 'Delivering' }).waitFor({ timeout: 5000 });
- console.log('PASS another participant sees assignment/pickup and marketplace removal');
+ assert(openQueries.length >= 2);
+ for (const query of openQueries) {
+  assert.equal(query.sort, 'OPEN_ORDER_SORT_PROXIMITY');
+  assert.deepEqual(query.origin, { latitude: 1.3, longitude: 103.8 });
+ }
+ assert.equal(await browsing.evaluate(() => window.locationReads), 1);
+ console.log('PASS another participant sees assignment/pickup and marketplace removal; realtime reloads keep the proximity origin');
 
  order = { ...order, status: 'ORDER_STATUS_DELIVERED', revision: '4', deliveredAt: new Date().toISOString() }; orderChanged();
  await a.page.getByRole('button', { name: 'Confirm receipt', exact: true }).click();

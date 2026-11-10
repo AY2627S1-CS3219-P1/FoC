@@ -20,6 +20,7 @@
 		"test:profile-pictures": "node scripts/check-profile-pictures.mjs",
 		"buf:lint": "cd .. && buf lint",
 		"buf:generate": "cd .. && buf generate",
+		"test:proximity": "node scripts/check-proximity.mjs",
 		"test:moderation": "node scripts/check-moderation.mjs"
 	},
 	"devDependencies": {
