@@ -20,6 +20,16 @@ type Account struct {
 	UpdatedAt time.Time
 }
 
+type AccountOutbox struct {
+	EventID     uuid.UUID
+	UserID      uuid.UUID
+	Revision    int64
+	OccurredAt  time.Time
+	LeaseToken  *uuid.UUID
+	LeaseUntil  *time.Time
+	PublishedAt *time.Time
+}
+
 type Assignment struct {
 	OrderID      uuid.UUID
 	AssignmentID uuid.UUID

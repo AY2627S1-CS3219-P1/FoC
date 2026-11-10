@@ -2,7 +2,7 @@
 	import { timestampDate } from '@bufbuild/protobuf/wkt';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
 	import { Button, Card, LoadingIndicator } from 'm3-svelte';
-	import { authService, orderApi, reviewApi } from '$lib/services';
+	import { authService, orderApi, reviewApi, realtimeService } from '$lib/services';
 	import { describeOrderError } from '$lib/services/order/errors';
 	import { participationLabel, statusLabel } from '$lib/services/order/presentation';
 
@@ -15,22 +15,31 @@
 	let reviewedIds = $state<Set<string>>(new Set());
 	let removedIds = $state<Set<string>>(new Set());
 	let reviewStatusesLoaded = $state(false);
+	let loadedCaller: string | undefined;
 
 	$effect(() => {
 		const caller = authService.user?.id;
+		if (loadedCaller !== caller) {
+			orders = null;
+			loadedCaller = caller;
+		}
 		void revision;
-		if (!caller) return;
-		let active = true;
-		error = '';
 		reviewedIds = new Set();
 		removedIds = new Set();
 		reviewStatusesLoaded = false;
-		orderApi
+		if (!caller) return;
+		let active = true;
+		error = '';
+		const stop = realtimeService.subscribe(['orders'], () => orderApi
 			.listMyOrders({ pageSize: shown })
 			.then((page) => {
 				if (!active) return;
 				orders = page.orders;
+				error = '';
 				more = page.totalPages > 1;
+				reviewedIds = new Set();
+				removedIds = new Set();
+				reviewStatusesLoaded = false;
 				const eligible = page.orders
 					.filter(
 						(order) =>
@@ -42,7 +51,7 @@
 					reviewStatusesLoaded = true;
 					return;
 				}
-				reviewApi
+				return reviewApi
 					.listReviewOrderStatuses(eligible, AbortSignal.timeout(15000))
 					.then((statuses) => {
 						if (!active) return;
@@ -54,8 +63,8 @@
 						if (active) reviewStatusesLoaded = false;
 					});
 			})
-			.catch((cause) => active && (error = describeOrderError(cause)));
-		return () => (active = false);
+			.catch((cause) => active && (error = describeOrderError(cause))));
+		return () => { active = false; stop(); };
 	});
 
 	const date = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' });
@@ -74,8 +83,9 @@
 		{#if error}
 			<p class="notice error" role="alert">{error}</p>
 			<div><Button variant="outlined" onclick={() => revision++}>Try again</Button></div>
-		{:else if !orders}
-			<div class="loading-state"><LoadingIndicator aria-label="Loading request history" /></div>
+		{/if}
+		{#if !orders}
+			{#if !error}<div class="loading-state"><LoadingIndicator aria-label="Loading request history" /></div>{/if}
 		{:else if !orders.length}
 			<p class="muted">No requests yet. <a href="/orders/new">Make a request</a> or <a href="/orders">deliver one</a>.</p>
 		{:else}

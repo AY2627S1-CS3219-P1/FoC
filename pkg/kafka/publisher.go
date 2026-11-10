@@ -33,6 +33,8 @@ func NewPublisher(cfg PublisherConfig) (*Publisher, error) {
 	}
 	return &Publisher{writer: &kafkago.Writer{
 		Addr: kafkago.TCP(brokers...), Balancer: &kafkago.Hash{},
+		// Serial outbox publishers cannot fill a batch while waiting for its acknowledgement.
+		BatchTimeout: 10 * time.Millisecond,
 		RequiredAcks: kafkago.RequireAll, WriteTimeout: 5 * time.Second,
 		AllowAutoTopicCreation: false,
 	}}, nil

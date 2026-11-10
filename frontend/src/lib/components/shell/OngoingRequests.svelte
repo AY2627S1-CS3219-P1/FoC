@@ -4,40 +4,23 @@
 	import iconBag from '@ktibow/iconset-material-symbols/shopping-bag-outline';
 	import iconBike from '@ktibow/iconset-material-symbols/pedal-bike';
 	import { OrderStatus, type Order } from '$lib/gen/order/v1/shared_types_pb';
-	import { authService, orderApi } from '$lib/services';
+	import { authService, orderApi, realtimeService } from '$lib/services';
 	import { statusLabel } from '$lib/services/order/presentation';
 
-	const refreshMs = 30_000;
 
 	let orders = $state<Order[] | null>(null);
 	let hasMore = $state(false);
 	let failed = $state(false);
 	let request = 0;
+ let loadedCaller: string | undefined;
 
-	// Reload on sign-in, on every navigation (an order page may have changed a
-	// status), and periodically while the tab is visible.
+	// Navigation, push, and fallback share the same mounted read.
 	$effect(() => {
 		const caller = authService.user?.id;
+        if (loadedCaller !== caller) { orders = null; loadedCaller = caller; }
 		void page.url.pathname;
-		void load(caller);
-	});
-
-	$effect(() => {
-		const caller = authService.user?.id;
-		if (!caller) return;
-
-		const timer = setInterval(() => {
-			if (!document.hidden) void load(caller);
-		}, refreshMs);
-		const visible = () => {
-			if (!document.hidden) void load(caller);
-		};
-		document.addEventListener('visibilitychange', visible);
-
-		return () => {
-			clearInterval(timer);
-			document.removeEventListener('visibilitychange', visible);
-		};
+		if (!caller) { orders = null; return; }
+		return realtimeService.subscribe(['orders'], () => load(caller));
 	});
 
 	async function load(caller: string | undefined) {

@@ -46,12 +46,40 @@ func (p *protectedUsers) GetByID(_ context.Context, id uuid.UUID) (*models.User,
 
 type profileStub struct{ user models.User }
 
-func (p profileStub) GetMyProfile(context.Context, uuid.UUID) (models.User, error) {
-	return p.user, nil
+func (p profileStub) GetMyProfile(context.Context, uuid.UUID) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
 }
 
-func (p profileStub) UpdateMyProfile(context.Context, uuid.UUID, service.ProfileInput) (models.User, error) {
-	return p.user, nil
+func (p profileStub) UpdateMyProfile(
+	context.Context,
+	uuid.UUID,
+	service.ProfileInput,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
+}
+
+func (p profileStub) CreateProfilePictureUpload(
+	context.Context,
+	uuid.UUID,
+	string,
+	int64,
+) (service.ProfilePictureUpload, images.UploadGrant, error) {
+	return service.ProfilePictureUpload{}, images.UploadGrant{}, nil
+}
+
+func (p profileStub) UpdateMyProfilePicture(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
+}
+
+func (p profileStub) RemoveMyProfilePicture(
+	context.Context,
+	uuid.UUID,
+) (service.ProfileView, error) {
+	return service.ProfileView{User: p.user}, nil
 }
 
 type adminStub struct{ user models.User }
