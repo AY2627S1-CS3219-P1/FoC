@@ -143,7 +143,6 @@ describe('review moderation batch merge API', () => {
 			})
 		];
 		const jobs = [
-			// The rejected review has a completed job carrying its codes.
 			job('rejected', {
 				status: ModerationJobStatus.COMPLETED,
 				outcome: ModerationOutcomeType.REJECTED,
@@ -158,14 +157,12 @@ describe('review moderation batch merge API', () => {
 		expect(pending.job).toBeUndefined();
 		expect(pending.jobStatus).toBe(ModerationJobStatus.UNSPECIFIED);
 		expect(pending.isAwaitingModeration).toBe(true);
-		// A still-pending review with no job keeps its applied (empty) codes.
 		expect(pending.reasonCodes).toEqual([]);
 
 		const rejected = records.find((r) => r.review.id === 'rejected')!;
 		expect(rejected.jobStatus).toBe(ModerationJobStatus.COMPLETED);
 		expect(rejected.outcome).toBe(ModerationOutcomeType.REJECTED);
 		expect(rejected.isAwaitingModeration).toBe(false);
-		// The completed verdict drives the reason codes over the applied codes.
 		expect(rejected.reasonCodes).toEqual(['HARASSMENT', 'SPAM']);
 		expect(rejected.reasonMessages[0]).toBe(
 			'This review was removed because it contained harassing content.'

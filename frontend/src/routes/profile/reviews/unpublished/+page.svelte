@@ -14,10 +14,6 @@
 		ReviewPageState
 	} from '$lib/services';
 
-	// The reviewer's own unpublished reviews: pending, rejected and
-	// moderation-error. Publication is authoritative in User Service; CMS job
-	// progress only explains what is happening behind a pending review. The
-	// page polls bounded while open; no SSE.
 	const reviewPage = new ReviewPageState(reviewModerationService, () => authService.user?.id);
 	const PAGE_SIZE = 10n;
 	let ownerId = '';
@@ -76,10 +72,9 @@
 			if (applied) page = targetPage;
 		} catch (cause) {
 			if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
-				// A stale role claim; nothing to retry here.
+				// Transport owns session refresh; do not compensate for stale role claims here.
 				return;
 			}
-			// Other failures are reflected by loadError for the retry state.
 		}
 	}
 

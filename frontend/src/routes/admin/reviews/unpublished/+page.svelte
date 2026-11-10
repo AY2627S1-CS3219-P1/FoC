@@ -9,9 +9,6 @@
 	import UnpublishedReviewList from '$lib/components/review-moderation/UnpublishedReviewList.svelte';
 	import { reviewModerationService, ReviewPageState, authService } from '$lib/services';
 
-	// Admin inspection of one reviewer's unpublished reviews. The reviewer ID is
-	// resolved by the backend's authorization, never by this page: an ordinary
-	// caller id entered here simply fails with permission_denied.
 	const reviewPage = new ReviewPageState(reviewModerationService, () => authService.user?.id);
 	const PAGE_SIZE = 10n;
 	let account = authService.user?.id;
@@ -53,7 +50,6 @@
 			if (cause instanceof ConnectError && cause.code === Code.PermissionDenied) {
 				inputError = 'You are not allowed to inspect this reviewer.';
 			}
-			// Other failures surface through loadError below.
 		}
 	}
 

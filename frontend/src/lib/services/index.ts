@@ -20,7 +20,7 @@ import { createCreditAccountApi } from './credit/index.ts';
 import { CreditService } from './credit/service.svelte';
 import { createRealtimeService } from './realtime';
 import { createTelegramLinkApi } from './telegram/index.ts';
-import { createReviewModerationService } from './review-moderation/index.ts';
+import { createReviewModerationService } from './review-moderation';
 import { SnackbarService } from './snackbar/service.ts';
 
 export const snackbarService = new SnackbarService();
@@ -89,7 +89,6 @@ export const telegramLinkApi = createTelegramLinkApi(communicationTransport);
 export const realtimeService = createRealtimeService(communicationTransport, () => authService.refresh());
 export const creditService = new CreditService(creditAccountApi, realtimeService);
 
-// CMS supplies protected job progress; User owns review publication.
 const moderationServiceBaseUrl = env.PUBLIC_MODERATION_SERVICE_URL ?? 'http://localhost:8086';
 const moderationTransport = createCustomTransport({
 	baseUrl: moderationServiceBaseUrl,
@@ -100,4 +99,4 @@ export const reviewModerationService = createReviewModerationService(
 	moderationTransport
 );
 
-export { ReviewPageState } from './review-moderation/index.ts';
+export { ReviewPageState } from './review-moderation';

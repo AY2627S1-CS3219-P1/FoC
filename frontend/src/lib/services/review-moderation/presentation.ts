@@ -37,7 +37,6 @@ export function presentReviewModeration(record: ReviewModerationRecord): Present
 				'We could not complete an assessment for this review. An administrator can retry it; the review is not published.'
 		};
 	}
-	// Pending on User Service; the CMS job explains what is happening.
 	if (!job) {
 		return {
 			label: 'Awaiting assessment',

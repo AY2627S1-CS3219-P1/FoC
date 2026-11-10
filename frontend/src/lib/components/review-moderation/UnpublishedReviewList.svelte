@@ -5,9 +5,6 @@
 	import type { ReviewModerationRecord } from '$lib/services/review-moderation/reviewModerationApi';
 	import { presentReviewModeration } from '$lib/services/review-moderation/presentation';
 
-	// Shared presentation for one page of unpublished reviews. Pure display:
-	// both the owner page and the admin reviewer-inspection page render it, and
-	// neither may assume the other's authorization.
 	let { records }: { records: readonly ReviewModerationRecord[] } = $props();
 
 

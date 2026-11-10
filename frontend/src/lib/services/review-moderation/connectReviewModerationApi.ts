@@ -21,9 +21,7 @@ import { batchedModerationRequestIds, mergeReviewModeration } from './reviewMode
 type ReviewClient = Client<typeof ReviewServiceDefinition>;
 type ModerationClient = Client<typeof ReviewModerationServiceDefinition>;
 
-// CMS failures that degrade to "no job progress shown" instead of failing the
-// whole page. Unauthenticated, permission-denied and invalid-argument errors
-// still propagate so the transport-layer interceptors and the caller see them.
+// Degrade CMS availability failures; propagate auth and validation errors to interceptors.
 const DEGRADABLE_CMS_CODES: readonly Code[] = [
 	Code.Unavailable,
 	Code.DeadlineExceeded,
@@ -33,9 +31,6 @@ const DEGRADABLE_CMS_CODES: readonly Code[] = [
 	Code.DataLoss
 ];
 
-// The raw Connect adapter over User Service's review listing and the CMS
-// owner-job listing. It performs one batched CMS call per page and merges the
-// results per review; it does not swallow transport errors.
 export class ConnectReviewModerationApi implements ReviewModerationApi {
 	readonly #review: ReviewClient;
 	readonly #moderation: ModerationClient;
@@ -56,9 +51,7 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 			pagination
 		});
 
-		// A CMS outage must not erase User's canonical collection: transport
-		// failures degrade to records without job progress, while authorization
-		// and request-shape errors still propagate to the transport layer.
+		// CMS outages must not erase User's canonical collection.
 		const requestIds = batchedModerationRequestIds(reviews);
 		let jobs: ReviewModerationJobSummary[] = [];
 		let cmsAvailable = true;
@@ -89,9 +82,7 @@ export class ConnectReviewModerationApi implements ReviewModerationApi {
 	}
 }
 
-// A request may have more than one job summary in edge cases (for example a
-// stale completion racing a fresh attempt); keep the highest generation so the
-// merge reflects the latest grading.
+// Prefer the latest generation if duplicate summaries arrive.
 function jobById(
 	jobs: readonly ReviewModerationJobSummary[],
 	moderationRequestId: string
@@ -104,6 +95,4 @@ function jobById(
 	return best;
 }
 
-// Re-exported so callers can filter a page's reviews by publication state
-// without importing the generated enum alongside the service.
 export { ModerationStatus };

@@ -9,10 +9,6 @@ import {
 import { ConnectReviewModerationApi } from './connectReviewModerationApi.ts';
 import { ReviewModerationService } from './service.ts';
 
-// Wraps two services on two transports: User Service's unpublished-review
-// listing and the CMS's owner-job listing. The CMS call batches one page of
-// moderation_request_ids, so the factory wires both transports and exposes one
-// stateless service.
 export function createReviewModerationService(
 	userTransport: Transport,
 	moderationTransport: Transport
