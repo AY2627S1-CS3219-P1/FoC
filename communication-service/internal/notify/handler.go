@@ -197,7 +197,11 @@ func (h *Handler) HandleOffer(ctx context.Context, _ kafka.Metadata, e *eventsv1
 }
 
 // isCurrent reports whether no later status change has been applied to the
-// order. An order with no stored change has ended and been deleted.
+// order. The participants have their own consumer, so an order can be missing
+// because they haven't reached it yet, or because it ended and was deleted.
+// A missing order counts as current only within LateWindow: a fresh change
+// can't have been superseded yet, while an old one most likely belongs to a
+// deleted order.
 func (h *Handler) isCurrent(ctx context.Context, e *eventsv1.OrderStatusChanged) (bool, error) {
 	orderID, err := uuid.Parse(e.GetOrderId())
 	if err != nil {
@@ -207,7 +211,10 @@ func (h *Handler) isCurrent(ctx context.Context, e *eventsv1.OrderStatusChanged)
 	if err != nil {
 		return false, fmt.Errorf("get order revision: %w", err)
 	}
-	return found && revision <= e.GetRevision(), nil
+	if !found {
+		return h.Now().Sub(e.GetOccurredAt().AsTime()) <= LateWindow, nil
+	}
+	return revision <= e.GetRevision(), nil
 }
 
 func (h *Handler) notify(

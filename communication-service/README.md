@@ -59,7 +59,7 @@ GROUP BY n.status, (u.user_id IS NULL);
   | Class | Notifications |
   | -- | -- |
   | Drop if late: sent only within 15 minutes of the change (`LateWindow`) | Order open, courier accepted (to the requester), picked up, a courier's new offer (to the requester) |
-  | Still current: sent however late, but only while no later status change has been applied to the order | Offer accepted (to the courier), courier unassigned (to the requester) |
+  | Still current: sent however late, but only while no later status change has been applied to the order. If the participants haven't stored the order yet, it's sent only within the 15-minute window | Offer accepted (to the courier), courier unassigned (to the requester) |
   | Unless reassigned: sent however late, except while the same courier is currently assigned; checked again before queued email delivery | Unassigned (to the removed courier) |
   | Always: sent however late | Delivered, and every outcome: completed, cancelled, expired, failed, rejected |
 

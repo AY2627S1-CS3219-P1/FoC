@@ -322,6 +322,37 @@ func TestHandleSendsAcceptanceOnlyWhileCurrent(t *testing.T) {
 	}
 }
 
+// The participants can trail notifications, so a fresh change for an order
+// they haven't stored yet is sent; an old one is treated as a deleted order.
+func TestHandleSendsAcceptanceForUnknownOrderOnlyWhileFresh(t *testing.T) {
+	cases := []struct {
+		name     string
+		age      time.Duration
+		wantSent bool
+	}{
+		{"fresh", time.Minute, true},
+		{"old", LateWindow + time.Minute, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sender, _, _ := newHandler()
+			e := event(
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_COURIER,
+				eventsv1.OrderStatus_ORDER_STATUS_AWAITING_PICKUP,
+				user(requesterID),
+			)
+			e.OccurredAt = timestamppb.New(now.Add(-tc.age))
+			h.Orders = &fakeOrders{}
+			if err := h.Handle(context.Background(), kafka.Metadata{}, e); err != nil {
+				t.Fatal(err)
+			}
+			if (len(sender.sent) == 1) != tc.wantSent {
+				t.Fatalf("sent = %+v", sender.sent)
+			}
+		})
+	}
+}
+
 func TestHandleReplaysWhenRevisionUnreadable(t *testing.T) {
 	h, sender, _, _ := newHandler()
 	h.Orders = &fakeOrders{err: errors.New("connection refused")}
