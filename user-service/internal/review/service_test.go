@@ -868,6 +868,7 @@ func TestRemoveUnpublishedReviewDoesNotTouchRatings(t *testing.T) {
 		})
 	}
 }
+
 func (f *fakeRepository) ReviewExists(_ context.Context, reviewerID, orderID uuid.UUID) (bool, error) {
 	for _, existing := range f.existingReviews[reviewerID] {
 		if existing == orderID {
