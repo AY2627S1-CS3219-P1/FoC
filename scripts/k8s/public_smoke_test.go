@@ -33,8 +33,8 @@ esac`)
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
-	if len(lines) != 8 {
-		t.Fatalf("expected frontend, five health and two private-route requests, got %d", len(lines))
+	if len(lines) != len(publicHealthPaths)+3 {
+		t.Fatalf("expected frontend, all public health and two private-route requests, got %d", len(lines))
 	}
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "--disable --silent --show-error") {
