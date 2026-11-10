@@ -375,7 +375,7 @@ func (o *operator) meshSmoke() error {
 	if _, err := o.gatewaySmokeRequest(gateway, "/", 200, false); err != nil {
 		return err
 	}
-	for _, path := range publicHealthPaths {
+	for _, path := range o.publicHealthPaths() {
 		if err := o.assertPublicHealth(gateway, path); err != nil {
 			return err
 		}

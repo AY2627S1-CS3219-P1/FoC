@@ -19,6 +19,15 @@ var publicHealthPaths = []string{
 	moderationGatewayHealthPath,
 }
 
+// publicHealthPaths returns the health RPCs the current overlay routes publicly.
+// The reports moderation service is local-only until its AWS release is wired.
+func (o *operator) publicHealthPaths() []string {
+	if o.isLocal() {
+		return publicHealthPaths
+	}
+	return withoutName(publicHealthPaths, "/moderation.v1.HealthService/Check")
+}
+
 func (o *operator) gatewaySmokeRequest(
 	forward forwardSpec,
 	path string,

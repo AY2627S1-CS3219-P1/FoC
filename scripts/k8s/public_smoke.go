@@ -27,7 +27,7 @@ func (o *operator) publicSmoke() error {
 	if _, err := o.smokeRequest(origin, "", "/", 200, false); err != nil {
 		return err
 	}
-	for _, path := range publicHealthPaths {
+	for _, path := range o.publicHealthPaths() {
 		body, err := o.smokeRequest(origin, "", path, 200, true)
 		if err != nil {
 			return err
