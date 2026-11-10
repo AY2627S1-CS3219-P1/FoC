@@ -125,9 +125,13 @@ message ListMyReviewsForOrdersRequest {
 }
 
 message ListMyReviewsForOrdersResponse {
+  // Live reviews that can be fetched with GetMyReviewForOrder.
   repeated string reviewed_order_ids = 1;
+  // Removed reviews still block resubmission; their content is not returned.
+  repeated string removed_order_ids = 2;
 }
 
+// A removed review returns FailedPrecondition with reason REVIEW_REMOVED.
 message GetMyReviewForOrderRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
 }

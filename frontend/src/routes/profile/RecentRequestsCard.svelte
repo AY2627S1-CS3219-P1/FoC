@@ -11,9 +11,10 @@
 	let more = $state(false);
 	let error = $state('');
 	let revision = $state(0);
-	// Order ids the caller has already reviewed; the CTA per completed row
-	// becomes "View review" instead of "Leave a review".
+	// Removed reviews get a notice rather than an action that cannot succeed.
 	let reviewedIds = $state<Set<string>>(new Set());
+	let removedIds = $state<Set<string>>(new Set());
+	let reviewStatusesLoaded = $state(false);
 
 	$effect(() => {
 		const caller = authService.user?.id;
@@ -21,6 +22,9 @@
 		if (!caller) return;
 		let active = true;
 		error = '';
+		reviewedIds = new Set();
+		removedIds = new Set();
+		reviewStatusesLoaded = false;
 		orderApi
 			.listMyOrders({ pageSize: shown })
 			.then((page) => {
@@ -35,16 +39,19 @@
 					)
 					.map((order) => order.id);
 				if (eligible.length === 0) {
-					reviewedIds = new Set();
+					reviewStatusesLoaded = true;
 					return;
 				}
 				reviewApi
-					.listReviewedOrderIds(eligible, AbortSignal.timeout(15000))
-					.then((ids) => {
-						if (active) reviewedIds = new Set(ids);
+					.listReviewOrderStatuses(eligible, AbortSignal.timeout(15000))
+					.then((statuses) => {
+						if (!active) return;
+						reviewedIds = new Set(statuses.reviewedOrderIds);
+						removedIds = new Set(statuses.removedOrderIds);
+						reviewStatusesLoaded = true;
 					})
 					.catch(() => {
-						if (active) reviewedIds = new Set();
+						if (active) reviewStatusesLoaded = false;
 					});
 			})
 			.catch((cause) => active && (error = describeOrderError(cause)));
@@ -79,13 +86,17 @@
 							<span class="title">{order.itemDescription}</span>
 							<span class="meta">{role(order)}, {statusLabel(order.status).toLowerCase()}{order.createdAt ? ', ' + date.format(timestampDate(order.createdAt)) : ''}</span>
 						</a>
-						{#if reviewable(order)}
-							<Button
-								variant="text"
-								size="s"
-								href={`/orders/${order.id}#review`}
-								aria-label={`${reviewedIds.has(order.id) ? 'View your review of' : 'Leave a review for'} ${order.itemDescription}`}
-							>{reviewedIds.has(order.id) ? 'View review' : 'Leave a review'}</Button>
+						{#if reviewable(order) && reviewStatusesLoaded}
+							{#if removedIds.has(order.id)}
+								<span class="meta">Review removed</span>
+							{:else}
+								<Button
+									variant="text"
+									size="s"
+									href={`/orders/${order.id}#review`}
+									aria-label={`${reviewedIds.has(order.id) ? 'View your review of' : 'Leave a review for'} ${order.itemDescription}`}
+								>{reviewedIds.has(order.id) ? 'View review' : 'Leave a review'}</Button>
+							{/if}
 						{/if}
 					</li>
 				{/each}

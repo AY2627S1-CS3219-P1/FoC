@@ -379,25 +379,35 @@ func TestSchema(t *testing.T) {
 		if err := db.Create(&m.FavouriteSupplier{UserID: alice.ID, SupplierID: sup}).Error; err == nil {
 			t.Fatal("expected duplicate favourite to fail")
 		}
-		ev := uuid.New()
-		w := &m.AccountWarning{
-			UserID:        alice.ID,
-			RequestID:     uuid.New(),
-			Reason:        "cancelled after pickup",
-			SourceEventID: &ev,
-		}
-		if err := db.Create(w).Error; err != nil {
+		warningID, requestID, eventID := uuid.New(), uuid.New(), uuid.New()
+		if err := db.Exec(
+			"INSERT INTO account_warnings (id, user_id, request_id, reason, source_event_id) VALUES (?, ?, ?, 'cancelled after pickup', ?)",
+			warningID,
+			alice.ID,
+			requestID,
+			eventID,
+		).Error; err != nil {
 			t.Fatal(err)
 		}
-		if w.Status != m.WarningActive {
-			t.Fatalf("default status = %q", w.Status)
+		var status string
+		if err := db.Raw("SELECT status FROM account_warnings WHERE id = ?", warningID).
+			Scan(&status).
+			Error; err != nil {
+			t.Fatal(err)
 		}
-		dup := db.Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&m.AccountWarning{UserID: alice.ID, RequestID: uuid.New(), Reason: "dup", SourceEventID: &ev})
+		if status != "active" {
+			t.Fatalf("default status = %q", status)
+		}
+		dup := db.Exec(
+			"INSERT INTO account_warnings (user_id, request_id, reason, source_event_id) VALUES (?, ?, 'dup', ?) ON CONFLICT (source_event_id) DO NOTHING",
+			alice.ID,
+			uuid.New(),
+			eventID,
+		)
 		if dup.Error != nil || dup.RowsAffected != 0 {
 			t.Fatalf("replayed event created warning: %v/%d", dup.Error, dup.RowsAffected)
 		}
-		if err := db.Model(w).Update("status", m.WarningRemoved).Error; err == nil {
+		if err := db.Exec("UPDATE account_warnings SET status = 'removed' WHERE id = ?", warningID).Error; err == nil {
 			t.Fatal("expected check violation")
 		}
 	})

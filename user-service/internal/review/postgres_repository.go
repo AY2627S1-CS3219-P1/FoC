@@ -139,25 +139,29 @@ func (r *PostgresRepository) CountReviewsFromUser(ctx context.Context, userID uu
 	return count, nil
 }
 
-func (r *PostgresRepository) ListReviewedOrderIds(
+func (r *PostgresRepository) ListReviewOrderStatuses(
 	ctx context.Context,
 	reviewerID uuid.UUID,
 	orderIDs []uuid.UUID,
-) ([]uuid.UUID, error) {
-	ids, err := r.queries.ListReviewedOrderIds(ctx, reviewdb.ListReviewedOrderIdsParams{
+) (ReviewOrderStatuses, error) {
+	rows, err := r.queries.ListReviewOrderStatuses(ctx, reviewdb.ListReviewOrderStatusesParams{
 		ReviewerID: reviewerID,
 		OrderIds:   orderIDs,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list reviewed order ids: %w", err)
+		return ReviewOrderStatuses{}, fmt.Errorf("list review order statuses: %w", err)
 	}
-	out := make([]uuid.UUID, len(ids))
-	for i, raw := range ids {
-		id, parseErr := uuid.Parse(raw)
+	var out ReviewOrderStatuses
+	for _, row := range rows {
+		id, parseErr := uuid.Parse(row.OrderID)
 		if parseErr != nil {
-			return nil, fmt.Errorf("parse reviewed order id %q: %w", raw, parseErr)
+			return ReviewOrderStatuses{}, fmt.Errorf("parse reviewed order id %q: %w", row.OrderID, parseErr)
 		}
-		out[i] = id
+		if row.Removed {
+			out.RemovedOrderIDs = append(out.RemovedOrderIDs, id)
+		} else {
+			out.ReviewedOrderIDs = append(out.ReviewedOrderIDs, id)
+		}
 	}
 	return out, nil
 }
@@ -172,6 +176,9 @@ func (r *PostgresRepository) ReviewForOrder(ctx context.Context, reviewerID, ord
 			return Review{}, errReviewNotFound
 		}
 		return Review{}, fmt.Errorf("get review for order: %w", err)
+	}
+	if row.DeletedAt.Valid {
+		return Review{}, errReviewRemoved
 	}
 	return toReviewFromUser(reviewdb.ListReviewsFromUserRow(row)), nil
 }
