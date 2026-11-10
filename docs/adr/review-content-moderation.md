@@ -86,7 +86,9 @@ Owners may query bounded job summaries for their review requests. Admins may
 inspect attempts and retry terminal errors with an expected generation guard.
 Manual retry starts a new generation using the running assessor.
 
-User's unpublished review projection remains canonical. Missing CMS jobs mean
+User's unpublished review projection remains canonical. Its paginated list
+includes pending, rejected and moderation-error reviews together, with no
+status or order filters. Missing CMS jobs mean
 not yet ingested, never approval. Frontend services do not cache review lists;
 mounted pages own their state and ignore stale requests.
 
