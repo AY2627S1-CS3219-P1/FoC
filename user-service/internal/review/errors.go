@@ -44,6 +44,8 @@ var (
 	errReviewRemoved       = errors.New("your review was removed; you cannot review this order again")
 	errReviewAlreadyExists = errors.New("review already exists for this participant and request")
 	errReviewInvalid       = errors.New("review data is invalid")
+	errOrderNotFound       = errors.New("order does not exist")
+	errOrderUnavailable    = errors.New("order validation unavailable")
 
 	errUploadTemporarilyUnavailable = errors.New("review photo storage is temporarily unavailable")
 	errUploadUnavailable            = errors.New("review photo uploads are not available")

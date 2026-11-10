@@ -393,7 +393,15 @@ func (o *operator) meshSmoke() error {
 	if _, err := o.gatewaySmokeRequest(gateway, "/credit.v1.CreditReservationService/Reserve", 404, true); err != nil {
 		return err
 	}
-	for _, service := range []string{"user-service", "credit-service"} {
+	if _, err := o.gatewaySmokeRequest(
+		gateway,
+		"/order.v1.OrderInternalService/GetOrderParticipants",
+		404,
+		true,
+	); err != nil {
+		return err
+	}
+	for _, service := range []string{"user-service", "credit-service", "order-service"} {
 		for _, target := range []struct {
 			suffix string
 			port   int

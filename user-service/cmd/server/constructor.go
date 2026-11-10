@@ -9,12 +9,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/rs/cors"
 	"gorm.io/gorm"
 
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/auth/httpauth"
+	"github.com/AY2627S1-CS3219-P1/FoC/pkg/gen/order/v1/orderv1connect"
 	"github.com/AY2627S1-CS3219-P1/FoC/pkg/images"
 	allowedadmin "github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/admin"
 	"github.com/AY2627S1-CS3219-P1/FoC/user-service/internal/database/alloweddomaindb"
@@ -52,6 +55,13 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 	if photos != nil {
 		reviewStorage = photos
 	}
+	var orders review.OrderGateway
+	if cfg.orderServiceURL == "" {
+		orders = review.UnavailableOrderGateway{}
+	} else {
+		orders = review.NewConnectOrderGateway(orderv1connect.NewOrderInternalServiceClient(
+			&http.Client{Timeout: 5 * time.Second}, cfg.orderServiceURL))
+	}
 	service := review.NewService(repo, func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		if err != nil {
@@ -62,7 +72,7 @@ func newReviewService(sqlDB *sql.DB, cfg config) (*review.Service, *images.S3) {
 			return err
 		}
 		return tx.Commit()
-	}, reviewStorage)
+	}, reviewStorage, orders)
 	return service, photos
 }
 

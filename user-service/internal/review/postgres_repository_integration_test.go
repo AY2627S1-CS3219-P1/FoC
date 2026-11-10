@@ -22,7 +22,23 @@ import (
 // run against the shared pool; the transactional writes run on a database/sql
 // transaction with the sqlc queries bound to it, so every insert, audit row and
 // recalculation commits or rolls back together.
-func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
+type stubOrders struct {
+	byOrder map[uuid.UUID]OrderParticipants
+}
+
+func (s *stubOrders) add(orderID, requesterID, courierID uuid.UUID) {
+	s.byOrder[orderID] = completedOrder(requesterID, courierID)
+}
+
+func (s *stubOrders) GetOrderParticipants(_ context.Context, orderID uuid.UUID) (OrderParticipants, error) {
+	participants, ok := s.byOrder[orderID]
+	if !ok {
+		return OrderParticipants{}, errOrderNotFound
+	}
+	return participants, nil
+}
+
+func buildReviewService(t *testing.T, sqlDB *sql.DB, orders OrderGateway) *Service {
 	t.Helper()
 	repo := NewPostgresRepository(reviewdb.New(sqlDB))
 	withTx := func(ctx context.Context, operation func(*reviewdb.Queries) error) error {
@@ -37,7 +53,7 @@ func buildReviewService(t *testing.T, sqlDB *sql.DB) *Service {
 		}
 		return tx.Commit()
 	}
-	return NewService(repo, withTx, nil)
+	return NewService(repo, withTx, nil, orders)
 }
 
 func insertUser(t *testing.T, ctx context.Context, sqlDB *sql.DB, id uuid.UUID) {
@@ -88,7 +104,34 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	service := buildReviewService(t, sqlDB)
+	orders := &stubOrders{byOrder: map[uuid.UUID]OrderParticipants{}}
+	service := buildReviewService(t, sqlDB, orderGatewayForIntegration(t, orders))
+
+	t.Run("nonparticipant cannot persist a review through order RPC", func(t *testing.T) {
+		requester, courier, stranger, orderID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		for _, id := range []uuid.UUID{requester, courier, stranger} {
+			insertUser(t, ctx, sqlDB, id)
+		}
+		orders.add(orderID, requester, courier)
+		err := service.SubmitReview(
+			ctx,
+			stranger,
+			courier,
+			orderID,
+			ReviewSubmission{Rating: 5, Comment: "forged relationship"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusForbidden)
+		var count int
+		if err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM reviews WHERE order_id=$1", orderID).
+			Scan(&count); err != nil ||
+			count != 0 {
+			t.Fatalf("unauthorized review persisted: %d %v", count, err)
+		}
+		if count, avg := userStats(t, ctx, sqlDB, courier); count != 0 || avg != 0 {
+			t.Fatalf("unauthorized rating changed stats: %d %v", count, avg)
+		}
+	})
 
 	t.Run("list offsets beyond int32 are preserved", func(t *testing.T) {
 		page := mustPage(t, math.MaxInt64, 1)
@@ -113,6 +156,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	t.Run("recalculates stats as reviews come and go", func(t *testing.T) {
 		reviewer, second, reviewee, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 		order1, order2 := uuid.New(), uuid.New()
+		orders.add(order1, reviewer, reviewee)
+		orders.add(order2, second, reviewee)
 		for _, id := range []uuid.UUID{reviewer, second, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -211,12 +256,14 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		insertUser(t, ctx, sqlDB, reviewee)
 		for _, rating := range []int{1, 2, 2} {
 			reviewer := uuid.New()
+			order := uuid.New()
+			orders.add(order, reviewer, reviewee)
 			insertUser(t, ctx, sqlDB, reviewer)
 			if err := service.SubmitReview(
 				ctx,
 				reviewer,
 				reviewee,
-				uuid.New(),
+				order,
 				ReviewSubmission{Rating: rating, Comment: "fractional average"},
 				nil,
 			); err != nil {
@@ -234,6 +281,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	t.Run("guarded attachment claims a staged photo exactly once", func(t *testing.T) {
 		repo := NewPostgresRepository(reviewdb.New(sqlDB))
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		orders.add(order, reviewer, reviewee)
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -400,7 +448,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 		owner := uuid.New()
 		insertUser(t, ctx, sqlDB, owner)
 		storage := &fakeStorage{uploadTTL: 48 * time.Hour}
-		photoService := buildReviewService(t, sqlDB)
+		photoService := buildReviewService(t, sqlDB, orders)
 		photoService.photos = storage
 		photoID, grant, err := photoService.CreateReviewPhotoUpload(ctx, owner, "image/jpeg", 42)
 		if err != nil {
@@ -436,6 +484,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			insertUser(t, ctx, sqlDB, id)
 		}
 		order1, order2 := uuid.New(), uuid.New()
+		orders.add(order1, reviewer, reviewee)
 		if err := service.SubmitReview(
 			ctx,
 			reviewer,
@@ -500,6 +549,8 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 
 	t.Run("audit failure rolls back the soft delete", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
+		order := uuid.New()
+		orders.add(order, reviewer, reviewee)
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -507,7 +558,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			ctx,
 			reviewer,
 			reviewee,
-			uuid.New(),
+			order,
 			ReviewSubmission{Rating: 5, Comment: "audit rollback"},
 			nil,
 		); err != nil {
@@ -683,6 +734,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 
 	t.Run("duplicate review is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		orders.add(order, reviewer, reviewee)
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -705,8 +757,15 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			nil,
 		)
 		assertExternal(t, err, http.StatusConflict)
-		if c, _ := userStats(t, ctx, sqlDB, reviewee); c != 1 {
-			t.Fatalf("duplicate review persisted: count=%d, want 1", c)
+
+		// The committed row still proves duplication when Order is unavailable,
+		// even when the original photo IDs can no longer be prepared.
+		unavailable := buildReviewService(t, sqlDB, UnavailableOrderGateway{})
+		err = unavailable.SubmitReview(ctx, reviewer, reviewee, order,
+			ReviewSubmission{Rating: 1, Comment: "lost response retry"}, []uuid.UUID{uuid.New()})
+		assertExternal(t, err, http.StatusConflict)
+		if c, avg := userStats(t, ctx, sqlDB, reviewee); c != 1 || avg != 5 {
+			t.Fatalf("duplicate retry changed stats: count=%d avg=%v, want 1 and 5", c, avg)
 		}
 	})
 
@@ -715,6 +774,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 	// be re-submitted for the same request until permanent deletion lands.
 	t.Run("removed review still holds its unique slot", func(t *testing.T) {
 		reviewer, reviewee, order, admin := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+		orders.add(order, reviewer, reviewee)
 		for _, id := range []uuid.UUID{reviewer, reviewee, admin} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -762,6 +822,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 
 	t.Run("rating out of range is rejected", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
+		orders.add(order, reviewer, reviewee)
 		for _, id := range []uuid.UUID{reviewer, reviewee} {
 			insertUser(t, ctx, sqlDB, id)
 		}
@@ -802,6 +863,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			insertUser(t, ctx, sqlDB, id)
 		}
 		orderID := uuid.New()
+		orders.add(orderID, reviewer, reviewee)
 		if err := service.SubmitReview(ctx, reviewer, reviewee, orderID,
 			ReviewSubmission{Rating: 4, Comment: "concurrent removal"}, nil); err != nil {
 			t.Fatalf("submit review: %v", err)
@@ -845,7 +907,7 @@ func TestReviewRepositoryIntegration(t *testing.T) {
 			case <-txCtx.Done():
 				return txCtx.Err()
 			}
-		}, nil)
+		}, nil, orders)
 		go func() {
 			firstResult <- firstService.RemoveReview(ctx, reviewID, "first removal", admin)
 		}()

@@ -179,7 +179,7 @@ func (f *fakeRepository) DeleteOrphanReviewPhoto(_ context.Context, id uuid.UUID
 func (f *fakeRepository) withPhotos(storage PhotoStorage) *Service {
 	return &Service{repo: f, withTransaction: func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 		return operation(reviewdb.New(nil))
-	}, photos: storage}
+	}, photos: storage, orders: UnavailableOrderGateway{}}
 }
 
 func newTestServiceWithPhotos(repo Repository, storage PhotoStorage) *Service {
@@ -189,6 +189,7 @@ func newTestServiceWithPhotos(repo Repository, storage PhotoStorage) *Service {
 			return operation(reviewdb.New(nil))
 		},
 		photos: storage,
+		orders: UnavailableOrderGateway{},
 	}
 }
 
@@ -420,6 +421,7 @@ func TestSubmitReviewAttachesInListOrder(t *testing.T) {
 	var staged []ReviewPhoto
 	storage := &fakeStorage{}
 	service := fake.withPhotos(storage)
+	service.orders = &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)}
 	ctx := context.Background()
 
 	for range MaxReviewPhotos {
@@ -490,6 +492,7 @@ func TestSubmitReviewFailsWhenAttachmentLost(t *testing.T) {
 		staged.ObjectKey: {Exists: true, Size: staged.SizeBytes, ContentType: staged.ContentType},
 	}}
 	service := fake.withPhotos(storage)
+	service.orders = &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)}
 
 	err := service.SubmitReview(
 		context.Background(), reviewer, reviewee, uuid.New(),
@@ -503,6 +506,7 @@ func TestSubmitReviewWithoutStorageAndWithoutPhotos(t *testing.T) {
 	reviewee := uuid.New()
 	fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
 	service := newTestService(fake) // photos nil
+	service.orders = &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)}
 
 	if err := service.SubmitReview(
 		context.Background(), reviewer, reviewee, uuid.New(),

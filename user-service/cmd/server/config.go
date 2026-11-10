@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ type config struct {
 	refreshTokenTTL  time.Duration
 	smtp             email.SMTPSender
 	bootstrap        bootstrap.Config
+	orderServiceURL  string
 	s3Bucket         string
 	s3Endpoint       string
 	s3PublicEndpoint string
@@ -57,6 +59,7 @@ func loadConfig() (config, error) {
 		privateKey:      envString("JWT_PRIVATE_KEY_FILE", ""),
 		accessTokenTTL:  envDuration("JWT_ACCESS_TOKEN_TTL", 0, &errs),
 		refreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", 0, &errs),
+		orderServiceURL: envString("ORDER_SERVICE_URL", ""),
 		smtp: email.SMTPSender{
 			Addr:     envString("SMTP_ADDR", ""),
 			From:     envString("SMTP_FROM", ""),
@@ -132,6 +135,16 @@ func loadConfig() (config, error) {
 		errs = append(errs, errors.New("SMTP_FROM is not set"))
 	} else if _, err := mail.ParseAddress(cfg.smtp.From); err != nil {
 		errs = append(errs, fmt.Errorf("SMTP_FROM must be an email address, got %q", cfg.smtp.From))
+	}
+	if cfg.orderServiceURL != "" {
+		u, err := url.Parse(cfg.orderServiceURL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil ||
+			u.RawQuery != "" || u.Fragment != "" {
+			errs = append(
+				errs,
+				fmt.Errorf("ORDER_SERVICE_URL must be an absolute http(s) base URL, got %q", cfg.orderServiceURL),
+			)
+		}
 	}
 	return cfg, errors.Join(errs...)
 }

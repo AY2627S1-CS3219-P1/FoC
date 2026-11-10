@@ -142,11 +142,33 @@ func (f *fakeRepository) CountReviewRemovals(_ context.Context) (int64, error) {
 	return f.countRemovals, f.countErr
 }
 
-func newTestService(repo Repository) *Service {
+func newTestService(repo Repository, orders ...OrderGateway) *Service {
 	withTx := func(_ context.Context, operation func(*reviewdb.Queries) error) error {
 		return operation(reviewdb.New(nil))
 	}
-	return NewService(repo, withTx, nil)
+	var orderGateway OrderGateway = UnavailableOrderGateway{}
+	if len(orders) > 0 {
+		orderGateway = orders[0]
+	}
+	return NewService(repo, withTx, nil, orderGateway)
+}
+
+type fakeOrderGateway struct {
+	participants OrderParticipants
+	err          error
+	lastOrderID  uuid.UUID
+}
+
+func (f *fakeOrderGateway) GetOrderParticipants(_ context.Context, orderID uuid.UUID) (OrderParticipants, error) {
+	f.lastOrderID = orderID
+	if f.err != nil {
+		return OrderParticipants{}, f.err
+	}
+	return f.participants, nil
+}
+
+func completedOrder(requester, courier uuid.UUID) OrderParticipants {
+	return OrderParticipants{RequesterID: requester, CourierID: courier, Completed: true}
 }
 
 func assertExternal(t *testing.T, err error, wantStatus int) {
@@ -210,10 +232,102 @@ func TestSubmitReview(t *testing.T) {
 			t.Fatalf("want reviewer-not-found error first, got: %v", err)
 		}
 	})
+	t.Run("unknown order is not found", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{err: errOrderNotFound}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusNotFound)
+	})
+	t.Run("order is not completed", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: OrderParticipants{RequesterID: reviewer, CourierID: reviewee}}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusBadRequest)
+	})
+	t.Run("participant cannot review an unrelated user", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: completedOrder(reviewer, uuid.New())}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusForbidden)
+	})
+	t.Run("nonparticipant cannot review an order participant", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: completedOrder(uuid.New(), reviewee)}
+		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
+		svc := newTestService(fake, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusForbidden)
+		if fake.insertedID != uuid.Nil || fake.recalcCount != 0 {
+			t.Fatal("nonparticipant review must be rejected before writes")
+		}
+	})
+	t.Run("unassigned courier is forbidden", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{participants: OrderParticipants{RequesterID: reviewer, Completed: true}}
+		svc := newTestService(&fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		assertExternal(t, err, http.StatusForbidden)
+	})
+	t.Run("unavailable order service fails closed", func(t *testing.T) {
+		reviewer, reviewee := uuid.New(), uuid.New()
+		orders := &fakeOrderGateway{err: errOrderUnavailable}
+		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
+		svc := newTestService(fake, orders)
+		err := svc.SubmitReview(
+			context.Background(),
+			reviewer,
+			reviewee,
+			uuid.New(),
+			ReviewSubmission{Rating: 4, Comment: "ok"},
+			nil,
+		)
+		if !errors.Is(err, errOrderUnavailable) || fake.insertedID != uuid.Nil || fake.recalcCount != 0 {
+			t.Fatalf("unavailable order lookup must fail before writes: err=%v fake=%+v", err, fake)
+		}
+	})
 	t.Run("inserts the review and recomputes stats", func(t *testing.T) {
 		reviewer, reviewee, order := uuid.New(), uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}}
-		svc := newTestService(fake)
+		orders := &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)}
+		svc := newTestService(fake, orders)
 		if err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -222,6 +336,9 @@ func TestSubmitReview(t *testing.T) {
 			ReviewSubmission{Rating: 4, Comment: "great"}, nil,
 		); err != nil {
 			t.Fatalf("submit: %v", err)
+		}
+		if orders.lastOrderID != order {
+			t.Fatalf("gateway was asked about %v, want %v", orders.lastOrderID, order)
 		}
 		if fake.insertedID == uuid.Nil {
 			t.Fatal("no review was inserted")
@@ -236,7 +353,7 @@ func TestSubmitReview(t *testing.T) {
 			exists:    map[uuid.UUID]bool{reviewer: true, reviewee: true},
 			insertErr: errReviewAlreadyExists,
 		}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -258,7 +375,7 @@ func TestSubmitReview(t *testing.T) {
 			exists:          map[uuid.UUID]bool{reviewer: true, reviewee: true},
 			existingReviews: map[uuid.UUID][]uuid.UUID{reviewer: {order}},
 		}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -277,7 +394,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("insert failure that is not a duplicate propagates", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, insertErr: errBoomTest}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -295,7 +412,7 @@ func TestSubmitReview(t *testing.T) {
 	t.Run("recalculation failure aborts the transaction", func(t *testing.T) {
 		reviewer, reviewee := uuid.New(), uuid.New()
 		fake := &fakeRepository{exists: map[uuid.UUID]bool{reviewer: true, reviewee: true}, recalcErr: errBoomTest}
-		svc := newTestService(fake)
+		svc := newTestService(fake, &fakeOrderGateway{participants: completedOrder(reviewer, reviewee)})
 		err := svc.SubmitReview(
 			context.Background(),
 			reviewer,
@@ -376,7 +493,7 @@ func TestRemoveReview(t *testing.T) {
 			svc := NewService(nil, func(_ context.Context, _ func(*reviewdb.Queries) error) error {
 				transactionStarted = true
 				return nil
-			}, nil)
+			}, nil, UnavailableOrderGateway{})
 			err := svc.RemoveReview(context.Background(), uuid.New(), tc.reason, uuid.New())
 			assertExternal(t, err, http.StatusBadRequest)
 			if transactionStarted {

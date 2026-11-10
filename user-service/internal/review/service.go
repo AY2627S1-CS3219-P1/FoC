@@ -20,13 +20,14 @@ type Service struct {
 	withTransaction WithTransaction
 	// photos may be nil when photo storage is not configured.
 	photos PhotoStorage
+	orders OrderGateway
 }
 
-func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage) *Service {
-	return &Service{repo: repo, withTransaction: withTransaction, photos: photos}
+func NewService(repo Repository, withTransaction WithTransaction, photos PhotoStorage, orders OrderGateway) *Service {
+	return &Service{repo: repo, withTransaction: withTransaction, photos: photos, orders: orders}
 }
 
-// SubmitReview inserts the review, attaches photos and recomputes stats in one transaction.
+// SubmitReview verifies order eligibility, attaches photos and recomputes stats in one transaction.
 func (s *Service) SubmitReview(
 	ctx context.Context,
 	reviewerID, revieweeID, orderID uuid.UUID,
@@ -47,13 +48,27 @@ func (s *Service) SubmitReview(
 		return errs.WrapBadRequestError(errRevieweeNotFound, "reviewee does not exist")
 	}
 	// A prior submission committed, usually a lost-response retry; the pre-check
-	// runs before photo preparation so the retry gets the canonical 409.
+	// runs before remote validation and photo preparation so an Order outage or
+	// already-attached photos cannot mask the canonical 409.
 	exists, err := s.repo.ReviewExists(ctx, reviewerID, orderID)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return errs.WrapAlreadyExistsError(errReviewAlreadyExists, "review already exists")
+	}
+	orderParticipants, err := s.orders.GetOrderParticipants(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, errOrderNotFound) {
+			return errs.WrapNotFoundError(err, "order does not exist")
+		}
+		return err
+	}
+	if !orderParticipants.Completed {
+		return errs.NewBadRequestError("order is not completed")
+	}
+	if !orderParticipants.Contains(reviewerID, revieweeID) {
+		return errs.NewForbiddenError("not a participant of this order")
 	}
 	prepared, err := s.preparePhotos(ctx, reviewerID, photoIDs)
 	if err != nil {

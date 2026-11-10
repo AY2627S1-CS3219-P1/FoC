@@ -167,3 +167,11 @@ table. Workflow payload, progress and result remain separate. Insert resource an
 key in one transaction. Resolve the resource before deciding expiry; a missing
 resource is an integrity error, never permission to execute again. There is no
 generic expired-key cleanup that could remove unresolved creation mappings.
+
+
+## Private order participant lookup
+
+`OrderInternalService.GetOrderParticipants` is mounted only on `INTERNAL_PORT`.
+It returns the persisted requester, current assigned courier (absent when
+unassigned), and current status for one order. User Service calls it via
+`ORDER_SERVICE_URL` to authorize reviews of completed orders.
