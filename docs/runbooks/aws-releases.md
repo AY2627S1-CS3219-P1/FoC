@@ -9,7 +9,7 @@ Schema version `2` contains `environment`, `infrastructure_commit`, `terraform_p
 ```text
 region, cluster_name, vpc_id, public_hostname, public_origin,
 gateway_target_arn, image_prefix, order_bucket, order_role_arn,
-ingress_role_arn, ses_sender_email, user_email_role_arn, loki_bucket, loki_role_arn
+ingress_role_arn, ses_sender_email, communication_email_role_arn, loki_bucket, loki_role_arn
 ```
 
 The two SES fields are either both null or both populated. Public origin must match the HTTPS hostname. ECR, gateway, and workload-role identifiers must belong to the selected account/region. The database administrator, Secrets Manager reference, database connection credentials, and unrecognized Terraform outputs are never exported. Existing `*-db` Secrets own database connection configuration; reconcile those separately if infrastructure changes their endpoints or credentials.

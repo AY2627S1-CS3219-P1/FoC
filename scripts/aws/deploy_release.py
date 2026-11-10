@@ -10,7 +10,6 @@ import shutil
 import sys
 import urllib.request
 
-from render_overlay import render
 from release_config import (Commands, IMAGES, ROOT, ReleaseError, Store, checksum, digest_value,
                             encode, identifier, private_path, require, save, validate)
 
@@ -78,7 +77,12 @@ def main():
     require(checksum(ca) == document["rds_ca_sha256"], "RDS CA checksum mismatch; review a new configuration publication")
     require(b"-----BEGIN CERTIFICATE-----" in ca and b"PRIVATE KEY" not in ca, "Expected an RDS CA PEM bundle")
     save(directory / "global-bundle.pem", ca)
-    render(config, directory / "overlay", ca.decode())
+    save(directory / "deployment.json", encode(config))
+    commands.logged(["make", "aws-tools"], env, directory / "aws-tools.PRIVATE.log")
+    commands.logged([str(ROOT / ".tools/bin/aws"), "render-overlay",
+                     "--outputs", str(directory / "deployment.json"),
+                     "--rds-ca", str(directory / "global-bundle.pem"),
+                     "--output", str(directory / "overlay")], env, directory / "render.PRIVATE.log")
     print("INPUT: source=" + source + "; config version=" + args.config_version + "; SHA-256=" + sha, flush=True)
     store.check_versioning()
     save(directory / "lock-owner.json", encode({"release_id": attempt, "source_commit": source, "config_sha256": sha}))

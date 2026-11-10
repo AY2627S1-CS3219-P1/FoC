@@ -29,6 +29,13 @@ CA = b"-----BEGIN CERTIFICATE-----\nOFFLINE RELEASE FIXTURE\n-----END CERTIFICAT
 
 
 class ReleaseCLITest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.renderer = ROOT / ".tools/bin/aws"
+        cls.renderer.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["go", "build", "-mod=readonly", "-o", str(cls.renderer), "./aws"],
+                       cwd=ROOT / "scripts", env=dict(os.environ, GOWORK="off"), check=True)
+
     def setUp(self):
         (ROOT / ".local").mkdir(exist_ok=True)
         self.temporary = tempfile.TemporaryDirectory(prefix="release-test-", dir=ROOT / ".local")
@@ -38,6 +45,9 @@ class ReleaseCLITest(unittest.TestCase):
         self.private.mkdir()
         shutil.copytree(ROOT / "scripts/aws", self.root / "scripts/aws", ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copytree(ROOT / "infra/k8s", self.root / "infra/k8s")
+        shutil.copy(ROOT / "aqua.yaml", self.root / "aqua.yaml")
+        (self.root / ".tools/bin").mkdir(parents=True)
+        shutil.copy(self.renderer, self.root / ".tools/bin/aws")
         self.bin = self.root / "bin"
         self.bin.mkdir()
         for name in ("aws", "terraform", "git", "docker", "make", "kubectl", "gh"):
@@ -54,7 +64,7 @@ class ReleaseCLITest(unittest.TestCase):
             "loki_bucket": "fixture-loki-logs", "loki_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/loki",
             "ingress_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/ingress",
             "gateway_target_arn": "arn:aws:elasticloadbalancing:" + REGION + ":" + ACCOUNT + ":targetgroup/fixture/0123456789abcdef",
-            "ses_sender_email": "sender@example.test", "user_email_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/email",
+            "ses_sender_email": "sender@example.test", "communication_email_role_arn": "arn:aws:iam::" + ACCOUNT + ":role/email",
             "database_admin": "DO-NOT-PUBLISH-ADMIN", "database_secret_arn": "DO-NOT-PUBLISH-SECRET-REFERENCE",
             "future_secret_field": "DO-NOT-PUBLISH-FUTURE-OUTPUT",
         }
@@ -157,8 +167,14 @@ class ReleaseCLITest(unittest.TestCase):
         rendered = subprocess.check_output([kubectl, "kustomize", env["K8S_OVERLAY"]], text=True)
         objects = list(yaml.safe_load_all(rendered))
         self.assertFalse(any(obj["kind"] == "Secret" for obj in objects))
-        user = next(obj for obj in objects if obj["kind"] == "Deployment" and obj["metadata"]["name"] == "user-service")
-        self.assertNotIn({"secretRef": {"name": "smtp"}}, user["spec"]["template"]["spec"]["containers"][0]["envFrom"])
+        communication = next(obj for obj in objects if obj["kind"] == "Deployment" and
+                             obj["metadata"]["name"] == "communication-service")
+        self.assertNotIn({"secretRef": {"name": "smtp"}},
+                         communication["spec"]["template"]["spec"]["containers"][0]["envFrom"])
+        account = next(obj for obj in objects if obj["kind"] == "ServiceAccount" and
+                       obj["metadata"]["name"] == "communication-service")
+        self.assertEqual(account["metadata"]["annotations"]["eks.amazonaws.com/role-arn"],
+                         self.outputs["communication_email_role_arn"])
         self.assertNotIn("CreditReservationService", json.dumps([obj for obj in objects if obj["kind"] == "HTTPRoute"]))
         calls = state["calls"]
         self.assertEqual(sum(call[0] == "terraform" and "apply" in call for call in calls), 1)

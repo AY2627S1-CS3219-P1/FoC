@@ -146,5 +146,5 @@ jobs:
         run: |
           aqua install
           python3 -m venv .tools/aws-python
-          .tools/aws-python/bin/python -m pip install -r scripts/aws/requirements-test.txt
+          .tools/aws-python/bin/python -m pip install -r scripts/aws/requirements-release-test.txt
           .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v

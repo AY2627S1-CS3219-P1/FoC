@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIELDS = (
     "region", "cluster_name", "vpc_id", "public_hostname", "public_origin",
     "gateway_target_arn", "image_prefix", "order_bucket", "order_role_arn",
-    "ingress_role_arn", "ses_sender_email", "user_email_role_arn",
+    "ingress_role_arn", "ses_sender_email", "communication_email_role_arn",
     "loki_bucket", "loki_role_arn",
 )
 ENVELOPE = {"schema_version", "environment", "infrastructure_commit", "terraform_plan_sha256",
@@ -77,7 +77,7 @@ def validate(document, environment, account, region):
     config = document["deployment"]
     require(isinstance(config, dict) and set(config) == set(FIELDS), "Unexpected deployment fields")
     for name, value in config.items():
-        if name in ("ses_sender_email", "user_email_role_arn") and value is None:
+        if name in ("ses_sender_email", "communication_email_role_arn") and value is None:
             continue
         require(isinstance(value, str) and 0 < len(value) < 2048 and not any(c.isspace() for c in value),
                 "Invalid deployment field: " + name)
@@ -94,13 +94,13 @@ def validate(document, environment, account, region):
         require(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", config[field]), "Invalid storage bucket: " + field)
     require(config["loki_bucket"] != config["order_bucket"] and config["loki_role_arn"] != config["order_role_arn"],
             "Loki requires its own bucket and workload role")
-    for field in ("order_role_arn", "ingress_role_arn", "user_email_role_arn", "loki_role_arn"):
+    for field in ("order_role_arn", "ingress_role_arn", "communication_email_role_arn", "loki_role_arn"):
         if config[field] is not None:
             require(re.fullmatch(r"arn:aws:iam::" + account + r":role/[A-Za-z0-9+=,.@_/-]+", config[field]),
                     "Workload role account mismatch: " + field)
     require(config["gateway_target_arn"].startswith("arn:aws:elasticloadbalancing:" + region + ":" + account + ":targetgroup/"),
             "Gateway target account/region mismatch")
-    require(bool(config["ses_sender_email"]) == bool(config["user_email_role_arn"]), "Incomplete SES configuration")
+    require(bool(config["ses_sender_email"]) == bool(config["communication_email_role_arn"]), "Incomplete SES configuration")
     if config["ses_sender_email"]:
         require(re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", config["ses_sender_email"]), "Invalid SES sender")
     return config

@@ -164,7 +164,7 @@ if command == "docker":
     finish(error="unexpected Docker command")
 if command == "make":
     target = args[0]
-    if target == "k8s-tools":
+    if target in ("k8s-tools", "aws-tools"):
         finish()
     if target == "k8s-deploy":
         state["deploy_environment"] = {key: os.environ.get(key) for key in

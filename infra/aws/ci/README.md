@@ -56,6 +56,7 @@ This is an operator-launched ephemeral runner, not an automatic autoscaler. Ther
 ```sh
 terraform -chdir=infra/aws/ci validate
 terraform -chdir=infra/aws/ci test
+.tools/aws-python/bin/python -m pip install -r scripts/aws/requirements-release-test.txt
 PYTHONDONTWRITEBYTECODE=1 .tools/aws-python/bin/python -m unittest discover -s scripts/aws -p 'test_*.py' -v
 ```
 
