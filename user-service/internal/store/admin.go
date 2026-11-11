@@ -75,31 +75,29 @@ const bootstrapReason = "admin bootstrap"
 // Bootstrap makes u the first super_admin and claims the admin_bootstrap row
 // in one transaction. It creates u, or promotes the live user with u.Email
 // (recording a role change) and loads them into u. Once the row exists it
-// returns BootstrapAlreadyDone without changing any user, so a demoted
+// returns BootstrapAlreadyDone without touching any user, so a demoted
 // bootstrap admin is never restored. The table lock serialises concurrent
 // callers across instances.
 //
-// Every outcome also queues the bootstrap user's user-created event if it is
-// missing, so Credit opens their account. This repairs admins bootstrapped
-// before the event was written.
+// The created or promoted user also gets the user-created event that Credit
+// consumes to open their account, unless they already have one.
 func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome, error) {
 	var outcome BootstrapOutcome
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("LOCK TABLE admin_bootstrap IN EXCLUSIVE MODE").Error; err != nil {
 			return err
 		}
-		var claimed models.AdminBootstrap
-		err := tx.Take(&claimed).Error
-		switch {
-		case err == nil:
-			outcome = BootstrapAlreadyDone
-			return queueBootstrapUserCreated(ctx, tx, claimed.UserID)
-		case !errors.Is(err, gorm.ErrRecordNotFound):
+		var done int64
+		if err := tx.Model(&models.AdminBootstrap{}).Count(&done).Error; err != nil {
 			return err
+		}
+		if done > 0 {
+			outcome = BootstrapAlreadyDone
+			return nil
 		}
 
 		var existing models.User
-		err = tx.Take(&existing, "email = ?", u.Email).Error
+		err := tx.Take(&existing, "email = ?", u.Email).Error
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			u.Role = models.RoleSuperAdmin
@@ -124,33 +122,18 @@ func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome
 		if err := tx.Create(&models.AdminBootstrap{Singleton: true, UserID: u.ID}).Error; err != nil {
 			return err
 		}
-		return queueBootstrapUserCreated(ctx, tx, u.ID)
+		return NewUserCreatedOutbox(tx).AppendIfMissing(ctx, userdomain.CreatedEvent{
+			EventID:     uuid.New(),
+			UserID:      u.ID,
+			Email:       u.Email,
+			DisplayName: u.DisplayName,
+			CreatedAt:   u.CreatedAt,
+		})
 	})
 	if err != nil {
 		return 0, err
 	}
 	return outcome, nil
-}
-
-// queueBootstrapUserCreated appends the user's user-created event if it is
-// missing. A deleted bootstrap user needs no Credit account.
-func queueBootstrapUserCreated(ctx context.Context, tx *gorm.DB, userID uuid.UUID) error {
-	var user models.User
-	err := tx.Take(&user, "id = ?", userID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	return NewUserCreatedOutbox(tx).AppendIfMissing(ctx, userdomain.CreatedEvent{
-		EventID:     uuid.New(),
-		UserID:      user.ID,
-		Email:       user.Email,
-		DisplayName: user.DisplayName,
-		CreatedAt:   user.CreatedAt,
-	})
 }
 
 func (s *Admin) RoleChanges(ctx context.Context, userID uuid.UUID) ([]models.RoleChange, error) {
