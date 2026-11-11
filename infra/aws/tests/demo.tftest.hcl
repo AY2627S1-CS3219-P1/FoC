@@ -90,6 +90,16 @@ variables {
 run "private_demo_data_and_images" {
   command = plan
 
+  # Capacity requested for the load-test environment, not measured throughput.
+  assert {
+    condition     = aws_db_instance.database.instance_class == "db.m7g.large"
+    error_message = "Load testing needs the non-burstable 8 GiB database default."
+  }
+  assert {
+    condition     = one(aws_apigatewayv2_stage.public.default_route_settings).throttling_rate_limit == 10000 && one(aws_apigatewayv2_stage.public.default_route_settings).throttling_burst_limit == 5000
+    error_message = "Load testing needs a 10,000 RPS gateway limit and 5,000-request burst capacity."
+  }
+
   assert {
     condition     = length(aws_ecr_repository.images) == 9 && contains(keys(aws_ecr_repository.images), "content-moderation-service") && alltrue([for image in aws_ecr_repository.images : image.image_tag_mutability == "IMMUTABLE" && !image.force_delete])
     error_message = "The demo needs nine immutable image repositories including CMS with explicit data deletion."
