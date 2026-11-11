@@ -15,8 +15,11 @@ prove that the school permits deployment.
   Terraform owns both API Gateway and the NLB. A TargetGroupBinding registers
   Istio gateway pod IPs. The NAT is a single-AZ failure dependency and cross-AZ
   traffic can cost extra. No owned domain or user-provided TLS certificate is needed.
-- D2: Single-AZ `db.t4g.small` PostgreSQL, one Kafka broker with a 5 GiB encrypted
-  gp3 claim, and one application replica each. This is a demo, not high availability.
+- D2: Single-AZ `db.m7g.large` PostgreSQL (2 non-burstable vCPUs, 8 GiB RAM), one
+  Kafka broker with a 5 GiB encrypted gp3 claim, and one application replica each.
+  API Gateway permits 10,000 requests/second with a 5,000-request burst limit,
+  subject to the account's regional quota. These are load-test settings, not
+  measured throughput. This is a demo, not high availability.
 - D3: T3 standard credits avoid surplus-credit charges but can throttle sustained
   CPU. Node updates use MINIMAL strategy to avoid default surge capacity. Expect
   downtime during node updates, particularly for single-replica workloads and Kafka.
@@ -47,6 +50,11 @@ prove that the school permits deployment.
   organization policy. If deployment is denied, stop and ask the account owner.
 
 ## Ten-day cost estimate
+
+The historical estimate below uses `db.t4g.small`, not the current
+`db.m7g.large` load-test default. It understates the current database cost.
+Reprice the database before relying on the total or planning allowance.
+M7g has no CPU-credit charges. Higher request volumes also increase usage costs.
 
 Prices checked Mon 9 Nov 2026 against AWS's public Singapore catalogs. This is
 an estimate for 240 continuously running hours, not a live Terraform plan or
@@ -267,6 +275,11 @@ terraform -chdir=infra/aws plan -out=deployment.tfplan
 terraform -chdir=infra/aws apply deployment.tfplan
 terraform -chdir=infra/aws output -json deployment > .local/aws/deployment.json
 ```
+
+Database changes normally wait for the maintenance window. For an intentional
+immediate resize, include `-var='postgres_apply_immediately=true'` when creating
+the saved plan. Applying it can interrupt database access. Check existing pending
+RDS modifications first, because immediate application can also apply them.
 
 Plans/state can contain sensitive infrastructure information. Keep them private.
 Never apply with a different account, region, or stale plan. The provider checks

@@ -9,7 +9,7 @@ expires_on      = "2026-11-19"      # Replace with ten days after actual deploym
 # Confirm regional availability, sandbox permissions, and pricing before apply.
 kubernetes_version      = "1.35"
 postgres_version        = "18"
-postgres_instance_class = "db.t4g.small"
+postgres_instance_class = "db.m7g.large"
 
 # Optional SES API delivery for Communication Service; null/default retains SMTP.
 # Verify this email in the region above before enabling. No SMTP login needed.

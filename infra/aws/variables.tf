@@ -80,9 +80,15 @@ variable "postgres_version" {
 }
 
 variable "postgres_instance_class" {
-  description = "Single-AZ demo database size. Re-estimate cost before changing."
+  description = "Single-AZ database size for load testing. Re-estimate cost before changing."
   type        = string
-  default     = "db.t4g.small"
+  default     = "db.m7g.large"
+}
+
+variable "postgres_apply_immediately" {
+  description = "Apply database changes now rather than during maintenance. Can interrupt database access."
+  type        = bool
+  default     = false
 }
 
 variable "ses_sender_email" {

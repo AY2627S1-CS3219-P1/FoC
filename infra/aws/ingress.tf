@@ -137,8 +137,8 @@ resource "aws_apigatewayv2_stage" "public" {
   name        = "$default"
   auto_deploy = true
   default_route_settings {
-    throttling_burst_limit = 100
-    throttling_rate_limit  = 50
+    throttling_burst_limit = 5000
+    throttling_rate_limit  = 10000
   }
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api.arn
