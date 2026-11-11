@@ -360,8 +360,8 @@ commands are in the [logging runbook](../../docs/runbooks/kubernetes.md#kubernet
 ### Moderation runtime settings
 
 CMS reads `CMS_LLM_MODEL_ID` and `CMS_LLM_BASE_URL` from `foc-config` and
-`CMS_LLM_API_KEY` from the `moderation-llm` Secret. The local model default is
-`gemma4:26b`. Restart CMS after changing these settings. No moderation
+`CMS_LLM_API_KEY` from the `moderation-llm` Secret. The model default is
+`llama3.1:8b`. Restart CMS after changing these settings. No moderation
 configuration seed or configuration admin API is deployed. Provider settings
 rejections stop workers until restart; database health can remain healthy.
 
