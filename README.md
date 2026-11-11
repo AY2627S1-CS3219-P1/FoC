@@ -464,6 +464,8 @@ flowchart TB
 ## AI Use Summary
 This project is done with AI assistance.
 
+See the [AI usage log](ai/usage-log.md) for grouped examples and PR references.
+
 **Tools:** AI coding assistants (chat-based and agentic coding
 tools such as Opencode, Codex using models such as DeepSeek and GPT 6.1).
 
