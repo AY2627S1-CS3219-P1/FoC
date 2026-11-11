@@ -642,3 +642,39 @@ retry/idempotency, and user-visible report/appeal flows before enabling traffic.
 Do not use a full-environment apply just to add the service without reviewing
 all unrelated plan changes. Retained evidence needs an explicit deletion
 choice during teardown, just like the other application buckets.
+
+### Public operator UI paths
+
+The AWS overlay serves authenticated Grafana at `/grafana/` and Kafka UI at
+`/kafka/` on the existing public app origin. The app hostname, authentication
+origin, frontend RPC URLs, DNS, TLS, and upload CORS are unchanged. Local
+Kubernetes overlays retain private-only operator UIs. Kafka brokers, Loki APIs,
+and internal RPCs are not exposed.
+
+Grafana and Kafka UI retain their existing credentials in `grafana-admin`
+(`foc-observability`) and `kafka-ui-auth` (`foc`). Their Secure session cookies
+have distinct names and are scoped to their respective paths. Kafka operational
+metrics are denied through the public route. Grafana Live is disabled because
+HTTP API Gateway does not proxy WebSocket upgrades. Grafana configuration
+changes use its existing storage-safe Recreate strategy and briefly interrupt
+Grafana, not the app.
+
+Before the first release with these paths, a platform administrator must apply
+`infra/k8s/aws-admin/observability/gateway.yaml` and the updated
+`infra/aws/ci/release-rbac.yaml`. Releases may reconcile only the named Grafana
+ReferenceGrant, not create arbitrary cross-namespace grants. Dependencies must
+be deployed before observability, matching the existing release order.
+
+Run read-only live acceptance after deployment using the actual app origin:
+
+```sh
+python3 scripts/aws/check_admin_routes.py \
+  --origin https://YOUR-API.execute-api.ap-southeast-1.amazonaws.com \
+  --context YOUR-CONTEXT --kubeconfig "$KUBECONFIG"
+```
+
+The checker reads credentials into memory, logs in to both UIs, queries Loki,
+reads Kafka clusters/topics, checks cookie isolation and private-endpoint
+rejection, and checks app sign-in origin validation with an empty email. It
+sends no sign-in email and changes no application records. It does not test
+email delivery or a complete application sign-in.

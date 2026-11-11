@@ -56,6 +56,11 @@ rules:
   - apiGroups: [apps]
     resources: [replicasets]
     verbs: [get, list, watch]
+  # The platform administrator creates this cross-namespace grant first.
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [referencegrants]
+    resourceNames: [grafana-from-app-route]
+    verbs: [get, update, patch]
   - apiGroups: [security.istio.io]
     resources: [authorizationpolicies, peerauthentications]
     verbs: [get, list, watch, create, update, patch]

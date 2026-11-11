@@ -1,0 +1,17 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-kafka-ui
+spec:
+  selector:
+    matchLabels:
+      app: kafka-ui
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
+      to:
+        - operation:
+            ports: ["8080"]
+            paths: ["/kafka", "/kafka/*"]
+            notPaths: ["/kafka/actuator", "/kafka/actuator/*", "/kafka/metrics"]

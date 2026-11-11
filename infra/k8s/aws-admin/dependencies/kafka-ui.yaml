@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      containers:
+        - name: kafka-ui
+          env:
+            - {name: SERVER_SERVLET_CONTEXT_PATH, value: /kafka}
+            - {name: SERVER_FORWARD_HEADERS_STRATEGY, value: framework}
+            - {name: SERVER_REACTIVE_SESSION_COOKIE_NAME, value: foc_kafka_session}
+            - {name: SERVER_REACTIVE_SESSION_COOKIE_PATH, value: /kafka}
+            - {name: SERVER_REACTIVE_SESSION_COOKIE_SECURE, value: "true"}
+          readinessProbe:
+            exec:
+              command: ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/kafka/actuator/health"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3

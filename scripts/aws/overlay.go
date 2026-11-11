@@ -276,6 +276,32 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 				)
 			}
 		case "observability":
+			patches = append(patches, map[string]any{
+				"patch": compactJSON(map[string]any{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"metadata":   map[string]any{"name": "grafana"},
+					"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
+						"containers": []any{map[string]any{
+							"name": "grafana",
+							"env": []any{
+								map[string]any{
+									"name":  "GF_SERVER_ROOT_URL",
+									"value": "https://" + hostname + "/grafana/",
+								},
+								map[string]any{"name": "GF_SERVER_SERVE_FROM_SUB_PATH", "value": "true"},
+								map[string]any{"name": "GF_SECURITY_COOKIE_SECURE", "value": "true"},
+								map[string]any{"name": "GF_AUTH_LOGIN_COOKIE_NAME", "value": "foc_grafana_session"},
+								// HTTP API Gateway does not proxy WebSocket upgrades.
+								map[string]any{"name": "GF_LIVE_MAX_CONNECTIONS", "value": "0"},
+							},
+							"readinessProbe": map[string]any{"httpGet": map[string]any{
+								"path": "/grafana/api/health", "port": 3000,
+							}},
+						}},
+					}}},
+				}),
+			})
 			// Helm owns Loki; the platform administrator owns Alloy's cross-namespace RBAC.
 			patches = append(
 				patches,
@@ -285,6 +311,13 @@ func (a *application) renderOverlay(config map[string]any, destination, ca strin
 					[]any{map[string]any{"op": "add", "path": "/spec/storageClassName", "value": "foc-gp3"}},
 				),
 			)
+		}
+		if stage == "dependencies" || stage == "observability" {
+			component, err := filepath.Rel(directory, filepath.Join(a.root, "infra/k8s/aws-admin", stage))
+			if err != nil {
+				return errors.New("cannot resolve AWS admin component")
+			}
+			kustomization["components"] = []any{component}
 		}
 		kustomization["resources"] = resources
 		if len(patches) > 0 {
