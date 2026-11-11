@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: grafana-from-app-route
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: foc
+  to:
+    - group: ""
+      kind: Service
+      name: grafana
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-grafana
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/istio-ingress/sa/foc-public]
+      to:
+        - operation:
+            ports: ["3000"]
+            paths: ["/grafana", "/grafana/*"]

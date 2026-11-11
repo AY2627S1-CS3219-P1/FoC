@@ -380,6 +380,18 @@ class ReleaseCLITest(unittest.TestCase):
 
 
 class ReleaseRBACContractTest(unittest.TestCase):
+    def test_grafana_reference_grant_reconciliation_is_named_and_cannot_create_grants(self):
+        # Cross-namespace routing must be reconcilable without granting releases
+        # permission to authorize arbitrary observability backends.
+        objects = list(yaml.safe_load_all((ROOT / "infra/aws/ci/release-rbac.yaml").read_text()))
+        role = next(obj for obj in objects if obj["kind"] == "Role" and
+                    obj["metadata"]["namespace"] == "foc-observability")
+        rules = [rule for rule in role["rules"] if "referencegrants" in rule["resources"]]
+        self.assertEqual(rules, [{
+            "apiGroups": ["gateway.networking.k8s.io"], "resources": ["referencegrants"],
+            "resourceNames": ["grafana-from-app-route"], "verbs": ["get", "update", "patch"],
+        }])
+
     def test_moderation_secrets_are_read_only_for_releases(self):
         objects = list(yaml.safe_load_all((ROOT / "infra/aws/ci/release-rbac.yaml").read_text()))
         role = next(obj for obj in objects if obj["kind"] == "Role" and obj["metadata"]["namespace"] == "foc")
