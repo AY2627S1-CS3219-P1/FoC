@@ -79,8 +79,8 @@ const bootstrapReason = "admin bootstrap"
 // bootstrap admin is never restored. The table lock serialises concurrent
 // callers across instances.
 //
-// A created user also gets the user-created event that Credit consumes to
-// open their account, as in registration. A promoted user already has one.
+// The created or promoted user also gets the user-created event that Credit
+// consumes to open their account, unless they already have one.
 func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome, error) {
 	var outcome BootstrapOutcome
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -104,15 +104,6 @@ func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome
 			if err := tx.Create(u).Error; err != nil {
 				return err
 			}
-			if err := NewUserCreatedOutbox(tx).Append(ctx, userdomain.CreatedEvent{
-				EventID:     uuid.New(),
-				UserID:      u.ID,
-				Email:       u.Email,
-				DisplayName: u.DisplayName,
-				CreatedAt:   u.CreatedAt,
-			}); err != nil {
-				return err
-			}
 			outcome = BootstrapCreated
 		case err != nil:
 			return err
@@ -128,7 +119,16 @@ func (s *Admin) Bootstrap(ctx context.Context, u *models.User) (BootstrapOutcome
 			*u = existing
 			outcome = BootstrapPromoted
 		}
-		return tx.Create(&models.AdminBootstrap{Singleton: true, UserID: u.ID}).Error
+		if err := tx.Create(&models.AdminBootstrap{Singleton: true, UserID: u.ID}).Error; err != nil {
+			return err
+		}
+		return NewUserCreatedOutbox(tx).AppendIfMissing(ctx, userdomain.CreatedEvent{
+			EventID:     uuid.New(),
+			UserID:      u.ID,
+			Email:       u.Email,
+			DisplayName: u.DisplayName,
+			CreatedAt:   u.CreatedAt,
+		})
 	})
 	if err != nil {
 		return 0, err

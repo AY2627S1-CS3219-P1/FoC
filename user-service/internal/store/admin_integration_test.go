@@ -83,7 +83,7 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 
 func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	ctx := context.Background()
-	store, _ := setupAuthStore(t)
+	store, db := setupAuthStore(t)
 	user := createStoreUser(t, store, "user@example.com")
 
 	got := bootstrapUser("user@example.com")
@@ -98,6 +98,10 @@ func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	}
 	if row := bootstrapRow(t, store); row.UserID != user.ID {
 		t.Fatalf("bootstrap row: %+v", row)
+	}
+	// createStoreUser queues no event, like a user created before the outbox existed.
+	if events := userCreatedEvents(t, db, user.ID); len(events) != 1 {
+		t.Fatalf("user-created events: %+v", events)
 	}
 }
 
