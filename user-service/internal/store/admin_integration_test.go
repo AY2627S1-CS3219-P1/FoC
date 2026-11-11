@@ -81,58 +81,9 @@ func TestAdminBootstrapCreatesAndIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAdminBootstrapRerunQueuesMissingUserCreatedEvent(t *testing.T) {
-	ctx := context.Background()
-	store, db := setupAuthStore(t)
-
-	admin := bootstrapUser("admin@example.com")
-	if _, err := store.Admin.Bootstrap(ctx, admin); err != nil {
-		t.Fatal(err)
-	}
-	// Admins bootstrapped before the event was written have no outbox row.
-	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
-		t.Fatal(err)
-	}
-
-	outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("other@example.com"))
-	if err != nil || outcome != BootstrapAlreadyDone {
-		t.Fatalf("rerun: %v, %v", outcome, err)
-	}
-	if events := userCreatedEvents(t, db, admin.ID); len(events) != 1 || events[0].Email != admin.Email {
-		t.Fatalf("user-created events: %+v", events)
-	}
-	if _, err := store.GetByEmail(ctx, "other@example.com"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("rerun created user: %v", err)
-	}
-}
-
-func TestAdminBootstrapRerunSkipsDeletedAdmin(t *testing.T) {
-	ctx := context.Background()
-	store, db := setupAuthStore(t)
-
-	admin := bootstrapUser("admin@example.com")
-	if _, err := store.Admin.Bootstrap(ctx, admin); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Exec("TRUNCATE user_created_outbox").Error; err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Delete(&models.User{}, "id = ?", admin.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-
-	if outcome, err := store.Admin.Bootstrap(ctx, bootstrapUser("admin@example.com")); err != nil ||
-		outcome != BootstrapAlreadyDone {
-		t.Fatalf("rerun: %v, %v", outcome, err)
-	}
-	if events := userCreatedEvents(t, db, admin.ID); len(events) != 0 {
-		t.Fatalf("deleted admin queued a user-created event: %+v", events)
-	}
-}
-
 func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	ctx := context.Background()
-	store, db := setupAuthStore(t)
+	store, _ := setupAuthStore(t)
 	user := createStoreUser(t, store, "user@example.com")
 
 	got := bootstrapUser("user@example.com")
@@ -147,9 +98,6 @@ func TestAdminBootstrapPromotesExistingUser(t *testing.T) {
 	}
 	if row := bootstrapRow(t, store); row.UserID != user.ID {
 		t.Fatalf("bootstrap row: %+v", row)
-	}
-	if events := userCreatedEvents(t, db, user.ID); len(events) != 1 {
-		t.Fatalf("user-created events: %+v", events)
 	}
 }
 

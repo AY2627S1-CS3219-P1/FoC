@@ -123,6 +123,7 @@ erDiagram
 | 00016 | `review_restorations` | RP12.3 | one restoration per removal; drops the unique `review_removals.review_id`, so a restored review can be removed again |
 | 00017 | `evidence_attachments` | RP1.6, RP2.2, RP8.2, RP9.4 | staged while uploading, then attached to exactly one report, appeal or response; at most five per parent; same content types and size cap as review photos; unattached rows are reaped |
 | 00018 | drops the moderation tables; `review_removals.report_id`; `moderation_outcome_events` | #336 | reports, appeals and evidence moved to Moderation Service; the `report_id`/`appeal_id` foreign keys on `role_changes`, `account_warnings` and `review_restorations` are dropped, keeping opaque IDs; `review_removals.report_id` marks a removal a report made; each applied outcome event is recorded once |
+| 00019 | backfills `user_created_outbox` | #349 | data only: queues the missing user-created event for the `admin_bootstrap` user, so Credit opens their account; skips a deleted user or one with an event; Down keeps the events |
 
 ## Soft delete
 
