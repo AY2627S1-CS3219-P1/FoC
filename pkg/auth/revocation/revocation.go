@@ -76,7 +76,8 @@ func NewStore(ctx context.Context, config Config) (*Store, error) {
 // Revoke records sessions whose access tokens must stop being accepted. The
 // caller invokes it after the database session revocation committed; entries
 // expire once every access token that could carry these session IDs has
-// expired, so expired sessions are harmless to include.
+// expired, so expired sessions are harmless to include. Re-revoking a session
+// extends its entry to the current expiry; it never shortens an existing one.
 func (s *Store) Revoke(ctx context.Context, sessionIDs ...string) error {
 	if len(sessionIDs) == 0 {
 		return nil

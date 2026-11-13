@@ -37,6 +37,7 @@ export READER_USER READER_PASSWORD DB_USER DB_NAME
 psql -X --set ON_ERROR_STOP=1 <<'SQL'
 \getenv reader_user READER_USER
 \getenv reader_password READER_PASSWORD
+\getenv db_name DB_NAME
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'reader_user', :'reader_password')
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'reader_user') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'reader_user')

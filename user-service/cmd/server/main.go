@@ -164,6 +164,12 @@ func main() {
 		relay.Run(ctx)
 	}()
 
+	// Reconcile the revocation store against the authoritative sessions
+	// table: republish sessions revoked within the access-token TTL whose
+	// dictionary entry is missing because a publication failed or the
+	// process crashed between commit and publish.
+	go reconcileRevocations(cleanupCtx, persistence.Sessions, revocations, accessTTL, log)
+
 	profileLogic := &service.ProfileService{Users: persistence.Users}
 	roleLogic := &service.RoleService{
 		Users: persistence.Users,
@@ -318,6 +324,40 @@ func newReviewService(sqlDB *sql.DB) *review.Service {
 		}
 		return tx.Commit()
 	})
+}
+
+// reconcileRevocations republishes sessions revoked within the retention
+// window until ctx ends: once at startup so a restart heals any crash window,
+// then once per minute so a failed publication is repaired within the
+// revocation NFR's one-minute bound.
+func reconcileRevocations(
+	ctx context.Context,
+	source service.RevocationSource,
+	revocations service.AccessTokenRevocations,
+	retention time.Duration,
+	log *slog.Logger,
+) {
+	const interval = time.Minute
+	publish := func() {
+		published, err := service.ReconcileRevocations(ctx, source, revocations, retention)
+		switch {
+		case err != nil:
+			log.Warn("reconcile revoked sessions", "err", err)
+		case published > 0:
+			log.Info("republished revoked sessions", "count", published)
+		}
+	}
+	publish()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			publish()
+		}
+	}
 }
 
 func newAllowedDomainService(db alloweddomaindb.DBTX) *allowedadmin.AllowedDomainService {

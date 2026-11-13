@@ -67,13 +67,20 @@ func (s Seeder) Run(ctx context.Context, fixtures Fixtures, reset bool) error {
 }
 
 // suspendFixtureUser applies the fixture suspension through the role-change
-// application logic so the audit row and user update match production.
+// application logic so the audit row and user update match production. The
+// seeded sessions have no outstanding access tokens, so revocation
+// publication is discarded rather than pointed at the shared store.
 func suspendFixtureUser(ctx context.Context, tx *gorm.DB, suspension Suspension) error {
 	roles := &service.RoleService{
 		Users: store.NewUsers(tx),
 		WithTransaction: func(ctx context.Context, operation func(service.RoleStore) error) error {
-			return operation(service.RoleStore{Users: store.NewUsers(tx), Admin: store.NewAdmin(tx)})
+			return operation(service.RoleStore{
+				Users:    store.NewUsers(tx),
+				Admin:    store.NewAdmin(tx),
+				Sessions: store.NewSessions(tx),
+			})
 		},
+		Revocations: service.DiscardRevocations{},
 	}
 	if _, err := roles.ChangeUserRole(
 		ctx, suspension.ActorID, suspension.UserID, models.RoleSuspended, suspension.Reason,

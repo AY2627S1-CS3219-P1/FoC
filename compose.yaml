@@ -170,7 +170,7 @@ services:
       JWT_PRIVATE_KEY_FILE: ${JWT_PRIVATE_KEY_FILE:-/app/.local/secrets/auth/jwt-signing-private.pem}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-10m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-720h}
-      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/revocation_dev?sslmode=disable
+      TOKEN_REVOCATION_BASE_URL: postgresql://foc:${POSTGRES_PASSWORD}@postgres:5432/${REVOCATION_DB:-revocation_dev}?sslmode=disable
       BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-}
       BOOTSTRAP_SUPERADMIN_DISPLAY_NAME: ${BOOTSTRAP_SUPERADMIN_DISPLAY_NAME:-}
       SMTP_ADDR: ${SMTP_ADDR:-mailpit:1025}
@@ -207,7 +207,7 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       # Reader DSN: revocation_reader holds SELECT only, so a compromised
       # reader service cannot forge or delete revocations (User Service writes).
-      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/${REVOCATION_DB:-revocation_dev}?sslmode=disable
     volumes:
       - ./supplier-service:/app
       - ./pkg:/pkg
@@ -240,7 +240,7 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       # Reader DSN: revocation_reader holds SELECT only, so a compromised
       # reader service cannot forge or delete revocations (User Service writes).
-      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/${REVOCATION_DB:-revocation_dev}?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SUPPLIER_SERVICE_BASE_URL: ${ORDER_SUPPLIER_SERVICE_URL:-http://supplier-service:8080}
       CREDIT_SERVICE_BASE_URL: ${CREDIT_SERVICE_BASE_URL-http://credit-service:8081}
@@ -279,7 +279,7 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       # Reader DSN: revocation_reader holds SELECT only, so a compromised
       # reader service cannot forge or delete revocations (User Service writes).
-      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/${REVOCATION_DB:-revocation_dev}?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       # Optional. Without it the service runs with Telegram disabled.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -319,7 +319,7 @@ services:
       USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL:-http://user-service:8081}
       # Reader DSN: revocation_reader holds SELECT only, so a compromised
       # reader service cannot forge or delete revocations (User Service writes).
-      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/revocation_dev?sslmode=disable
+      TOKEN_REVOCATION_BASE_URL: postgresql://revocation_reader:${REVOCATION_READER_PASSWORD:-revocation_reader_dev}@postgres:5432/${REVOCATION_DB:-revocation_dev}?sslmode=disable
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       KAFKA_BROKERS: kafka:9092
     volumes:

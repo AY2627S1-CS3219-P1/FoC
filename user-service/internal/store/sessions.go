@@ -80,3 +80,20 @@ func (s *Sessions) RevokeAllForUser(
 	}
 	return sessionIDs, nil
 }
+
+// RevokedSince lists sessions whose revocation happened after since, so the
+// reconciliation sweep can republish revocations whose dictionary write
+// failed or was lost to a crash between the session commit and publication.
+// The list is a superset: republishing a session that is already recorded is
+// an idempotent upsert.
+func (s *Sessions) RevokedSince(ctx context.Context, since time.Time) ([]uuid.UUID, error) {
+	var sessionIDs []uuid.UUID
+	err := s.db.WithContext(ctx).Raw(
+		`SELECT id FROM sessions WHERE revoked_at IS NOT NULL AND revoked_at > ?`,
+		since,
+	).Scan(&sessionIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return sessionIDs, nil
+}

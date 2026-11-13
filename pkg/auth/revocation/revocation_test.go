@@ -712,3 +712,98 @@ func TestDeleteExpiredWithMixedExpired(t *testing.T) {
 		}
 	}
 }
+
+// TestReRevokeCannotShortenExpiry pins the retention invariant: a writer
+// reconfigured with a shorter TTL cannot shorten an existing entry that may
+// still cover tokens issued under the previous TTL. The entry survives past
+// the short TTL and only lapses at the original one.
+func TestReRevokeCannotShortenExpiry(t *testing.T) {
+	ctx := context.Background()
+
+	container, dsn, err := postgresContainer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = container.Terminate(ctx) }()
+
+	long, err := NewStore(ctx, Config{Address: dsn, TTL: 1500 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = long.Close() }()
+	if err := long.Revoke(ctx, "laptop"); err != nil {
+		t.Fatal(err)
+	}
+
+	short, err := NewStore(ctx, Config{Address: dsn, TTL: 200 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = short.Close() }()
+	if err := short.Revoke(ctx, "laptop"); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(400 * time.Millisecond)
+	if revoked, err := short.IsRevoked(ctx, "laptop"); err != nil || !revoked {
+		t.Fatalf("entry after the short TTL: revoked=%v err=%v, want still revoked", revoked, err)
+	}
+
+	time.Sleep(1300 * time.Millisecond)
+	if revoked, err := long.IsRevoked(ctx, "laptop"); err != nil || revoked {
+		t.Fatalf("entry after the original TTL: revoked=%v err=%v, want expired", revoked, err)
+	}
+}
+
+// TestIsRevokedBoundedWhenPoolExhausted verifies the per-call budget bounds
+// the whole lookup, including the wait for a pooled connection: holding every
+// connection in an idle transaction (which statement_timeout cannot free)
+// still returns Unavailable within the budget when the caller passes a bare
+// context.
+func TestIsRevokedBoundedWhenPoolExhausted(t *testing.T) {
+	ctx := context.Background()
+
+	container, dsn, err := postgresContainer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = container.Terminate(ctx) }()
+
+	store, err := NewStore(ctx, Config{Address: dsn, TTL: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+
+	postgres, ok := store.impl.(*postgresStore)
+	if !ok {
+		t.Fatalf("unexpected store implementation %T", store.impl)
+	}
+	for i := 0; i < 5; i++ {
+		conn, err := postgres.pool.Acquire(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx, err := conn.Begin(ctx)
+		if err != nil {
+			conn.Release()
+			t.Fatal(err)
+		}
+		// Idle in transaction: the connection is checked out without any
+		// running statement, so statement_timeout never fires.
+		defer func() {
+			_ = tx.Rollback(context.Background())
+			conn.Release()
+		}()
+	}
+
+	start := time.Now()
+	_, err = store.IsRevoked(ctx, "laptop")
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected an exhausted pool to fail the check, not block indefinitely")
+	}
+	if elapsed > callBudget+2*time.Second {
+		t.Fatalf("IsRevoked returned after %v; want it bounded by the %v call budget", elapsed, callBudget)
+	}
+}

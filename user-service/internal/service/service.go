@@ -46,6 +46,14 @@ type AccessTokenRevocations interface {
 	Revoke(ctx context.Context, sessionIDs ...string) error
 }
 
+// DiscardRevocations accepts publication calls without recording them. It is
+// only correct for callers whose revoked sessions cannot have outstanding
+// access tokens, such as the demo seeder revoking fixture sessions it just
+// created; production composition must always supply the shared store.
+type DiscardRevocations struct{}
+
+func (DiscardRevocations) Revoke(context.Context, ...string) error { return nil }
+
 // EmailDomainPolicy reports membership in the email-domain allowlist.
 type EmailDomainPolicy interface {
 	IsDomainAllowed(context.Context, string) (bool, error)

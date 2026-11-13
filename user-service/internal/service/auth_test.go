@@ -36,6 +36,7 @@ type fakeStore struct {
 	domainErr        error
 	failCreatedEvent error
 	failSession      bool
+	callOrder        []string
 }
 
 func newFakeStore() *fakeStore {
@@ -45,15 +46,25 @@ func newFakeStore() *fakeStore {
 }
 
 // fakeRevocations records sessions written to the revocation dictionary.
+// failuresRemaining models a transient outage: the first calls fail with
+// transientErr, then publication succeeds even if err is set.
 type fakeRevocations struct {
-	mu      sync.Mutex
-	revoked []string
-	err     error
+	mu                sync.Mutex
+	revoked           []string
+	err               error
+	transientErr      error
+	failuresRemaining int
+	calls             int
 }
 
 func (f *fakeRevocations) Revoke(_ context.Context, sessionIDs ...string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.calls++
+	if f.failuresRemaining > 0 {
+		f.failuresRemaining--
+		return f.transientErr
+	}
 	if f.err != nil {
 		return f.err
 	}
@@ -90,6 +101,9 @@ func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (*models.User, erro
 }
 
 func (f *fakeStore) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	f.mu.Lock()
+	f.callOrder = append(f.callOrder, "lock_user")
+	f.mu.Unlock()
 	return f.GetByID(ctx, id)
 }
 
@@ -190,6 +204,7 @@ func (f *fakeStore) RevokeSession(_ context.Context, id uuid.UUID, digest [32]by
 func (f *fakeStore) RevokeUserSessions(_ context.Context, userID uuid.UUID, now time.Time) ([]uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.callOrder = append(f.callOrder, "sweep_sessions")
 	var revoked []uuid.UUID
 	for id, session := range f.sessions {
 		if session.UserID != userID || session.RevokedAt != nil {
@@ -285,6 +300,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Resource
 		domainErr:        f.domainErr,
 		failCreatedEvent: f.failCreatedEvent,
 		failSession:      f.failSession,
+		callOrder:        f.callOrder,
 	}
 	if err := operation(tx.resources()); err != nil {
 		return err
@@ -296,6 +312,7 @@ func (f *fakeStore) withTransaction(ctx context.Context, operation func(Resource
 	f.createdEvents = tx.createdEvents
 	f.allowedDomains = tx.allowedDomains
 	f.failCreatedEvent = tx.failCreatedEvent
+	f.callOrder = tx.callOrder
 	return nil
 }
 
@@ -613,11 +630,13 @@ func TestRefreshRotationRecordsOldSession(t *testing.T) {
 func TestRevocationWriteFailureDoesNotFailLogout(t *testing.T) {
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 	service, store, refreshToken := serviceWithRefreshToken(t, now)
-	store.revocations.err = errors.New("redis unavailable")
+	store.revocations.err = errors.New("revocation store unavailable")
 	ctx := context.Background()
 
-	// The session is already revoked; the missed dictionary entry only leaves
-	// the access tokens valid until their own expiry, so logout still succeeds.
+	// The session is already revoked; a missed dictionary entry only leaves
+	// the access tokens valid until their own expiry, so logout still
+	// succeeds. The User Service's reconciliation sweep republishes the
+	// missed entry, so the gap does not outlive the next sweep.
 	if err := service.Logout(ctx, refreshToken); err != nil {
 		t.Fatalf("logout with revocation store down: %v", err)
 	}
@@ -1081,4 +1100,105 @@ func assertPanics(t *testing.T, call func()) {
 		}
 	}()
 	call()
+}
+
+func TestLogoutAllLocksUserBeforeSweep(t *testing.T) {
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	service, store, refreshToken := serviceWithRefreshToken(t, now)
+	if err := service.LogoutAll(context.Background(), refreshToken); err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	lockAt, sweepAt := -1, -1
+	for i, step := range store.callOrder {
+		switch step {
+		case "lock_user":
+			if lockAt == -1 {
+				lockAt = i
+			}
+		case "sweep_sessions":
+			if sweepAt == -1 {
+				sweepAt = i
+			}
+		}
+	}
+	if lockAt == -1 || sweepAt == -1 {
+		t.Fatalf("logout-all steps recorded %v, want lock_user then sweep_sessions", store.callOrder)
+	}
+	if lockAt > sweepAt {
+		t.Fatalf("logout-all swept sessions before locking the user row (%v); "+
+			"a replacement session committed by a concurrent refresh can escape the sweep", store.callOrder)
+	}
+}
+
+func TestRecordRevokedSessionsRetriesTransientFailure(t *testing.T) {
+	revocations := &fakeRevocations{failuresRemaining: 2, transientErr: errors.New("revocation store unavailable")}
+	sessionID := uuid.New()
+	RecordRevokedSessions(context.Background(), revocations, []uuid.UUID{sessionID})
+	if got := revocations.calls; got != revocationPublishAttempts {
+		t.Fatalf("publication attempted %d times, want %d", got, revocationPublishAttempts)
+	}
+	assertRevokedSessions(t, revocations, sessionID.String())
+}
+
+func TestRecordRevokedSessionsDetachedFromRequestCancellation(t *testing.T) {
+	// A client disconnecting right after the authoritative commit must not
+	// cancel the publication: the write runs on a context derived with
+	// context.WithoutCancel.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	revocations := &ctxCheckingRevocations{}
+	RecordRevokedSessions(ctx, revocations, []uuid.UUID{uuid.New()})
+	if revocations.sawCanceled {
+		t.Fatal("publication observed the canceled request context")
+	}
+}
+
+type ctxCheckingRevocations struct{ sawCanceled bool }
+
+func (c *ctxCheckingRevocations) Revoke(ctx context.Context, _ ...string) error {
+	if ctx.Err() != nil {
+		c.sawCanceled = true
+	}
+	return nil
+}
+
+func TestReconcileRevocationsRepublishesRecentRevocations(t *testing.T) {
+	revocations := &fakeRevocations{}
+	source := &fakeRevocationSource{ids: []uuid.UUID{uuid.New(), uuid.New()}}
+	published, err := ReconcileRevocations(context.Background(), source, revocations, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if published != 2 {
+		t.Fatalf("reconciled %d sessions, want 2", published)
+	}
+	assertRevokedSessions(t, revocations, source.ids[0].String(), source.ids[1].String())
+	// The sweep scans the retention window: a session revoked before it is
+	// out of scope, since its tokens have expired.
+	if since := source.since; since.After(time.Now().UTC()) || time.Since(since) > 2*time.Minute {
+		t.Fatalf("sweep scanned since %v, want now minus the retention window", since)
+	}
+}
+
+func TestReconcileRevocationsReportsSourceErrors(t *testing.T) {
+	source := &fakeRevocationSource{err: errors.New("sessions table unreachable")}
+	if _, err := ReconcileRevocations(context.Background(), source, &fakeRevocations{}, time.Minute); err == nil {
+		t.Fatal("expected a source error to propagate")
+	}
+}
+
+type fakeRevocationSource struct {
+	ids   []uuid.UUID
+	err   error
+	since time.Time
+}
+
+func (f *fakeRevocationSource) RevokedSince(_ context.Context, since time.Time) ([]uuid.UUID, error) {
+	f.since = since
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.ids, nil
 }

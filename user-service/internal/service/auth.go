@@ -325,6 +325,17 @@ func (s *Service) LogoutAll(ctx context.Context, refreshToken string) error {
 	}
 	var revoked []uuid.UUID
 	err = s.deps.WithTransaction(ctx, func(tx Resources) error {
+		// Serialize with login and refresh, which lock the user row before
+		// issuing a session: a replacement session committed by a concurrent
+		// refresh becomes visible to the sweep below instead of escaping it.
+		// Locking the user first also keeps the lock order identical to
+		// Refresh, so the two cannot deadlock.
+		if _, err := tx.Users.GetByIDForUpdate(ctx, userID); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return jwt.ErrRefreshFailed
+			}
+			return fmt.Errorf("lock user: %w", err)
+		}
 		if err := tx.Sessions.Revoke(ctx, sessionID, sha256.Sum256([]byte(refreshToken)), now); err != nil {
 			return err
 		}
@@ -412,11 +423,23 @@ func parseID(value string) (uuid.UUID, error) {
 	return uuid.Parse(value)
 }
 
+// Publication retry bounds. A transient store failure is retried within the
+// request; persistent failures are logged and left to the User Service's
+// reconciliation sweep, which republishes sessions revoked within the
+// retention window.
+const (
+	revocationPublishAttempts = 3
+	revocationPublishBackoff  = 100 * time.Millisecond
+)
+
 // RecordRevokedSessions lists sessions in the revocation dictionary after the
-// database revocation committed. Failures are logged and swallowed: the
-// revocation must not fail the operation that already revoked the session, and
-// a missed entry only leaves the tokens valid until their own expiry. Callers
-// are the auth service, the role service, and the bootstrap promotion.
+// database revocation committed. The store is a separate database, so the
+// write cannot join the authoritative transaction; failures are logged and
+// swallowed — the revocation must not fail the operation that already revoked
+// the session, and the reconciliation sweep republishes anything missed.
+// Publication runs detached from the request context, so a client that
+// disconnects right after the commit cannot cancel the write. Callers are the
+// auth service, the role service, and the bootstrap promotion.
 func RecordRevokedSessions(
 	ctx context.Context,
 	revocations AccessTokenRevocations,
@@ -429,9 +452,45 @@ func RecordRevokedSessions(
 	for _, sessionID := range sessionIDs {
 		ids = append(ids, sessionID.String())
 	}
-	if err := revocations.Revoke(ctx, ids...); err != nil {
-		slog.WarnContext(ctx, "record revoked access tokens", "err", err)
+	publishCtx := context.WithoutCancel(ctx)
+	var err error
+	for attempt := 1; attempt <= revocationPublishAttempts; attempt++ {
+		if err = revocations.Revoke(publishCtx, ids...); err == nil {
+			return
+		}
+		if attempt < revocationPublishAttempts {
+			time.Sleep(revocationPublishBackoff)
+		}
 	}
+	slog.WarnContext(ctx, "record revoked access tokens", "err", err)
+}
+
+// RevocationSource lists sessions the database marked revoked after a time.
+// It is implemented by the sessions store.
+type RevocationSource interface {
+	RevokedSince(ctx context.Context, since time.Time) ([]uuid.UUID, error)
+}
+
+// ReconcileRevocations republishes every session revoked within the retention
+// window, closing the gap between the authoritative session commit and the
+// best-effort publication into the separate revocation store: a publication
+// failure or a crash in that window leaves the entry missing, and reads would
+// accept the still-valid tokens. The sessions table's revoked_at is the
+// authoritative state; republishing is an idempotent upsert, so the sweep only
+// adds what is missing. Returns the number of sessions republished.
+func ReconcileRevocations(
+	ctx context.Context,
+	source RevocationSource,
+	revocations AccessTokenRevocations,
+	retention time.Duration,
+) (int, error) {
+	since := time.Now().UTC().Add(-retention)
+	sessionIDs, err := source.RevokedSince(ctx, since)
+	if err != nil {
+		return 0, fmt.Errorf("list revoked sessions: %w", err)
+	}
+	RecordRevokedSessions(ctx, revocations, sessionIDs)
+	return len(sessionIDs), nil
 }
 
 func jwtRole(role models.RoleName) (jwt.Role, bool) {

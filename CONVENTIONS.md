@@ -211,7 +211,10 @@ All service APIs, for the frontend and between services, are Connect RPCs.
 Use sqlc for new backend services and newly introduced persistence domains.
 Existing GORM-backed domains remain on GORM unless an intentional migration is
 part of the change; extending one should follow its current persistence
-approach.
+approach. Shared stores that live in the `pkg` module and are consumed by every
+service (such as `pkg/auth/revocation`) are exempt: sqlc generation is
+configured per service, and a tiny fixed query set shared across service
+boundaries stays as handwritten, schema-qualified pgx in the owning package.
 
 Supplier, Order and Credit Services use sqlc:
 

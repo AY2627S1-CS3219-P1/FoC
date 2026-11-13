@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -342,5 +343,139 @@ func TestLogoutAllRevokesEveryDevice(t *testing.T) {
 		if got := requestStatus(t, stack, tokens.AccessToken); got != http.StatusUnauthorized {
 			t.Fatalf("%s access token after logout all: HTTP %d, want 401", name, got)
 		}
+	}
+}
+
+// newSessionForUser inserts a live session with a distinct token hash and
+// returns its ID.
+func newSessionForUser(t *testing.T, stack authStack, userID uuid.UUID, tag string) (uuid.UUID, [32]byte) {
+	t.Helper()
+	hash := sha256.Sum256([]byte(tag))
+	session := models.Session{
+		TokenHash: hash[:], UserID: userID,
+		LastSeenAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	if err := stack.store.Sessions.Create(context.Background(), &session); err != nil {
+		t.Fatalf("create session %s: %v", tag, err)
+	}
+	return session.ID, hash
+}
+
+// TestLogoutAllSweepSeesReplacementSession pins the logout-all/refresh
+// serialization. A refresh transaction locks the user row, revokes its own
+// session, and inserts a replacement without committing; the logout-all
+// sweep starts and blocks on the same user-row lock. Once the refresh
+// commits, the sweep must see and revoke the replacement session. Without
+// the user-row lock, the sweep's READ COMMITTED snapshot cannot see the
+// replacement and it escapes both the sweep and the revocation dictionary.
+func TestLogoutAllSweepSeesReplacementSession(t *testing.T) {
+	stack := setupStack(t)
+	ctx := context.Background()
+
+	user := createUser(t, stack, "logout-all-race@example.com", models.RoleUser)
+	now := time.Now().UTC()
+	deviceA, _ := newSessionForUser(t, stack, user.ID, "device-a")
+	deviceB, deviceBHash := newSessionForUser(t, stack, user.ID, "device-b")
+
+	// The refresh: lock the user, revoke session B, insert the replacement
+	// session C inside the same open transaction — exactly what Refresh
+	// does — and hold it.
+	refreshTx := stack.db.Begin()
+	if refreshTx.Error != nil {
+		t.Fatal(refreshTx.Error)
+	}
+	refreshStore := store.New(refreshTx)
+	if _, err := refreshStore.Users.GetByIDForUpdate(ctx, user.ID); err != nil {
+		t.Fatalf("refresh lock user: %v", err)
+	}
+	if err := refreshStore.Sessions.Revoke(ctx, deviceB, deviceBHash, now); err != nil {
+		t.Fatalf("refresh revoke: %v", err)
+	}
+	replacementHash := sha256.Sum256([]byte("device-b-replacement"))
+	replacement := models.Session{
+		TokenHash:  replacementHash[:],
+		UserID:     user.ID,
+		LastSeenAt: now, ExpiresAt: now.Add(time.Hour),
+	}
+	if err := refreshStore.Sessions.Create(ctx, &replacement); err != nil {
+		t.Fatalf("refresh create replacement: %v", err)
+	}
+
+	// The logout-all sweep: it must block on the user-row lock until the
+	// refresh commits, then sweep the replacement too.
+	type sweepResult struct {
+		ids []uuid.UUID
+		err error
+	}
+	sweep := make(chan sweepResult, 1)
+	go func() {
+		sweepTx := stack.db.Begin()
+		if sweepTx.Error != nil {
+			sweep <- sweepResult{err: sweepTx.Error}
+			return
+		}
+		sweepStore := store.New(sweepTx)
+		// Without the user-row lock this read returns immediately and the
+		// UPDATE below runs against a snapshot that predates the replacement.
+		if _, err := sweepStore.Users.GetByIDForUpdate(ctx, user.ID); err != nil {
+			_ = sweepTx.Rollback()
+			sweep <- sweepResult{err: err}
+			return
+		}
+		ids, err := sweepStore.Sessions.RevokeAllForUser(ctx, user.ID, now)
+		if err != nil {
+			_ = sweepTx.Rollback()
+			sweep <- sweepResult{err: err}
+			return
+		}
+		if err := sweepTx.Commit().Error; err != nil {
+			sweep <- sweepResult{err: err}
+			return
+		}
+		sweep <- sweepResult{ids: ids}
+	}()
+
+	// Give the sweep time to reach (and block on) the user-row lock before
+	// the refresh commits. A sweep that did not block finishes before this
+	// commit, so the assertion below fails.
+	time.Sleep(200 * time.Millisecond)
+
+	select {
+	case result := <-sweep:
+		t.Fatalf("sweep completed before the refresh committed: ids=%v err=%v", result.ids, result.err)
+	default:
+	}
+
+	if err := refreshTx.Commit().Error; err != nil {
+		t.Fatalf("commit refresh: %v", err)
+	}
+
+	ids := make([]uuid.UUID, 0, 2)
+	select {
+	case result := <-sweep:
+		if result.err != nil {
+			t.Fatalf("sweep: %v", result.err)
+		}
+		ids = result.ids
+	case <-time.After(10 * time.Second):
+		t.Fatal("sweep did not finish after the refresh committed")
+	}
+
+	swept := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		swept[id] = true
+	}
+	if !swept[replacement.ID] {
+		t.Fatalf(
+			"sweep missed the replacement session %v committed by the concurrent refresh: swept %v",
+			replacement.ID,
+			ids,
+		)
+	}
+	if !swept[deviceA] {
+		t.Fatalf("sweep missed the unrelated live session %v: swept %v", deviceA, ids)
+	}
+	if swept[deviceB] {
+		t.Fatalf("sweep re-reported the already-revoked session %v", deviceB)
 	}
 }

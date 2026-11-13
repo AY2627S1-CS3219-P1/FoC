@@ -20,6 +20,13 @@ const (
 	// far below it.
 	statementTimeout = 5 * time.Second
 
+	// callBudget bounds a whole store call, including the wait for one of the
+	// few pooled connections: statement_timeout only starts once a statement
+	// reaches PostgreSQL, and connectTimeout only covers a new dial, so
+	// neither limits queuing behind busy connections. context.WithTimeout
+	// keeps any shorter caller deadline.
+	callBudget = 5 * time.Second
+
 	// revokedAccessTokenQuery checks if a session's access tokens have been revoked.
 	// The expires_at > now() predicate ensures expired entries are invisible, so
 	// entries need no active deletion to stop matching reads. The table is
@@ -27,9 +34,12 @@ const (
 	revokedAccessTokenQuery = `SELECT 1 FROM public.revoked_access_tokens WHERE sid = $1 AND expires_at > now() LIMIT 1`
 
 	// insertRevocationQuery durably records a fresh revocation. now()+ttl is the expiry.
-	// ON CONFLICT (sid) DO UPDATE makes re-revoking idempotent and refreshes the expiry.
+	// ON CONFLICT (sid) DO UPDATE makes re-revoking idempotent; GREATEST keeps the
+	// longer expiry so a writer reconfigured with a shorter TTL cannot shorten an
+	// entry that still covers tokens issued under the previous TTL.
 	insertRevocationQuery = `INSERT INTO public.revoked_access_tokens (sid, expires_at)
-		VALUES ($1, now() + $2) ON CONFLICT (sid) DO UPDATE SET expires_at = EXCLUDED.expires_at`
+		VALUES ($1, now() + $2) ON CONFLICT (sid) DO UPDATE SET
+		expires_at = GREATEST(revoked_access_tokens.expires_at, EXCLUDED.expires_at)`
 
 	// deleteExpiredQuery removes rows where expires_at <= now(), bounding the
 	// table and index size. The read predicate already filters expired entries,
@@ -133,28 +143,36 @@ func (p *postgresStore) Revoke(ctx context.Context, sessionIDs ...string) error 
 	for _, sid := range sessionIDs {
 		batch.Queue(insertRevocationQuery, sid, p.ttl)
 	}
-	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{})
+	// Bound acquisition and execution even when the caller passes a bare
+	// context; publication failures are retried by the caller.
+	writeCtx, cancel := context.WithTimeout(ctx, callBudget)
+	defer cancel()
+	tx, err := p.pool.BeginTx(writeCtx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin revocation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := tx.SendBatch(ctx, batch).Close(); err != nil {
+	if err := tx.SendBatch(writeCtx, batch).Close(); err != nil {
 		return fmt.Errorf("record revoked access tokens: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(writeCtx); err != nil {
 		return fmt.Errorf("commit revoked access tokens: %w", err)
 	}
 	return nil
 }
 
 // IsRevoked issues one indexed lookup via primary key and treats no row as not revoked.
+// The call budget bounds the whole lookup — including the wait for a pooled
+// connection, which statement_timeout does not cover.
 func (p *postgresStore) IsRevoked(ctx context.Context, sessionID string) (bool, error) {
 	if sessionID == "" {
 		return false, nil
 	}
 
+	checkCtx, cancel := context.WithTimeout(ctx, callBudget)
+	defer cancel()
 	var found int
-	err := p.pool.QueryRow(ctx, revokedAccessTokenQuery, sessionID).Scan(&found)
+	err := p.pool.QueryRow(checkCtx, revokedAccessTokenQuery, sessionID).Scan(&found)
 	// pgx returns its own ErrNoRows which wraps database/sql.ErrNoRows, so the
 	// comparison must go through errors.Is — identity (==) never matches.
 	if errors.Is(err, pgx.ErrNoRows) {
